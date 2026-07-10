@@ -1,0 +1,2271 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forecasting Competitive Football — Complete Project Guide</title>
+<meta name="description" content="A from-scratch study guide to the Machine Learning final project: pre-match and in-play football forecasting from StatsBomb raw event data.">
+<style>
+/* ============================================================
+   Design tokens — "night broadcast": neutral deep-indigo base
+   (restful for long reading) + vivid, high-chroma accents that
+   cycle per section. Colour is spent on structure, not on the
+   background the eye rests against.
+   ============================================================ */
+:root{
+  --pitch-900:#0b0d14;   /* page */
+  --pitch-850:#12162a1a; /* unused alpha guard */
+  --pitch-850:#121627;   /* cards, callouts */
+  --pitch-800:#171c2e;   /* table heads, panels */
+  --pitch-700:#1f2539;   /* chips, buttons */
+  --line:#2d3450;
+  --line-soft:#242a41;
+  --chalk:#eaedf7;
+  --muted:#a6adc6;
+  --muted-2:#7982a2;
+  --ink:#0b0d14;         /* text sitting on a vivid fill */
+
+  /* vivid accent set */
+  --a1:#7c6cff;  /* indigo   */
+  --a2:#2fd6ff;  /* cyan     */
+  --a3:#ff5fa2;  /* magenta  */
+  --a4:#ffb64d;  /* amber    */
+  --a5:#2fe3c0;  /* turquoise*/
+  --a6:#ff7a5c;  /* coral    */
+
+  /* semantic aliases (also consumed by the inline SVG diagrams) */
+  --mint:#2fe3c0;
+  --mint-dim:#1a7a6b;
+  --amber:#ffb64d;
+  --amber-dim:#4a3411;
+  --red:#ff6b6b;
+  --red-dim:#4d1f22;
+  --sky:#4fc3ff;
+  --link:#6fd9ff;
+  --code-bg:#0e1222;
+
+  --serif: "Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,"Times New Roman",serif;
+  --sans: system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono: ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+
+  --maxw:78ch;
+  --radius:12px;
+  --ease:cubic-bezier(.22,.72,.24,1);
+}
+html[data-theme="light"]{
+  --pitch-900:#f7f8fd;
+  --pitch-850:#ffffff;
+  --pitch-800:#f0f2fa;
+  --pitch-700:#e7eaf5;
+  --line:#d2d7e8;
+  --line-soft:#e2e6f1;
+  --chalk:#141827;
+  --muted:#4d5570;
+  --muted-2:#6d7690;
+  --a1:#5b45e0; --a2:#0a86bd; --a3:#c2276b; --a4:#8a5a00; --a5:#0f8f79; --a6:#c14a2c;
+  --mint:#0f8f79;
+  --mint-dim:#a6e2d7;
+  --amber:#8a5a00;
+  --amber-dim:#ffe9c2;
+  --red:#b3312c;
+  --red-dim:#ffdad8;
+  --sky:#0d6fa8;
+  --link:#0b6fb8;
+  --code-bg:#eff2f9;
+}
+
+/* ---------- motion primitives ---------- */
+@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes fadein{to{opacity:1}}
+@keyframes growx{from{transform:scaleX(0);opacity:0}to{transform:scaleX(1);opacity:1}}
+@keyframes march{to{stroke-dashoffset:-16}}
+@keyframes shift{to{background-position:200% 0}}
+@keyframes drift{
+  0%{transform:translate3d(0,0,0) scale(1)}
+  50%{transform:translate3d(4%,-3%,0) scale(1.12)}
+  100%{transform:translate3d(-3%,2%,0) scale(1)}
+}
+@keyframes pulsering{
+  0%{box-shadow:0 0 0 0 rgba(255,182,77,.42)}
+  70%{box-shadow:0 0 0 11px rgba(255,182,77,0)}
+  100%{box-shadow:0 0 0 0 rgba(255,182,77,0)}
+}
+@keyframes sweep{from{transform:translateX(-120%)}to{transform:translateX(320%)}}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:
+    radial-gradient(1200px 600px at 78% -8%, rgba(124,108,255,.13), transparent 60%),
+    radial-gradient(900px 520px at 8% 4%, rgba(47,214,255,.09), transparent 62%),
+    var(--pitch-900);
+  background-attachment:fixed;
+  color:var(--chalk);
+  font-family:var(--sans);
+  font-size:17px;
+  line-height:1.68;
+  -webkit-font-smoothing:antialiased;
+}
+html[data-theme="light"] body{
+  background:
+    radial-gradient(1200px 600px at 78% -8%, rgba(91,69,224,.09), transparent 60%),
+    radial-gradient(900px 520px at 8% 4%, rgba(10,134,189,.07), transparent 62%),
+    var(--pitch-900);
+}
+::selection{background:var(--a1);color:#fff}
+
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .reveal{opacity:1!important;transform:none!important}
+  main section figure svg rect{opacity:1!important}
+}
+
+/* scroll progress */
+#progress{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:60;
+  background:linear-gradient(90deg,var(--a1),var(--a2),var(--a5),var(--a3),var(--a1));
+  background-size:200% 100%;
+  animation:shift 7s linear infinite;
+  box-shadow:0 0 14px rgba(47,214,255,.55);
+  transition:width .08s linear
+}
+
+.skip{position:absolute;left:-9999px}
+.skip:focus{left:12px;top:12px;z-index:80;background:var(--pitch-700);color:var(--chalk);padding:10px 14px;border:1px solid var(--a2);border-radius:8px}
+
+a{color:var(--link);text-underline-offset:3px;text-decoration-thickness:1px;transition:color .18s var(--ease)}
+a:hover{color:var(--chalk)}
+:focus-visible{outline:2px solid var(--a2);outline-offset:3px;border-radius:6px}
+
+/* ---------- layout ---------- */
+.shell{display:grid;grid-template-columns:300px minmax(0,1fr);gap:0;max-width:1360px;margin:0 auto}
+.sidebar{
+  position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;
+  border-right:1px solid var(--line-soft);
+  padding:22px 18px 40px;
+  background:linear-gradient(180deg,rgba(124,108,255,.07),transparent 240px);
+  scrollbar-width:thin;scrollbar-color:var(--line) transparent
+}
+main{padding:0 clamp(16px,4vw,56px) 120px;min-width:0}
+
+.brandmark{display:flex;gap:10px;align-items:center;margin-bottom:6px}
+.brandmark svg{flex:none;filter:drop-shadow(0 0 8px rgba(47,214,255,.35));transition:transform .5s var(--ease)}
+.brandmark:hover svg{transform:rotate(-12deg) scale(1.06)}
+.brandmark b{font-family:var(--serif);font-weight:600;font-size:1.02rem;letter-spacing:.2px}
+.sidebar .kicker{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-2);margin:0 0 18px 34px}
+
+nav.toc ol{list-style:none;margin:0;padding:0;counter-reset:sec}
+nav.toc li{margin:0}
+nav.toc a{
+  position:relative;display:grid;grid-template-columns:26px 1fr;gap:10px;align-items:baseline;
+  padding:6px 8px 6px 10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:.9rem;line-height:1.35;
+  transition:color .2s var(--ease),background .2s var(--ease),transform .2s var(--ease)
+}
+nav.toc a::before{counter-increment:sec;content:counter(sec,decimal-leading-zero);font-family:var(--mono);font-size:.7rem;color:var(--muted-2);transition:color .2s}
+nav.toc a::after{
+  content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;border-radius:2px;
+  background:linear-gradient(180deg,var(--a2),var(--a1));
+  transform:scaleY(0);transform-origin:center;transition:transform .28s var(--ease)
+}
+nav.toc a:hover{background:var(--pitch-700);color:var(--chalk);transform:translateX(2px)}
+nav.toc a[aria-current="true"]{background:var(--pitch-700);color:var(--chalk)}
+nav.toc a[aria-current="true"]::after{transform:scaleY(1)}
+nav.toc a[aria-current="true"]::before{color:var(--a2)}
+
+.side-tools{margin-top:22px;padding-top:16px;border-top:1px dashed var(--line);display:flex;gap:8px;flex-wrap:wrap}
+button.tool{
+  position:relative;overflow:hidden;font:inherit;font-size:.78rem;background:var(--pitch-700);color:var(--muted);
+  border:1px solid var(--line);border-radius:999px;padding:6px 12px;cursor:pointer;
+  transition:color .2s var(--ease),border-color .2s var(--ease),transform .15s var(--ease)
+}
+button.tool:hover{color:var(--chalk);border-color:var(--a2);transform:translateY(-1px)}
+button.tool:active{transform:translateY(0)}
+
+#mobilebar{display:none}
+@media (max-width:960px){
+  .shell{grid-template-columns:1fr}
+  .sidebar{display:none}
+  #mobilebar{
+    display:block;position:sticky;top:0;z-index:50;
+    background:color-mix(in srgb,var(--pitch-900) 88%,transparent);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);padding:10px 14px
+  }
+  #mobilebar summary{cursor:pointer;font-family:var(--serif);font-size:1rem}
+  #mobilebar nav.toc{max-height:60vh;overflow:auto;margin-top:10px}
+  main{padding:0 18px 100px}
+}
+
+/* ---------- hero ---------- */
+header.hero{position:relative;isolation:isolate;padding:60px 0 38px;border-bottom:1px dashed var(--line);overflow:visible}
+header.hero::before,header.hero::after{
+  content:"";position:absolute;z-index:-1;border-radius:50%;filter:blur(70px);pointer-events:none;opacity:.5
+}
+header.hero::before{width:420px;height:420px;top:-140px;right:-60px;background:radial-gradient(circle,var(--a1),transparent 66%);animation:drift 22s ease-in-out infinite alternate}
+header.hero::after{width:340px;height:340px;top:40px;right:220px;background:radial-gradient(circle,var(--a3),transparent 66%);opacity:.28;animation:drift 27s ease-in-out infinite alternate-reverse}
+html[data-theme="light"] header.hero::before,html[data-theme="light"] header.hero::after{opacity:.18}
+
+header.hero > *{animation:rise .7s var(--ease) both}
+header.hero > *:nth-child(1){animation-delay:.03s}
+header.hero > *:nth-child(2){animation-delay:.10s}
+header.hero > *:nth-child(3){animation-delay:.17s}
+header.hero > *:nth-child(4){animation-delay:.24s}
+header.hero > *:nth-child(5){animation-delay:.31s}
+header.hero > *:nth-child(6){animation-delay:.38s}
+
+.eyebrow{
+  font-family:var(--mono);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;margin:0 0 14px;
+  background:linear-gradient(90deg,var(--a2),var(--a1) 50%,var(--a3));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  background-size:200% 100%;animation:shift 8s linear infinite
+}
+h1{
+  font-family:var(--serif);font-weight:600;font-size:clamp(2rem,4.6vw,3.35rem);
+  line-height:1.08;letter-spacing:-.01em;margin:0 0 12px;max-width:20ch
+}
+.sub{font-size:1.12rem;color:var(--muted);max-width:62ch;margin:0 0 26px}
+.hero-figure{
+  position:relative;border:1px solid var(--line);border-radius:var(--radius);
+  background:linear-gradient(180deg,var(--pitch-850),var(--pitch-900));
+  padding:18px 18px 12px;max-width:660px;overflow:hidden;
+  box-shadow:0 24px 60px -30px rgba(124,108,255,.55)
+}
+.hero-figure::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(100deg,transparent 40%,rgba(255,255,255,.06) 50%,transparent 60%);
+  transform:translateX(-120%);animation:sweep 5.5s var(--ease) 1.1s infinite
+}
+.hero-figure figcaption{font-size:.82rem;color:var(--muted-2);margin-top:10px;font-family:var(--mono)}
+.hero-figure svg rect{transform-box:fill-box;transform-origin:left center;animation:growx .85s var(--ease) both}
+.hero-figure svg rect:nth-of-type(1){animation-delay:.45s}
+.hero-figure svg rect:nth-of-type(2){animation-delay:.55s}
+.hero-figure svg rect:nth-of-type(3){animation-delay:.65s}
+.hero-figure svg rect:nth-of-type(4){animation-delay:1.05s}
+.hero-figure svg rect:nth-of-type(5){animation-delay:1.15s}
+.hero-figure svg rect:nth-of-type(6){animation-delay:1.25s}
+.hero-figure svg text{opacity:0;animation:fadein .6s var(--ease) forwards;animation-delay:.9s}
+
+.meta-strip{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.chip{
+  font-family:var(--mono);font-size:.74rem;letter-spacing:.04em;
+  border:1px solid var(--line);border-radius:999px;padding:5px 11px;color:var(--muted);
+  background:var(--pitch-850);transition:border-color .2s var(--ease),transform .2s var(--ease),color .2s
+}
+.chip:hover{transform:translateY(-2px)}
+.chip:nth-child(1):hover{border-color:var(--a1)}
+.chip:nth-child(2):hover{border-color:var(--a2)}
+.chip:nth-child(3):hover{border-color:var(--a3)}
+.chip:nth-child(4):hover{border-color:var(--a4)}
+.chip:nth-child(5):hover{border-color:var(--a5)}
+.chip:nth-child(6):hover{border-color:var(--a6)}
+.chip b{color:var(--chalk);font-weight:600}
+
+/* ---------- sections + per-section accent cycle ---------- */
+section{position:relative;padding:60px 0;border-bottom:1px dashed var(--line);scroll-margin-top:24px;--accent:var(--a1)}
+section:nth-of-type(6n+2){--accent:var(--a2)}
+section:nth-of-type(6n+3){--accent:var(--a3)}
+section:nth-of-type(6n+4){--accent:var(--a4)}
+section:nth-of-type(6n+5){--accent:var(--a5)}
+section:nth-of-type(6n+6){--accent:var(--a6)}
+section::before{
+  content:"";position:absolute;top:-1px;left:0;width:72px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,var(--accent),transparent)
+}
+section:first-of-type::before{display:none}
+section:last-of-type{border-bottom:0}
+
+h2{
+  font-family:var(--serif);font-weight:600;font-size:clamp(1.55rem,2.6vw,2.1rem);
+  line-height:1.2;margin:0 0 8px;display:flex;gap:14px;align-items:center;letter-spacing:-.005em
+}
+.num{
+  flex:none;width:40px;height:40px;border-radius:50%;
+  border:1px solid var(--accent);display:grid;place-items:center;
+  font-family:var(--mono);font-size:.82rem;color:var(--accent);background:var(--pitch-850);
+  transition:transform .35s var(--ease),box-shadow .35s var(--ease)
+}
+h2:hover .num{transform:rotate(-8deg) scale(1.06);box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 16%,transparent)}
+h3{font-family:var(--serif);font-weight:600;font-size:1.26rem;margin:36px 0 10px;letter-spacing:.005em}
+h4{font-size:.98rem;margin:22px 0 6px;letter-spacing:.02em;color:var(--chalk)}
+p,li{max-width:var(--maxw)}
+p{margin:0 0 14px}
+ul,ol{padding-left:22px}
+li{margin:0 0 7px}
+li::marker{color:var(--accent)}
+.lede{font-size:1.06rem;color:var(--muted);max-width:70ch;margin-bottom:22px}
+strong{color:var(--chalk)}
+em{color:var(--chalk);font-style:italic}
+
+/* ---------- callouts ---------- */
+.box{
+  position:relative;border:1px solid var(--line);border-left-width:3px;border-radius:var(--radius);
+  background:var(--pitch-850);padding:16px 18px;margin:20px 0;max-width:var(--maxw);
+  transition:transform .25s var(--ease),box-shadow .25s var(--ease)
+}
+.box:hover{transform:translateY(-2px);box-shadow:0 18px 40px -28px rgba(0,0,0,.9)}
+.box > :last-child{margin-bottom:0}
+.box .tag{font-family:var(--mono);font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;display:block;margin-bottom:8px}
+.ta{border-left-color:var(--amber);background:linear-gradient(100deg,rgba(255,182,77,.09),transparent 62%),var(--pitch-850)}
+.ta .tag{color:var(--amber)}
+.pdf{border-left-color:var(--mint);background:linear-gradient(100deg,rgba(47,227,192,.08),transparent 62%),var(--pitch-850)}
+.pdf .tag{color:var(--mint)}
+.warn{border-left-color:var(--red);background:linear-gradient(100deg,rgba(255,107,107,.10),transparent 62%),var(--pitch-850)}
+.warn .tag{color:var(--red)}
+.think{border-left-color:var(--sky);background:linear-gradient(100deg,rgba(79,195,255,.09),transparent 62%),var(--pitch-850)}
+.think .tag{color:var(--sky)}
+
+.badge{font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;padding:2px 7px;border-radius:6px;vertical-align:middle;white-space:nowrap}
+.b-ta{background:var(--amber-dim);color:var(--amber);border:1px solid var(--amber)}
+.b-pdf{background:rgba(47,227,192,.10);color:var(--mint);border:1px solid var(--mint-dim)}
+.b-req{background:var(--red-dim);color:var(--red);border:1px solid var(--red)}
+.b-opt{background:var(--pitch-700);color:var(--muted);border:1px solid var(--line)}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto;margin:20px 0;border:1px solid var(--line);border-radius:var(--radius);background:var(--pitch-850)}
+table{border-collapse:collapse;width:100%;font-size:.92rem;min-width:520px}
+caption{caption-side:top;text-align:left;padding:12px 14px;color:var(--muted);font-size:.85rem;border-bottom:1px solid var(--line)}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+thead th{background:var(--pitch-800);color:var(--chalk);font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+tbody tr{transition:background .18s var(--ease),box-shadow .18s var(--ease)}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--pitch-800);box-shadow:inset 3px 0 0 var(--accent)}
+td code{white-space:nowrap}
+
+/* ---------- code ---------- */
+pre{
+  background:var(--code-bg);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 16px;overflow-x:auto;margin:16px 0;font-size:.84rem;line-height:1.55;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03)
+}
+code{font-family:var(--mono);font-size:.86em}
+p code,li code,td code{background:var(--pitch-700);border:1px solid var(--line-soft);border-radius:6px;padding:1px 5px;color:var(--chalk)}
+pre code{background:none;border:0;padding:0;color:var(--chalk)}
+.cap{font-size:.78rem;color:var(--muted-2);font-family:var(--mono);margin:-8px 0 20px}
+
+/* ---------- details ---------- */
+details{border:1px solid var(--line);border-radius:var(--radius);background:var(--pitch-850);margin:16px 0;max-width:var(--maxw);transition:border-color .2s var(--ease)}
+details:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+summary{cursor:pointer;padding:13px 16px;font-weight:600;font-size:.95rem;list-style:none;display:flex;gap:10px;align-items:center;transition:color .18s}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"+";font-family:var(--mono);color:var(--accent);font-weight:400;width:14px;transition:transform .25s var(--ease)}
+details[open] summary::before{content:"–";transform:rotate(180deg)}
+summary:hover{color:var(--accent)}
+.details-body{padding:0 16px 16px;border-top:1px dashed var(--line-soft);margin-top:2px;padding-top:14px;animation:rise .35s var(--ease) both}
+.details-body > :last-child{margin-bottom:0}
+
+/* ---------- math ---------- */
+.eq{
+  background:linear-gradient(120deg,color-mix(in srgb,var(--accent) 7%,var(--pitch-800)),var(--pitch-800));
+  border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--radius);
+  padding:14px 18px;margin:16px 0;font-family:var(--serif);font-size:1.05rem;overflow-x:auto;max-width:var(--maxw)
+}
+.eq .op{color:var(--accent)}
+.eq sub,.eq sup{font-size:.7em}
+
+/* ---------- components ---------- */
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin:20px 0}
+.card{
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--pitch-850);padding:16px 18px;
+  transition:transform .25s var(--ease),border-color .25s var(--ease),box-shadow .25s var(--ease)
+}
+.card:hover{transform:translateY(-4px);border-color:var(--accent);box-shadow:0 22px 44px -30px color-mix(in srgb,var(--accent) 70%,transparent)}
+.card h4{margin-top:0}
+.card > :last-child{margin-bottom:0}
+
+figure{margin:26px 0;max-width:920px}
+figure svg{width:100%;height:auto;display:block}
+figcaption{font-size:.82rem;color:var(--muted-2);margin-top:10px;max-width:var(--maxw)}
+
+/* staggered stage reveal inside the big diagrams */
+main section figure svg rect{opacity:0}
+main section figure.in svg rect{animation:fadein .5s var(--ease) forwards}
+main section figure.in svg rect:nth-of-type(1){animation-delay:.05s}
+main section figure.in svg rect:nth-of-type(2){animation-delay:.11s}
+main section figure.in svg rect:nth-of-type(3){animation-delay:.17s}
+main section figure.in svg rect:nth-of-type(4){animation-delay:.23s}
+main section figure.in svg rect:nth-of-type(5){animation-delay:.29s}
+main section figure.in svg rect:nth-of-type(6){animation-delay:.35s}
+main section figure.in svg rect:nth-of-type(7){animation-delay:.41s}
+main section figure.in svg rect:nth-of-type(8){animation-delay:.47s}
+main section figure.in svg rect:nth-of-type(9){animation-delay:.53s}
+main section figure.in svg rect:nth-of-type(n+10){animation-delay:.59s}
+/* the gold iteration loop keeps marching */
+#pipeline path[stroke-dasharray]{animation:march 1.1s linear infinite}
+
+.checklist{list-style:none;padding:0;max-width:var(--maxw)}
+.checklist li{
+  display:flex;gap:11px;align-items:flex-start;padding:10px 13px;border:1px solid var(--line-soft);
+  border-radius:10px;margin-bottom:8px;background:var(--pitch-850);
+  transition:border-color .2s var(--ease),transform .2s var(--ease),opacity .3s var(--ease)
+}
+.checklist li:hover{border-color:var(--accent);transform:translateX(3px)}
+.checklist input{margin-top:6px;accent-color:var(--accent);width:16px;height:16px;flex:none;cursor:pointer}
+.checklist label{cursor:pointer}
+.checklist li:has(input:checked){opacity:.5;border-style:dashed;transform:none}
+.checklist li:has(input:checked) label{text-decoration:line-through}
+
+.timeline{list-style:none;padding:0;margin:26px 0;position:relative;max-width:var(--maxw)}
+.timeline::before{content:"";position:absolute;left:15px;top:8px;bottom:8px;width:2px;border-radius:2px;background:linear-gradient(180deg,var(--accent),color-mix(in srgb,var(--accent) 15%,transparent))}
+.timeline li{position:relative;padding:0 0 28px 46px;max-width:none}
+.timeline li::before{content:"";position:absolute;left:8px;top:7px;width:15px;height:15px;border-radius:50%;background:var(--pitch-900);border:2px solid var(--accent);transition:transform .25s var(--ease)}
+.timeline li:hover::before{transform:scale(1.25)}
+.timeline li.gold::before{border-color:var(--a4);background:var(--pitch-900);animation:pulsering 2.6s ease-out infinite}
+.timeline h4{margin:0 0 4px}
+.timeline p{margin:0 0 8px;color:var(--muted)}
+
+kbd{font-family:var(--mono);font-size:.78em;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 5px;background:var(--pitch-700)}
+
+#btt{
+  position:fixed;right:20px;bottom:20px;z-index:55;
+  border:1px solid var(--line);background:var(--pitch-800);color:var(--chalk);
+  border-radius:999px;padding:11px 16px;font:inherit;font-size:.82rem;cursor:pointer;
+  opacity:0;pointer-events:none;transform:translateY(10px);
+  transition:opacity .25s var(--ease),transform .25s var(--ease),border-color .2s,box-shadow .25s
+}
+#btt.show{opacity:1;pointer-events:auto;transform:none}
+#btt:hover{border-color:var(--a2);box-shadow:0 0 24px -6px var(--a2);color:var(--a2)}
+
+footer.end{padding:40px 0 0;color:var(--muted-2);font-size:.85rem}
+hr.chalk{border:0;border-top:1px dashed var(--line);margin:34px 0}
+.small{font-size:.86rem;color:var(--muted)}
+.nowrap{white-space:nowrap}
+mark{background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 34%,transparent),color-mix(in srgb,var(--accent) 12%,transparent));color:var(--chalk);padding:1px 4px;border-radius:4px}
+
+/* ---------- scroll reveal ---------- */
+.reveal{opacity:0;transform:translateY(18px);transition:opacity .6s var(--ease),transform .6s var(--ease)}
+.reveal.in{opacity:1;transform:none}
+
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
+::-webkit-scrollbar-thumb:hover{background:var(--muted-2)}
+::-webkit-scrollbar-track{background:transparent}
+</style>
+<noscript><style>
+  .reveal{opacity:1!important;transform:none!important}
+  main section figure svg rect{opacity:1!important}
+</style></noscript>
+</head>
+<body>
+<div id="progress" role="presentation"></div>
+<a class="skip" href="#main">Skip to content</a>
+
+<details id="mobilebar">
+  <summary>Contents</summary>
+  <nav class="toc" aria-label="Table of contents (mobile)"><ol id="toc-mobile"></ol></nav>
+</details>
+
+<div class="shell">
+
+  <aside class="sidebar">
+    <div class="brandmark">
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="10.2" fill="none" stroke="var(--a2)" stroke-width="1.3"/>
+        <path d="M12 3.6 L16.6 7 L14.8 12.4 L9.2 12.4 L7.4 7 Z" fill="var(--a2)" opacity=".22" stroke="var(--a2)" stroke-width="1.1"/>
+        <path d="M12 12.4 v3.6 M7.4 7 L3.2 8.6 M16.6 7 L20.8 8.6 M9.2 12.4 L6.4 17.6 M14.8 12.4 L17.6 17.6" stroke="var(--a2)" stroke-width="1.1" fill="none"/>
+      </svg>
+      <b>Forecasting Competitive Football</b>
+    </div>
+    <p class="kicker">Project Guide</p>
+    <nav class="toc" aria-label="Table of contents"><ol id="toc-desktop"></ol></nav>
+    <div class="side-tools">
+      <button class="tool" id="theme-btn" type="button">Light mode</button>
+      <button class="tool" id="expand-btn" type="button">Expand all</button>
+    </div>
+  </aside>
+
+  <main id="main">
+
+  <header class="hero">
+    <p class="eyebrow">Machine Learning Course &middot; Final Project</p>
+    <h1>Predicting a football match — before it starts, and while it happens.</h1>
+    <p class="sub">This guide takes you from zero knowledge to a complete understanding of the project: what you are building, why it exists, exactly what is graded, and the order in which to do the work. It merges the official project PDF with the teaching assistant's spoken walkthrough.</p>
+
+    <figure class="hero-figure">
+      <svg viewBox="0 0 620 148" role="img" aria-label="Illustration of an in-play win-probability bar changing after a red card at minute 55.">
+        <text x="0" y="14" font-family="ui-monospace,monospace" font-size="10" fill="var(--muted-2)" letter-spacing="1.4">MINUTE 00 — PRE-MATCH</text>
+        <rect x="0" y="24" width="372" height="20" rx="4" fill="var(--a2)" opacity=".92"/>
+        <rect x="372" y="24" width="130" height="20" rx="0" fill="var(--a1)" opacity=".82"/>
+        <rect x="502" y="24" width="118" height="20" rx="4" fill="var(--a3)" opacity=".88"/>
+        <text x="8" y="38" font-family="ui-monospace,monospace" font-size="10" fill="var(--ink)">HOME 60%</text>
+        <text x="380" y="38" font-family="ui-monospace,monospace" font-size="10" fill="var(--ink)">DRAW 21%</text>
+        <text x="510" y="38" font-family="ui-monospace,monospace" font-size="10" fill="var(--ink)">AWAY 19%</text>
+
+        <text x="0" y="76" font-family="ui-monospace,monospace" font-size="10" fill="var(--muted-2)" letter-spacing="1.4">MINUTE 55 — RED CARD FOR THE HOME TEAM</text>
+        <rect x="0" y="86" width="142" height="20" rx="4" fill="var(--a2)" opacity=".92"/>
+        <rect x="142" y="86" width="180" height="20" fill="var(--a1)" opacity=".82"/>
+        <rect x="322" y="86" width="298" height="20" rx="4" fill="var(--a3)" opacity=".88"/>
+        <text x="8" y="100" font-family="ui-monospace,monospace" font-size="10" fill="var(--ink)">HOME 23%</text>
+        <text x="150" y="100" font-family="ui-monospace,monospace" font-size="10" fill="var(--ink)">DRAW 29%</text>
+        <text x="330" y="100" font-family="ui-monospace,monospace" font-size="10" fill="var(--ink)">AWAY 48%</text>
+
+        <line x1="0" y1="124" x2="620" y2="124" stroke="var(--line)" stroke-dasharray="3 4"/>
+        <text x="0" y="141" font-family="ui-monospace,monospace" font-size="9.5" fill="var(--muted-2)">The same three numbers, re-estimated as information arrives. That is the whole project.</text>
+      </svg>
+      <figcaption>Illustrative only — the numbers are invented for the picture, not measured.</figcaption>
+    </figure>
+
+    <div class="meta-strip">
+      <span class="chip">Groups of <b>1&ndash;2</b></span>
+      <span class="chip">Three models: <b>C</b> &middot; <b>R</b> &middot; <b>L</b></span>
+      <span class="chip">Two papers: <b>P1</b> + <b>P2</b></span>
+      <span class="chip">Three defences: <b>2 mid + final</b></span>
+      <span class="chip">Report &le; <b>25 pages</b></span>
+      <span class="chip">Deep learning: <b>excluded</b></span>
+    </div>
+
+    <div class="box think" style="margin-top:28px">
+      <span class="tag">How to read this guide</span>
+      <p>Everything is colour-coded by where it comes from, because the two sources do not always say the same thing.</p>
+      <ul style="margin-bottom:0">
+        <li><span class="badge b-pdf">PDF</span> &nbsp;An official, graded requirement written in <em>Final_Project_Machine_Learning.pdf</em>.</li>
+        <li><span class="badge b-ta">TA</span> &nbsp;Something the teaching assistant said out loud that is <em>not</em> in the PDF, or that changes how you should read the PDF.</li>
+        <li><span class="badge b-req">Hard rule</span> &nbsp;Breaking it invalidates your results or loses marks automatically.</li>
+        <li><span class="badge b-opt">Optional</span> &nbsp;Bonus credit or a suggestion, not a requirement.</li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- ============================================================ 1 -->
+  <section id="overview">
+    <h2><span class="num">01</span> What this project actually is</h2>
+    <p class="lede">In one sentence: <strong>take a raw, second-by-second log of professional football matches, and build three models that forecast the result — one before kick-off, one for the goal difference, and one that keeps updating while the match is being played — then prove your forecasts are better than a naive guess and honestly compare them to the bookmakers.</strong></p>
+
+    <h3>The story behind it</h3>
+    <p>Imagine you are sitting in a television studio five minutes before kick-off. On screen there is a graphic: <em>Home 54% &middot; Draw 25% &middot; Away 21%</em>. Where did those numbers come from? Somebody built a <strong>pre-match model</strong>: it looked at everything known about the two teams beforehand — recent form, playing style, squad strength, who is at home, how many rest days they had — and produced a probability for each of the three possible results.</p>
+    <p>Now the match starts. In the 55th minute the home team's centre-back is sent off. The graphic changes instantly. That is a second, different model: an <strong>in-play model</strong>. It is watching the stream of events as they happen (pass, shot, foul, card, goal) and re-estimating the same three probabilities every few minutes.</p>
+    <p><span class="badge b-pdf">PDF</span> The PDF puts it exactly this way: pre-match models produce opening bookmaker prices and pre-game analytics; in-play models are the engine behind live betting markets and the win-probability graphics on a broadcast. Both answer the same questions, but they live on <em>completely different data pipelines</em>. Building both, honestly and without leakage, is described as <em>the heart of this project</em>.</p>
+
+    <h3>Why it is a hard project, and where the marks really are</h3>
+    <p>The modelling itself — calling XGBoost — is the easy part, and the grading reflects that. Nothing is handed to you as a neat spreadsheet. You are given a tree of nested JSON files, roughly four thousand recorded events <em>per match</em>, and you must decide what a single training row even <em>is</em> before you can train anything.</p>
+
+    <div class="tablewrap">
+      <table>
+        <caption><span class="badge b-pdf">PDF</span> Grading emphasis, exactly as printed on page 1 of the project brief.</caption>
+        <thead><tr><th>Component</th><th style="width:90px">Weight</th><th>What examiners focus on</th></tr></thead>
+        <tbody>
+          <tr><td>Data Integration &amp; Feature Pipelines</td><td><strong>30%</strong></td><td>Correct multi-file joins, leakage-proofing, dual pipeline design</td></tr>
+          <tr><td>Paper Reimplementations (P1 + P2)</td><td><strong>20%</strong></td><td>Fidelity to methodology, honest failure reporting</td></tr>
+          <tr><td>Three Models &amp; Comparative Analysis</td><td><strong>20%</strong></td><td>All three deliverables working, calibration quality</td></tr>
+          <tr><td>Written Report</td><td><strong>15%</strong></td><td>Rigour, narrative clarity, honest limitations</td></tr>
+          <tr><td>Defences (2 mid + final)</td><td><strong>15%</strong></td><td>Pipeline reasoning, modeling choices, live SHAP walkthrough</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Read that table again. <mark>Data work is worth more than the models.</mark> The PDF says plainly: <em>expect the data engineering to consume as much effort as the modeling, exactly as it does in industry.</em></p>
+
+    <div class="box ta">
+      <span class="tag">From the TA's walkthrough</span>
+      <p>The TA said the live (in-play) model <em>&ldquo;is an interesting thing and definitely do it — it is nearly a large part of the grade.&rdquo;</em> He also warned repeatedly that he is <em>&ldquo;very sensitive about comparison&rdquo;</em>: for every number you print, every chart you draw and every sentence you write claiming one model beats another, you must be able to <strong>defend it</strong> when questioned. He added that using AI assistants while working is fine — <em>&ldquo;but you must be able to defend it&rdquo;</em>. Understanding, not authorship, is what is examined.</p>
+    </div>
+
+    <h3>Three sentences you should be able to say by the end</h3>
+    <ol>
+      <li>&ldquo;One training example for Model&nbsp;1 is <em>one match</em>, labelled Home/Draw/Away, described only by things that were knowable before the whistle.&rdquo;</li>
+      <li>&ldquo;One training example for Model&nbsp;3 is <em>one match at one moment t</em>, labelled with that match's final result, described only by events with timestamp&nbsp;&le;&nbsp;t.&rdquo;</li>
+      <li>&ldquo;My models are worse/better than the bookmakers by <em>this</em> much on <em>exactly these</em> test matches, and here is why.&rdquo;</li>
+    </ol>
+  </section>
+
+  <!-- ============================================================ 2 -->
+  <section id="big-picture">
+    <h2><span class="num">02</span> The big picture, before any details</h2>
+    <p class="lede">If you only remember one diagram, remember this shape: one messy source of truth, split into two parallel feature pipelines, feeding three models, judged against two reference points.</p>
+
+    <figure>
+      <svg viewBox="0 0 900 400" role="img" aria-label="High-level map: StatsBomb JSON and Football-Data odds feed a relational store, which splits into a pre-match pipeline and an in-play pipeline, feeding Models 1, 2 and 3, which are judged against a dummy floor and the market ceiling.">
+        <defs>
+          <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+            <path d="M0,0 L7,3.2 L0,6.4 z" fill="var(--muted-2)"/>
+          </marker>
+        </defs>
+        <g font-family="system-ui,sans-serif">
+          <!-- sources -->
+          <rect x="10" y="30" width="190" height="66" rx="9" fill="var(--pitch-800)" stroke="var(--line)"/>
+          <text x="24" y="55" font-size="13" fill="var(--chalk)" font-weight="600">StatsBomb Open Data</text>
+          <text x="24" y="74" font-size="11" fill="var(--muted)">nested JSON &middot; ~4,000 events/match</text>
+
+          <rect x="10" y="120" width="190" height="66" rx="9" fill="var(--pitch-800)" stroke="var(--line)"/>
+          <text x="24" y="145" font-size="13" fill="var(--chalk)" font-weight="600">Football&#8209;Data.co.uk</text>
+          <text x="24" y="164" font-size="11" fill="var(--muted)">per-season CSV &middot; bookmaker odds</text>
+
+          <!-- store -->
+          <rect x="250" y="60" width="170" height="96" rx="9" fill="var(--pitch-700)" stroke="var(--mint-dim)"/>
+          <text x="264" y="90" font-size="13" fill="var(--chalk)" font-weight="600">Relational store</text>
+          <text x="264" y="110" font-size="11" fill="var(--muted)">joined on competition_id,</text>
+          <text x="264" y="126" font-size="11" fill="var(--muted)">season_id, match_id</text>
+          <text x="264" y="146" font-size="10.5" fill="var(--mint)">+ odds tagged by (date, teams)</text>
+
+          <line x1="200" y1="63" x2="244" y2="88" stroke="var(--muted-2)" marker-end="url(#ah)"/>
+          <line x1="200" y1="153" x2="244" y2="128" stroke="var(--muted-2)" marker-end="url(#ah)"/>
+
+          <!-- split -->
+          <rect x="470" y="18" width="180" height="72" rx="9" fill="var(--pitch-800)" stroke="var(--line)"/>
+          <text x="484" y="42" font-size="12.5" fill="var(--chalk)" font-weight="600">Pre-match pipeline</text>
+          <text x="484" y="60" font-size="11" fill="var(--muted)">1 row per match</text>
+          <text x="484" y="76" font-size="11" fill="var(--muted)">only past matches</text>
+
+          <rect x="470" y="126" width="180" height="72" rx="9" fill="var(--pitch-800)" stroke="var(--line)"/>
+          <text x="484" y="150" font-size="12.5" fill="var(--chalk)" font-weight="600">In-play pipeline</text>
+          <text x="484" y="168" font-size="11" fill="var(--muted)">many rows per match</text>
+          <text x="484" y="184" font-size="11" fill="var(--muted)">only events &#8804; t</text>
+
+          <line x1="420" y1="94" x2="464" y2="60" stroke="var(--muted-2)" marker-end="url(#ah)"/>
+          <line x1="420" y1="122" x2="464" y2="156" stroke="var(--muted-2)" marker-end="url(#ah)"/>
+
+          <!-- models -->
+          <rect x="700" y="10" width="185" height="50" rx="9" fill="var(--pitch-800)" stroke="var(--mint-dim)"/>
+          <text x="713" y="31" font-size="12.5" fill="var(--chalk)" font-weight="600">Model 1 — outcome (C)</text>
+          <text x="713" y="48" font-size="11" fill="var(--muted)">P(Home / Draw / Away)</text>
+
+          <rect x="700" y="70" width="185" height="50" rx="9" fill="var(--pitch-800)" stroke="var(--mint-dim)"/>
+          <text x="713" y="91" font-size="12.5" fill="var(--chalk)" font-weight="600">Model 2 — margin (R)</text>
+          <text x="713" y="108" font-size="11" fill="var(--muted)">home &minus; away, clipped [&minus;5,+5]</text>
+
+          <rect x="700" y="132" width="185" height="60" rx="9" fill="var(--pitch-800)" stroke="var(--amber)"/>
+          <text x="713" y="153" font-size="12.5" fill="var(--chalk)" font-weight="600">Model 3 — in-play (L)</text>
+          <text x="713" y="170" font-size="11" fill="var(--muted)">both, re-estimated at every t</text>
+          <text x="713" y="186" font-size="10.5" fill="var(--amber)">the hardest deliverable</text>
+
+          <line x1="650" y1="46" x2="694" y2="35" stroke="var(--muted-2)" marker-end="url(#ah)"/>
+          <line x1="650" y1="62" x2="694" y2="90" stroke="var(--muted-2)" marker-end="url(#ah)"/>
+          <line x1="650" y1="162" x2="694" y2="162" stroke="var(--muted-2)" marker-end="url(#ah)"/>
+          <line x1="560" y1="90" x2="560" y2="120" stroke="var(--muted-2)" stroke-dasharray="3 3" marker-end="url(#ah)"/>
+          <text x="566" y="112" font-size="10" fill="var(--muted-2)">the pre-match vector is reused inside each snapshot</text>
+
+          <!-- judgement -->
+          <line x1="20" y1="250" x2="880" y2="250" stroke="var(--line)" stroke-dasharray="4 5"/>
+          <text x="20" y="278" font-size="12.5" fill="var(--chalk)" font-weight="600" font-family="system-ui,sans-serif">Every classification result is reported between two fixed reference points</text>
+
+          <rect x="20" y="296" width="250" height="64" rx="9" fill="var(--pitch-850)" stroke="var(--line)"/>
+          <text x="34" y="320" font-size="12" fill="var(--muted)" font-weight="600">FLOOR — Dummy baseline</text>
+          <text x="34" y="340" font-size="11" fill="var(--muted-2)">always predict the home-win base rate</text>
+          <text x="34" y="354" font-size="11" fill="var(--muted-2)">if you lose to this, something is broken</text>
+
+          <rect x="300" y="296" width="290" height="64" rx="9" fill="var(--pitch-850)" stroke="var(--mint-dim)"/>
+          <text x="314" y="320" font-size="12" fill="var(--chalk)" font-weight="600">YOUR MODELS live here</text>
+          <text x="314" y="340" font-size="11" fill="var(--muted)">reported with the full metric suite,</text>
+          <text x="314" y="354" font-size="11" fill="var(--muted)">on identical test matches, no cherry-picking</text>
+
+          <rect x="620" y="296" width="260" height="64" rx="9" fill="var(--pitch-850)" stroke="var(--amber)"/>
+          <text x="634" y="320" font-size="12" fill="var(--amber)" font-weight="600">CEILING — de-vigged market odds</text>
+          <text x="634" y="340" font-size="11" fill="var(--muted-2)">bookmakers, with their margin removed</text>
+          <text x="634" y="354" font-size="11" fill="var(--muted-2)">beating it is a very high bar</text>
+        </g>
+      </svg>
+      <figcaption>The whole project on one page. Two data sources &rarr; one joined store &rarr; two feature pipelines &rarr; three models &rarr; evaluated between a sanity floor and a market ceiling.</figcaption>
+    </figure>
+
+    <div class="box pdf">
+      <span class="tag">The sentence that defines the project's honesty standard</span>
+      <p>&ldquo;Beating the market consistently is a very high bar, and honest, well-analysed failure to beat it is worth more marks than an unexplained score that merely looks good.&rdquo; If your model beats the bookmakers on your first try, the correct first reaction is <strong>to go hunting for a leak</strong>, not to celebrate.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ 3 -->
+  <section id="concepts">
+    <h2><span class="num">03</span> Concepts you need before you start</h2>
+    <p class="lede">Nothing below assumes prior machine-learning knowledge. Each idea is given once in plain language, then once precisely. If you already know a term, skip its box.</p>
+
+    <h3>3.1 Supervised learning in one paragraph</h3>
+    <p><strong>Intuition.</strong> Imagine a huge table. Each row is one thing that happened in the past. The columns on the left describe the situation; the single column on the right records how it turned out. You show a computer thousands of these rows and ask it to find the pattern that maps left to right. Then you hand it a new row with the right-hand column erased, and it guesses.</p>
+    <p><strong>Precisely.</strong> The left-hand columns are the <strong>features</strong> (a vector <code>x</code>). The right-hand column is the <strong>label</strong> or <strong>target</strong> (<code>y</code>). One row is an <strong>example</strong>. Training means fitting a function <code>f(x) &rarr; y&#770;</code> on the historic rows so that it generalises to unseen ones.</p>
+
+    <div class="box think">
+      <span class="tag">The question that gets asked at every defence</span>
+      <p><span class="badge b-pdf">PDF</span> <em>&ldquo;For each model, your report must state precisely what one input example is, what the output is, and how the training set is constructed, before any modeling begins. This problem-definition step is graded.&rdquo;</em> For this project the answer is different for each of the three models, and for Model&nbsp;3 it is genuinely subtle. See <a href="#tasks">section 05</a>.</p>
+    </div>
+
+    <h3>3.2 Classification vs regression</h3>
+    <div class="grid2">
+      <div class="card">
+        <h4>Classification</h4>
+        <p>The label is one of a small set of categories. Here: <strong>Home win / Draw / Away win</strong> — three classes. A good classifier does not just pick one; it outputs a <em>probability for each</em>, e.g. <code>[0.54, 0.25, 0.21]</code>, summing to 1.</p>
+      </div>
+      <div class="card">
+        <h4>Regression</h4>
+        <p>The label is a number on a continuous scale. Here: the <strong>goal margin</strong>, home score minus away score. A 3&ndash;1 home win has margin <code>+2</code>; a 0&ndash;2 defeat has margin <code>&minus;2</code>.</p>
+      </div>
+    </div>
+    <div class="box ta">
+      <span class="tag">The TA's aside about the two being cousins</span>
+      <p>He remarked that classification and regression are not really different in spirit: the margin, once you clip it to the range <code>[&minus;5, +5]</code>, only takes a handful of distinct integer values, so you could equally see it as a classification problem over those values. (Clipping to <code>[&minus;5,+5]</code> leaves the eleven integers &minus;5&hellip;+5; the TA said &ldquo;ten states&rdquo; while gesturing at the idea, not counting them.) He is making a conceptual point — the deliverable in the PDF is still a regression, evaluated with MAE and RMSE.</p>
+    </div>
+
+    <h3>3.3 Probability calibration — the idea this whole project is graded on</h3>
+    <p><strong>Intuition.</strong> Think about a weather forecaster. Over the last year she said &ldquo;70% chance of rain&rdquo; on one hundred days. If it actually rained on roughly seventy of them, she is <em>calibrated</em>: her 70% means 70%. If it rained on only thirty, she is confidently wrong, and you should stop trusting her even if she &ldquo;gets the answer right&rdquo; (rain vs no rain) more often than you do.</p>
+    <p><strong>Precisely.</strong> A model is calibrated when, among all predictions with confidence <code>p</code>, the empirical frequency of the event is also <code>p</code>. Two tools measure this:</p>
+    <ul>
+      <li><strong>Reliability diagram.</strong> Bucket predictions by confidence on the x-axis; plot the observed frequency on the y-axis. Perfect calibration is the 45&deg; diagonal.</li>
+      <li><strong>ECE (Expected Calibration Error).</strong> The average gap between confidence and accuracy across buckets, weighted by bucket size. Lower is better.</li>
+    </ul>
+    <div class="eq">
+      ECE <span class="op">=</span> &Sigma;<sub>m=1..M</sub> ( |B<sub>m</sub>| / N ) &middot; | acc(B<sub>m</sub>) &minus; conf(B<sub>m</sub>) |
+    </div>
+    <p><span class="badge b-pdf">PDF</span> The brief says the project &ldquo;weights calibration and proper scoring rules heavily&rdquo;, because <em>&ldquo;a model that confidently predicts a home win and is wrong must be punished more than one that expressed appropriate uncertainty.&rdquo;</em></p>
+    <div class="box ta">
+      <span class="tag">TA</span>
+      <p>&ldquo;While you check the accuracy, check how good the calibration is. How well are the probabilities speaking?&rdquo; He explicitly told students to look at the calibration plots visually, not just at a single accuracy number.</p>
+    </div>
+
+    <h3>3.4 The scoring rules you will report</h3>
+    <p>A <strong>proper scoring rule</strong> is a score that is minimised (best) only when you report your true beliefs — you cannot cheat it by exaggerating confidence.</p>
+
+    <h4>Ranked Probability Score (RPS) — the headline metric for Model 1</h4>
+    <p><strong>Intuition.</strong> The three outcomes sit on a natural ladder: <em>Home win &rarr; Draw &rarr; Away win</em>. If the true result is a Home win, predicting a Draw is a smaller mistake than predicting an Away win — you were only one rung off. RPS is the scoring rule that knows about the rungs. Ordinary accuracy does not.</p>
+    <p><strong>Precisely.</strong> With <code>r = 3</code> ordered categories, forecast probabilities <code>p<sub>j</sub></code> and outcome indicators <code>e<sub>j</sub></code> (one-hot), RPS compares the <em>cumulative</em> distributions:</p>
+    <div class="eq">
+      RPS <span class="op">=</span> ( 1 / (r &minus; 1) ) &middot; &Sigma;<sub>i=1..r&minus;1</sub> [ &Sigma;<sub>j=1..i</sub> ( p<sub>j</sub> &minus; e<sub>j</sub> ) ]<sup>2</sup>
+    </div>
+    <details>
+      <summary>LaTeX source, for pasting into your report</summary>
+      <div class="details-body">
+<pre><code>\mathrm{RPS} \;=\; \frac{1}{r-1}\sum_{i=1}^{r-1}\left(\sum_{j=1}^{i} \left(p_j - e_j\right)\right)^{2}</code></pre>
+        <p class="small">Lower is better; 0 is a perfect, fully confident, correct forecast. The PDF's reference&nbsp;[10] (Constantinou &amp; Fenton, 2012, <em>Journal of Quantitative Analysis in Sports</em>) is the paper that argues RPS is the right scoring rule for football forecasts — cite it when you justify the metric.</p>
+      </div>
+    </details>
+
+    <h4>Log-Loss and Brier Score — the two secondary metrics</h4>
+    <p><strong>Log-Loss</strong> punishes confident mistakes brutally (it goes to infinity as you assign probability 0 to something that then happens). <strong>Brier Score</strong> is a gentler squared error on the probability vector.</p>
+    <div class="eq">
+      LogLoss <span class="op">=</span> &minus;(1/N) &Sigma;<sub>n</sub> &Sigma;<sub>k</sub> o<sub>nk</sub> &middot; ln p<sub>nk</sub> &nbsp;&nbsp;&nbsp;&nbsp; Brier <span class="op">=</span> (1/N) &Sigma;<sub>n</sub> &Sigma;<sub>k</sub> ( p<sub>nk</sub> &minus; o<sub>nk</sub> )<sup>2</sup>
+    </div>
+    <p class="small"><code>o<sub>nk</sub></code> is 1 if example <em>n</em> really had outcome <em>k</em>, else 0. Unlike RPS, neither of these knows the outcomes are ordered.</p>
+
+    <h4>MAE and RMSE — for Model 2's margin</h4>
+    <p>Mean Absolute Error is the average size of your miss in goals. Root Mean Squared Error is the same idea but squares the errors first, so it is dominated by the occasional 5&ndash;0 you failed to see coming. Report both, plus the correlation between predicted and actual margins.</p>
+
+    <h3>3.5 Data leakage — the failure mode that destroys sports-prediction projects</h3>
+    <p><strong>Intuition.</strong> Leakage is studying for tomorrow's exam using tomorrow's answer sheet. You will score brilliantly in practice and fail in the exam hall, because the answer sheet will not be there. In this project, the answer sheet is <em>the future</em>.</p>
+    <p><strong>Precisely.</strong> <span class="badge b-pdf">PDF</span> &ldquo;Leakage occurs whenever information that would not be available at prediction time influences the model. For the pre-match models the prediction time is kick-off; for the in-play model it is the snapshot time&nbsp;<em>t</em>.&rdquo;</p>
+    <p>It gets its own section — <a href="#leakage">section 06</a> — because event data multiplies the opportunities to leak, and because it is the thing the TA will interrogate you about at Mid Defence&nbsp;1.</p>
+
+    <h3>3.6 Model families, in one breath each</h3>
+    <div class="tablewrap">
+      <table>
+        <caption>The families you will compare. <span class="badge b-ta">TA</span> He stressed that the point of the model table is <em>&ldquo;to see whether these different families make a difference&rdquo;</em> — you expect boosted trees to win, &ldquo;but we don't know; maybe they didn't.&rdquo;</caption>
+        <thead><tr><th>Family</th><th>The idea, in one sentence</th><th>In this project</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Dummy / prior</strong></td><td>Ignore the features; always predict the most common answer.</td><td>The sanity floor. Any model below it is broken.</td></tr>
+          <tr><td><strong>Kernel methods</strong><br><span class="small">SVM, Kernel Ridge</span></td><td>Compare every example to every other example through a similarity function, and draw a boundary in that similarity space.</td><td>Powerful but the cost grows like the <em>square</em> of the number of rows — which is why the PDF makes you demonstrate that empirically.</td></tr>
+          <tr><td><strong>Bagging</strong><br><span class="small">Random Forest</span></td><td>Grow many decorrelated trees on random subsets and average them; averaging kills variance.</td><td>The strong, almost-no-tuning reference point.</td></tr>
+          <tr><td><strong>Boosting</strong><br><span class="small">GBM, XGBoost, LightGBM</span></td><td>Grow trees <em>sequentially</em>, each one fixing the errors the previous ones made.</td><td>Usually the state of the art on tabular data. Your likely winner.</td></tr>
+          <tr><td><strong>The market</strong></td><td>Thousands of people betting real money, aggregated into a price.</td><td>Not a model you train — the yardstick you are measured against.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="box ta">
+      <span class="tag">Why the market is such a good yardstick</span>
+      <p>The TA's argument: the odds are extremely accurate probabilities <em>&ldquo;because money is being spent over there.&rdquo;</em> A bookmaker who is badly calibrated is bankrupted by people who are better calibrated. That is what makes it the ceiling.</p>
+    </div>
+
+    <h3>3.7 SHAP, in one analogy</h3>
+    <p>Four friends share a taxi. They split the fare not equally but by how much distance each person actually added to the trip. That fair-split rule from cooperative game theory is a <strong>Shapley value</strong>. <strong>SHAP</strong> applies it to a prediction: each feature receives a signed number saying how much it pushed this specific prediction up or down from the model's average output, and those numbers add up exactly to the gap.</p>
+    <p><span class="badge b-pdf">PDF</span> &ldquo;A forecast that cannot be explained cannot be trusted&rdquo; — SHAP is a required deliverable and the centrepiece of the final defence. See <a href="#shap">section 11</a>.</p>
+  </section>
+
+  <!-- ============================================================ 4 -->
+  <section id="data">
+    <h2><span class="num">04</span> The data: two sources, one join</h2>
+    <p class="lede">Everything you model comes from two places. One gives you what happened on the pitch. The other gives you what the world believed would happen before kick-off. Neither is a table. Making them into one is worth 30% of the project.</p>
+
+    <h3>4.1 Source A — StatsBomb Open Data</h3>
+    <p><a href="https://github.com/statsbomb/open-data" target="_blank" rel="noopener">github.com/statsbomb/open-data</a> &nbsp;<span class="small">(free JSON, non-commercial use with attribution; Python client: <code>statsbombpy</code>)</span></p>
+    <p><strong>What &ldquo;event data&rdquo; means.</strong> Imagine somebody sat through the match with a stopwatch and wrote one line every time <em>anything</em> happened: <em>&ldquo;minute 12, second 04, Xavi, Barcelona, pass, from (60,40) to (78,22), ground pass, complete.&rdquo;</em> Do that for passes, carries, pressures, duels, shots, fouls, substitutions and goalkeeper actions and you get about <strong>4,000 rows for a single match</strong>. That is the raw material professional clubs and bookmakers actually use.</p>
+
+    <div class="tablewrap">
+      <table>
+        <caption><span class="badge b-pdf">PDF</span> Verified specification of the dataset, as printed in section 2 of the brief.</caption>
+        <thead><tr><th style="width:170px">Property</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Scale</td><td>80 competition&ndash;season entries across roughly 25 competitions; men's and women's, club and international.</td></tr>
+          <tr><td>Full league seasons</td><td>La&nbsp;Liga: 18 seasons (2004/05&ndash;2020/21, plus 1973/74). Premier League 2015/16 (380 matches) and 2003/04. Bundesliga 2015/16 and 2023/24. Serie&nbsp;A 2015/16 and 1986/87. Ligue&nbsp;1 2015/16, 2021/22, 2022/23.</td></tr>
+          <tr><td>Tournaments</td><td>FIFA World Cup (8 editions incl. 2018, 2022), UEFA Euro 2020 and 2024, Copa America 2024, Women's World Cup 2019 and 2023, UEFA Women's Euro 2022 and 2025, Africa Cup of Nations 2023, Champions League finals across 18 seasons.</td></tr>
+          <tr><td>Event granularity</td><td>Close to 4,000 events per match (a sample La Liga match contains 3,947).</td></tr>
+          <tr><td>Event fields</td><td>type, period, minute, second, timestamp, possession index, team, player, position, play pattern, pitch location on a standardised 120&times;80 coordinate system, plus type-specific detail (pass height, body part, shot outcome, freeze-frame of all players at shot moments).</td></tr>
+          <tr><td>360 data</td><td>For <em>selected</em> matches only: freeze frames recording the positions of all visible players around each event.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>The repository layout — the five file families you must join</h4>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>File / folder</th><th>Contents</th><th>Keys</th></tr></thead>
+        <tbody>
+          <tr><td><code>competitions.json</code></td><td>Master list of all available competition&ndash;season pairs</td><td><code>competition_id</code>, <code>season_id</code></td></tr>
+          <tr><td><code>matches/{comp_id}/{season_id}.json</code></td><td>All matches of one season: teams, date, kick-off, final score, stage, referee</td><td><code>match_id</code></td></tr>
+          <tr><td><code>events/{match_id}.json</code></td><td>The full ordered event stream of one match (~4,000 rows)</td><td>event id, index, timestamp</td></tr>
+          <tr><td><code>lineups/{match_id}.json</code></td><td>Both squads: players, jersey numbers, positions played</td><td><code>player_id</code>, <code>team_id</code></td></tr>
+          <tr><td><code>three-sixty/{match_id}.json</code></td><td>Player-position freeze frames (selected matches only)</td><td>event uuid</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="box ta">
+      <span class="tag">The TA's live tour of the repository</span>
+      <p>He opened the repo on screen and walked through it in exactly this order, which is a good order for you to explore it too:</p>
+      <ol style="margin-bottom:0">
+        <li><code>competitions.json</code> &mdash; &ldquo;you see it was the Bundesliga, it was Germany, its season_id is such and such.&rdquo;</li>
+        <li><code>matches/&hellip;</code> &mdash; &ldquo;you have a series of match IDs&hellip; it says which match belongs to which: competition France, season such-and-such, home team Barcelona, Ernesto Valverde was its manager, they played Valencia&hellip;&rdquo; <strong>This is where the label lives</strong>: &ldquo;the result, which was also important, becomes home_score two — Barcelona won 2&ndash;1.&rdquo; He also points out extra features here you might use, such as the managers.</li>
+        <li><code>lineups/{match_id}.json</code> &mdash; &ldquo;which players were on that side, which players on this side, for which team. This is another part of the features for each match.&rdquo;</li>
+        <li><code>events/{match_id}.json</code> &mdash; &ldquo;a much bigger dataset&hellip; second by second it says what happened: second one, this player passed to that one; second two, this happened.&rdquo;</li>
+        <li><code>three-sixty/{match_id}.json</code> &mdash; &ldquo;it says exactly where each player is on the field&hellip; but it does not exist for all matches, only from a certain point onwards, for a subset.&rdquo;</li>
+      </ol>
+    </div>
+
+    <p>The <code>match_id</code> is the spine of the entire project. It is what connects the result, the squads, the event stream and the tracking frames. The TA's phrasing: <em>&ldquo;you extract the match IDs from here, and then everything else attaches to them.&rdquo;</em></p>
+
+    <details>
+      <summary>Illustrative sketch — reading the raw JSON tree with nothing but the standard library</summary>
+      <div class="details-body">
+        <p class="small">This is a sketch to make the structure concrete, not production code. The <code>statsbombpy</code> client named in the PDF is an alternative to hand-rolling this; check its README for its exact function signatures before using it.</p>
+<pre><code>import json, pathlib
+
+ROOT = pathlib.Path("open-data/data")
+
+# 1. which competition-seasons exist?
+comps = json.loads((ROOT / "competitions.json").read_text())
+# each entry has competition_id, season_id, competition_name, season_name, ...
+
+# 2. all matches of one competition-season -> this is where labels live
+matches = json.loads((ROOT / "matches" / "11" / "90.json").read_text())
+for m in matches:
+    mid       = m["match_id"]
+    home      = m["home_team"]["home_team_name"]
+    away      = m["away_team"]["away_team_name"]
+    hs, as_   = m["home_score"], m["away_score"]
+    kickoff   = m["match_date"]          # + kick_off time field
+    label_c   = "H" if hs &gt; as_ else ("A" if as_ &gt; hs else "D")
+    label_r   = max(-5, min(5, hs - as_))   # clipped signed margin
+
+# 3. the event stream of that one match (~4,000 rows)
+events = json.loads((ROOT / "events" / f"{mid}.json").read_text())
+
+# 4. the two squads
+lineups = json.loads((ROOT / "lineups" / f"{mid}.json").read_text())</code></pre>
+        <p class="small">Field names above follow the repository's documented schema. Verify every field against the repo's own documentation before relying on it — the PDF warns that &ldquo;event schemas carry optional fields that appear only for certain event types.&rdquo;</p>
+      </div>
+    </details>
+
+    <h3>4.2 The integration challenge — the first graded deliverable</h3>
+    <p><span class="badge b-pdf">PDF</span> &ldquo;This dataset is deliberately <em>not</em> a flat table. Turning it into modeling-ready data is the first graded deliverable of the project, and it is substantial.&rdquo; You must:</p>
+    <ul>
+      <li>Parse the JSON tree and <strong>join the five file families</strong> on their shared keys.</li>
+      <li><strong>Resolve player and team identities</strong> across seasons and competitions (the same club, the same player, appearing in different files across 20 years).</li>
+      <li><strong>Materialise clean tables</strong> from which <em>both</em> feature pipelines can be built.</li>
+      <li><strong>Define the problem formally</strong>: what is one example, what is its label, which rows of which files may contribute to it.</li>
+      <li><strong>Document the imperfections</strong>, do not hide them: 360 files exist only for some matches; some competitions are single tournaments while others are full league seasons; optional event fields appear only for certain event types.</li>
+    </ul>
+
+    <h4>Competition selection is a decision you must defend</h4>
+    <div class="box pdf">
+      <span class="tag">Verbatim requirement</span>
+      <p>&ldquo;You must justify which competitions you train on. Full league seasons (La Liga's 18 seasons are the backbone) give volume and temporal depth for the pre-match models; tournaments add variety but little history. <strong>Mixing them naively creates distribution shift that you must measure, not ignore.</strong>&rdquo;</p>
+    </div>
+    <p><em>Distribution shift</em> means the statistical character of the data changes between groups — a 1973/74 La Liga match, a 2024 Copa America match and a 2015/16 Premier League match are not draws from the same population. If you train on one and test on another without saying so, your numbers describe nothing.</p>
+
+    <h4>Where features come from</h4>
+    <p>The PDF's own list of ideas, and the crucial observation about how each one becomes <em>two different features</em>:</p>
+    <div class="grid2">
+      <div class="card">
+        <h4>Aggregated over a team's <em>prior</em> matches &rarr; pre-match features</h4>
+        <p>Shot counts and shot locations (an xG proxy), pressure intensity, passing volume and completion by zone, carries into the final third, set-piece counts, possession share, defensive actions. Plus: rolling form, venue (home/away), rest days, head-to-head.</p>
+      </div>
+      <div class="card">
+        <h4>Computed over a rolling window <em>inside the current match</em> &rarr; in-play features</h4>
+        <p>The same event statistics, but only from this match, only up to minute&nbsp;<em>t</em>: current score, man-advantage (red cards), event counts and rates in a recent window, momentum indicators.</p>
+      </div>
+    </div>
+    <p class="small"><em>xG</em> (expected goals) is the probability that a given shot becomes a goal, given where and how it was taken. You are not required to build a real xG model; the PDF calls shot counts and locations an <em>&ldquo;xG proxy&rdquo;</em>.</p>
+
+    <h3>4.3 Source B — Football-Data.co.uk (the odds)</h3>
+    <p><a href="https://football-data.co.uk/" target="_blank" rel="noopener">football-data.co.uk</a> &nbsp;<span class="small">(free per-season CSVs; England: <code>/englandm.php</code>, Spain: <code>/spainm.php</code>, and equivalent pages for Germany, Italy, France and others)</span></p>
+    <p><span class="badge b-pdf">PDF</span> &ldquo;StatsBomb gives you the events; it does not give you the market.&rdquo; Each CSV row is one match, carrying full-time and half-time results, match statistics (shots, shots on target, fouls, corners, cards), and <strong>pre-match bookmaker odds</strong> for the match result (1X2), total goals and the Asian Handicap, from several bookmakers. Odds coverage runs from season 2000/01 onward for the top divisions.</p>
+
+    <div class="box ta">
+      <span class="tag">The TA showing the CSV, decoded</span>
+      <p>He opened the Premier League 2017/18 CSV and pointed at the columns: <em>&ldquo;you see groups of three belong to one site&hellip; bet365 home 1.53, draw 4.5, away 6.5.&rdquo;</em> Each bookmaker contributes three columns — one per outcome. He then explains the intuition: <em>&ldquo;the probability of Arsenal winning was much higher, which is why Arsenal's odds are much lower.&rdquo;</em> <strong>Low odds = high implied probability.</strong></p>
+      <p style="margin-bottom:0">He also warned that joining the two sources <em>&ldquo;involves some manual work&rdquo;</em> — you know which team played which team, and you must match that against the StatsBomb <code>match_id</code> by hand-resolving names.</p>
+      <p class="small" style="margin-top:10px;margin-bottom:0"><strong>Transcript note:</strong> the recording has the TA saying &ldquo;odds portal&rdquo; at one point. Everything he then demonstrates &mdash; per-season CSV downloads, <code>bet365</code> triplet columns, the English league page &mdash; is Football-Data.co.uk, which is the site the PDF names as the mandatory source. Treat the PDF as authoritative here.</p>
+    </div>
+
+    <h4>What you must do with the odds — four graded steps</h4>
+    <ol>
+      <li><strong>Download.</strong> Pick the league pages matching your chosen StatsBomb competitions and download every season CSV that overlaps your data.</li>
+      <li><strong>Tag to <code>match_id</code>.</strong> There is <em>no shared key</em>. You must join on <code>(date, home team, away team)</code> and resolve team-name aliases between the two sources (&ldquo;Man United&rdquo; vs &ldquo;Manchester United&rdquo;). <strong>Document the mapping and its failure cases.</strong></li>
+      <li><strong>De-vig.</strong> Convert the 1X2 decimal odds of a chosen bookmaker (or an average) into probabilities and remove the over-round by normalising the three to sum to one. Full worked example in <a href="#market">section 07</a>.</li>
+      <li><strong>Publish the baseline.</strong> The de-vigged market probability is <em>the</em> main baseline of the project. Every classification model — pre-match, and in-play at kick-off — is judged first and foremost against it.</li>
+    </ol>
+
+    <div class="box warn">
+      <span class="tag">Test-set discipline — a hard rule with a subtle consequence</span>
+      <p><span class="badge b-pdf">PDF</span> &ldquo;Your test set may only contain matches that were successfully tagged with odds, so the model-vs-market comparison is computed on the exact same matches. Report the tagging coverage rate per season and list every excluded match with the reason.&rdquo;</p>
+      <p style="margin-bottom:0">In other words: a match your name-matching failed on cannot silently sit in the test set. The tagging step is graded as part of the integration deliverable and is examined at Mid Defence&nbsp;1, because <em>&ldquo;a model score that cannot be placed next to the market number for the same matches is scientifically meaningless in this domain.&rdquo;</em></p>
+    </div>
+  </section>
+
+  <!-- ============================================================ 5 -->
+  <section id="tasks">
+    <h2><span class="num">05</span> The three models you must deliver</h2>
+    <p class="lede">Three deliverables, referred to throughout the PDF by letter: <strong>C</strong> (classification), <strong>R</strong> (regression), <strong>L</strong> (live / in-play). For each one, the report must formally define the example, the label and the training-set construction <em>before</em> any modelling. That definition is itself graded.</p>
+
+    <div class="tablewrap">
+      <table>
+        <caption>The three deliverables side by side. Everything in this table is <span class="badge b-pdf">PDF</span> section 1.</caption>
+        <thead>
+          <tr><th style="width:120px"></th><th>Model 1 — Task C</th><th>Model 2 — Task R</th><th>Model 3 — Task L</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Name</strong></td>
+            <td>Pre-Match Outcome Classification</td>
+            <td>Pre-Match Goal-Margin Regression</td>
+            <td>In-Play (Live) Prediction</td>
+          </tr>
+          <tr>
+            <td><strong>One example is&hellip;</strong></td>
+            <td>one match</td>
+            <td>one match</td>
+            <td><strong>one (match, time&nbsp;t) snapshot</strong> — so one match yields many examples, e.g. one every five minutes</td>
+          </tr>
+          <tr>
+            <td><strong>Input</strong></td>
+            <td>a feature vector built <em>exclusively</em> from information available before kick-off: aggregates of the two teams' prior matches, venue, rest days</td>
+            <td>identical to Model 1</td>
+            <td>the pre-match vector <em>plus</em> features computed from the events of THIS match up to and including time&nbsp;t only: current score, man-advantage, event counts and rates in a recent window, momentum indicators</td>
+          </tr>
+          <tr>
+            <td><strong>Output</strong></td>
+            <td>a calibrated probability distribution over Home&nbsp;Win / Draw / Away&nbsp;Win</td>
+            <td>the signed goal difference (home &minus; away), clipped to [&minus;5,&nbsp;+5]</td>
+            <td>updated outcome probabilities <em>and</em> an updated expected final margin</td>
+          </tr>
+          <tr>
+            <td><strong>Label</strong></td>
+            <td>derived from <code>home_score</code> / <code>away_score</code> in the matches file</td>
+            <td>the clipped signed margin</td>
+            <td>the <em>final</em> outcome of the match the snapshot came from — which creates strong within-match correlation your evaluation design must respect</td>
+          </tr>
+          <tr>
+            <td><strong>Headline metric</strong></td>
+            <td><strong>RPS</strong></td>
+            <td><strong>MAE</strong></td>
+            <td>every C and R metric, plotted <em>as a function of match minute</em></td>
+          </tr>
+          <tr>
+            <td><strong>Secondary</strong></td>
+            <td>Log-Loss, Brier, ECE with reliability diagrams</td>
+            <td>RMSE, correlation with actual margins</td>
+            <td>calibration per game phase (0&ndash;15&#8242;, 15&ndash;30&#8242;, &hellip;, 75&ndash;90&#8242;)</td>
+          </tr>
+          <tr>
+            <td><strong>Must beat</strong></td>
+            <td>Dummy (floor); compared against de-vigged market (ceiling)</td>
+            <td>Dummy regressor</td>
+            <td><strong>its own frozen pre-match prediction</strong>, increasingly, as the match progresses</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>5.1 A required extra analysis on Model 2</h3>
+    <div class="box pdf">
+      <span class="tag">Easy to miss</span>
+      <p>&ldquo;You must also analyse whether Model 2's margin can be converted into useful Model 1 probabilities.&rdquo; That is: given a predicted margin of, say, +0.4 goals, can you turn that number into a sensible <em>(Home, Draw, Away)</em> distribution, and how does it compare to Model 1 trained directly? This is an analysis, and it is asked for explicitly.</p>
+    </div>
+
+    <h3>5.2 Model 3, the hardest one, explained slowly</h3>
+    <p><strong>Imagine that</strong> you freeze the broadcast at minute 30. Everything visible on the screen at that instant — the score, whether anyone has been sent off, who has been dominating the last ten minutes — plus everything you knew before kick-off, becomes one row of your training table. Its label is the result the match will eventually have. Now unfreeze, run to minute 35, freeze again: another row, same label. One 90-minute match, snapshotted every five minutes, produces roughly eighteen rows.</p>
+    <p>That is a <strong>snapshot</strong>, and designing the snapshotting scheme is your decision to make and defend.</p>
+
+    <figure>
+      <svg viewBox="0 0 900 230" role="img" aria-label="Timeline of a match showing that a snapshot at minute 30 may use only events at or before minute 30; a goal at minute 70 lies in the forbidden region.">
+        <g font-family="system-ui,sans-serif">
+          <text x="10" y="20" font-size="12" fill="var(--muted)">Snapshot at t = 30&#8242; — one training row for Model 3</text>
+
+          <!-- allowed region -->
+          <rect x="10" y="40" width="290" height="52" rx="6" fill="var(--mint)" opacity=".12" stroke="var(--mint-dim)"/>
+          <text x="24" y="62" font-size="12" fill="var(--mint)" font-weight="600">ALLOWED — events with timestamp &#8804; t</text>
+          <text x="24" y="80" font-size="11" fill="var(--muted)">score so far, cards so far, passes &amp; shots so far, momentum</text>
+
+          <!-- forbidden region -->
+          <rect x="310" y="40" width="580" height="52" rx="6" fill="var(--red)" opacity=".1" stroke="var(--red-dim)"/>
+          <text x="326" y="62" font-size="12" fill="var(--red)" font-weight="600">FORBIDDEN — anything after t leaks the answer</text>
+          <text x="326" y="80" font-size="11" fill="var(--muted)">the 70&#8242; goal, the final shot count, the result itself</text>
+
+          <!-- axis -->
+          <line x1="10" y1="140" x2="890" y2="140" stroke="var(--line)" stroke-width="2"/>
+          <g font-family="ui-monospace,monospace" font-size="10" fill="var(--muted-2)">
+            <line x1="10" y1="134" x2="10" y2="146" stroke="var(--muted-2)"/><text x="6" y="162">0&#8242;</text>
+            <line x1="450" y1="134" x2="450" y2="146" stroke="var(--muted-2)"/><text x="440" y="162">45&#8242;</text>
+            <line x1="890" y1="134" x2="890" y2="146" stroke="var(--muted-2)"/><text x="872" y="162">90&#8242;</text>
+          </g>
+
+          <!-- cut line -->
+          <line x1="303" y1="34" x2="303" y2="185" stroke="var(--chalk)" stroke-dasharray="5 4"/>
+          <circle cx="303" cy="140" r="5" fill="var(--chalk)"/>
+          <text x="288" y="200" font-size="11.5" fill="var(--chalk)" font-weight="600" font-family="ui-monospace,monospace">t = 30&#8242;</text>
+
+          <!-- events -->
+          <circle cx="120" cy="140" r="4" fill="var(--mint)"/><text x="102" y="128" font-size="10" fill="var(--mint)" font-family="ui-monospace,monospace">GOAL 12&#8242;</text>
+          <circle cx="215" cy="140" r="4" fill="var(--amber)"/><text x="192" y="128" font-size="10" fill="var(--amber)" font-family="ui-monospace,monospace">YELLOW 22&#8242;</text>
+          <circle cx="700" cy="140" r="4" fill="var(--red)"/><text x="676" y="128" font-size="10" fill="var(--red)" font-family="ui-monospace,monospace">GOAL 70&#8242;</text>
+
+          <text x="10" y="220" font-size="11" fill="var(--muted-2)">A single careless join pulls the 70&#8242; goal into the 30&#8242; snapshot. Sort by (period, timestamp, index), cut strictly at t, and assert it in a unit test.</text>
+        </g>
+      </svg>
+      <figcaption>The time-<em>t</em> boundary. The PDF calls this &ldquo;the sharpest trap in the project&rdquo;.</figcaption>
+    </figure>
+
+    <p><span class="badge b-pdf">PDF</span> Model 3 is <em>&ldquo;deliberately the hardest deliverable&rdquo;</em>. It forces you to:</p>
+    <ul>
+      <li>define a snapshotting scheme;</li>
+      <li>prevent <strong>within-match leakage</strong> (no event after time <em>t</em> may influence the snapshot at <em>t</em>);</li>
+      <li>keep <strong>all snapshots of one match on one side</strong> of the train/test boundary;</li>
+      <li>reason about calibration <em>per game phase</em>.</li>
+    </ul>
+
+    <h4>How Model 3 is evaluated — the shape of the curve is the result</h4>
+    <p><span class="badge b-pdf">PDF</span> &ldquo;Evaluation must show performance as a function of match minute: as information arrives, Model 3 must increasingly outperform its own pre-match prior, and its probabilities must converge toward certainty as full time approaches.&rdquo;</p>
+    <p>Concretely: draw a graph with match minute on the x-axis and, say, RPS on the y-axis. Draw two curves — your in-play model, and the <strong>frozen pre-match prediction</strong> (the model 1 output, held constant across the whole match, as a flat reference line). At minute 0 they should coincide. By minute 85 the in-play curve should be far below it. If it is not, you have a finding to explain, not a failure to hide.</p>
+
+    <div class="box ta">
+      <span class="tag">The TA's intuition for why Model 3 matters</span>
+      <p>&ldquo;Before the game, from the players, the coach, the team's history, its rank in the table, you have a prediction: seventy percent this one wins, ten percent that one, twenty percent a draw. But during the game someone might suddenly get a red card — and then it makes a huge difference.&rdquo; The whole point of the live model is to react to that card.</p>
+      <p style="margin-bottom:0">He also framed Task L as Task C repeated: <em>&ldquo;task three is task one that keeps changing.&rdquo;</em> Same three probabilities, re-asked every few minutes.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ 6 -->
+  <section id="leakage">
+    <h2><span class="num">06</span> Data leakage: the eight absolute rules</h2>
+    <p class="lede">This is the section that decides whether your results mean anything. <span class="badge b-pdf">PDF</span> <span class="badge b-req">Hard rule</span> &ldquo;The rules below are absolute.&rdquo; Every item must answer YES before submission.</p>
+
+    <ul class="checklist" id="leak-list">
+      <li><input type="checkbox" id="lk1"><label for="lk1">Are all <strong>pre-match features</strong> computed strictly from matches that finished <strong>before</strong> the target match's kick-off?</label></li>
+      <li><input type="checkbox" id="lk2"><label for="lk2">For every <strong>in-play snapshot at time t</strong>, is every feature computed <strong>only</strong> from events with timestamp &le;&nbsp;t in that match?</label></li>
+      <li><input type="checkbox" id="lk3"><label for="lk3">Do <strong>all snapshots of one match</strong> live entirely on one side of the train/validation/test boundary?</label></li>
+      <li><input type="checkbox" id="lk4"><label for="lk4">Was every <strong>resampling</strong> method (SMOTE and variants) fit <strong>only on training folds</strong>, never before the split?</label></li>
+      <li><input type="checkbox" id="lk5"><label for="lk5">Is every <strong>scaler, encoder and imputer</strong> fit on training data only, then applied unchanged to validation and test?</label></li>
+      <li><input type="checkbox" id="lk6"><label for="lk6">Is the <strong>final outcome</strong> (or any post-snapshot event, like the eventual shot count) absent from every snapshot's features?</label></li>
+      <li><input type="checkbox" id="lk7"><label for="lk7">Are bookmaker <strong>odds</strong> used <strong>either</strong> as the market baseline <strong>or</strong> as a declared feature — never both in the same experiment?</label></li>
+      <li><input type="checkbox" id="lk8"><label for="lk8">Was the <strong>odds-to-match_id tagging</strong> done on pre-match identity only (date, teams), never on scores or statistics?</label></li>
+    </ul>
+
+    <h3>6.1 Why each rule exists</h3>
+
+    <h4>1. Pre-kickoff features only (Models 1 and 2)</h4>
+    <p>Form and event-rate aggregates must summarise <em>the past</em>. A rolling average that accidentally includes the target match leaks the very outcome you are predicting, and produces <em>&ldquo;a model that is unbeatable on paper and useless in reality.&rdquo;</em></p>
+    <div class="box ta">
+      <span class="tag">TA, saying the same thing his way</span>
+      <p>&ldquo;The feature must be <em>present</em>, and the feature must be <em>calculable at that moment</em> when its timestamp is. For example, the number of goals scored up to after the next match shouldn't suddenly be there — it doesn't exist at that time. Do you get what I'm saying?&rdquo; He also reminds you that although the joined data becomes one tabular CSV, <em>&ldquo;this CSV also has a time&rdquo;</em> — your test set must never sit in the past while your training set draws on the future.</p>
+    </div>
+
+    <h4>2. The time-<em>t</em> boundary (Model 3)</h4>
+    <p>&ldquo;This is the sharpest trap in the project. Event files contain the whole match; when you snapshot at minute 30, a single careless join can pull in the 70th-minute goal.&rdquo; The prescribed defence, verbatim: <strong>sort events by period, timestamp and index; cut strictly at t; and unit-test the cut with an assertion that no contributing event postdates the snapshot.</strong></p>
+    <details>
+      <summary>What that assertion looks like in practice</summary>
+      <div class="details-body">
+<pre><code>def snapshot(events_df, match_id, t_seconds):
+    ev = events_df[events_df.match_id == match_id]
+    ev = ev.sort_values(["period", "timestamp", "index"])
+    cut = ev[ev.elapsed_seconds &lt;= t_seconds]
+
+    # the leakage assertion the PDF asks for
+    assert cut.elapsed_seconds.max() &lt;= t_seconds, "snapshot contains a future event"
+    assert len(cut) == 0 or cut.index.is_monotonic_increasing
+
+    return build_features(cut)     # &lt;- the ONLY thing feature code may see</code></pre>
+        <p class="small">The point is not the exact code. The point is that the cut happens once, in one function, and that function is the only door through which events reach your features. If two code paths can build features, one of them will eventually leak.</p>
+      </div>
+    </details>
+
+    <h4>3. Match-level splitting</h4>
+    <p>Snapshots from the same match share a label and are heavily correlated. <em>&ldquo;If minute-30 of a match sits in training and minute-60 of the same match sits in test, the test score is fiction.&rdquo;</em> Split <strong>by match</strong> (and chronologically by season), then let snapshots inherit their parent match's side.</p>
+
+    <h4>4. Resample inside folds</h4>
+    <p>Fitting SMOTE on the full dataset lets synthetic minority points be built from <em>test-set neighbours</em>, so information crosses the split. On temporal data it is worse: synthetic samples can be interpolated from <em>future</em> matches. The PDF's instruction is specific: use the <code>imbalanced-learn</code> <code>Pipeline</code> — not scikit-learn's — so resampling is confined to training folds automatically.</p>
+
+    <h4>5. Fit transforms on training data only</h4>
+    <p>A scaler or imputer fit on the whole dataset has already seen the test distribution. Fit on train; transform validation and test with those <em>frozen</em> parameters.</p>
+
+    <h4>6. No post-snapshot information in a snapshot</h4>
+    <p>Obvious once stated, easy to violate: total shots in the match, final possession share, and the result itself are all forbidden inside a minute-30 row.</p>
+
+    <h4>7. Odds: baseline or feature, never both</h4>
+    <div class="box warn">
+      <span class="tag">Read this one twice — sources differ in emphasis</span>
+      <p><span class="badge b-pdf">PDF</span> The checklist rule is: odds may be used <em>either</em> as the market baseline <em>or</em> as a declared feature, but <strong>never both in the same experiment</strong>.</p>
+      <p><span class="badge b-ta">TA</span> He is stricter for Task C and more permissive for Task L: <em>&ldquo;Odds are not features. For classification, in this task one of yours, odds cannot be features, because our criterion IS those odds — we want to compare against them.&rdquo;</em> But: <em>&ldquo;you can use pre-match odds in live prediction.&rdquo;</em></p>
+      <p style="margin-bottom:0"><strong>The safe reading that satisfies both:</strong> keep odds out of your Task C feature set entirely, so that the market comparison stays meaningful. If you want to feed pre-match odds into Model 3 as the TA permits, declare it loudly, and do not simultaneously present the market as the baseline <em>for that same experiment</em> — run it as a separate, clearly-labelled arm.</p>
+    </div>
+
+    <h4>8. Never tag odds using outcomes</h4>
+    <p>The Football-Data.co.uk join must use only pre-match identity: date, home team, away team. <em>&ldquo;Matching on scores or match statistics silently guarantees the join is correct only when the result agrees, which biases the tagged sample.&rdquo;</em> It is a subtle, seductive shortcut — the scores are right there in both files — and it poisons everything downstream.</p>
+  </section>
+
+  <!-- ============================================================ 7 -->
+  <section id="market">
+    <h2><span class="num">07</span> The market baseline, and how to de-vig it</h2>
+    <p class="lede">The bookmakers' odds are not a model you build. They are the number your model is measured against. To use them you must first strip out the bookmaker's profit margin.</p>
+
+    <h3>7.1 Decimal odds, and why they are not probabilities</h3>
+    <p><strong>Intuition.</strong> Decimal odds of <code>2.00</code> mean: stake 1, get 2 back if you win. That looks like a 50% chance. Odds of <code>4.00</code> look like 25%. Now take the TA's real example from the Arsenal match: home <code>1.53</code>, draw <code>4.50</code>, away <code>6.50</code>. Convert each with <code>1/odds</code> and add them up.</p>
+    <div class="eq">
+      1/1.53 + 1/4.50 + 1/6.50 <span class="op">=</span> 0.6536 + 0.2222 + 0.1538 <span class="op">=</span> <strong>1.0297</strong>
+    </div>
+    <p>The three &ldquo;probabilities&rdquo; sum to <strong>more than one</strong>. That surplus of about 3% is the bookmaker's built-in margin, called the <strong>over-round</strong> or the <strong>vig</strong> (vigorish). It is how the shop makes money regardless of the result. Raw <code>1/odds</code> values are therefore <em>implied</em> probabilities, not fair ones.</p>
+
+    <h3>7.2 De-vigging: normalise the three to sum to one</h3>
+    <p><span class="badge b-pdf">PDF</span> &ldquo;Convert each of the three 1X2 odds to its raw implied probability (one divided by the decimal odd) and normalise the three so they sum to exactly one.&rdquo;</p>
+    <div class="eq">
+      p&#770;<sub>k</sub> <span class="op">=</span> ( 1 / o<sub>k</sub> ) &nbsp;&divide;&nbsp; &Sigma;<sub>j &isin; {H,D,A}</sub> ( 1 / o<sub>j</sub> )
+    </div>
+    <details>
+      <summary>LaTeX source + the worked example, ready for your report</summary>
+      <div class="details-body">
+<pre><code>\hat{p}_k \;=\; \frac{1/o_k}{\sum_{j\in\{H,D,A\}} 1/o_j}, \qquad k \in \{H, D, A\}</code></pre>
+        <p><strong>Worked on the TA's numbers</strong> (bet365: 1.53 / 4.50 / 6.50):</p>
+<pre><code>raw   = [1/1.53, 1/4.50, 1/6.50] = [0.6536, 0.2222, 0.1538]
+sum   = 1.0297                      # over-round = 2.97%
+p_hat = raw / 1.0297                = [0.6348, 0.2158, 0.1494]
+                                      #  63.5% H   21.6% D   14.9% A  -> sums to 1.000</code></pre>
+        <p class="small">You may de-vig a single chosen bookmaker or an average across bookmakers — the PDF permits either, and requires you to say which you did.</p>
+      </div>
+    </details>
+
+    <div class="box ta">
+      <span class="tag">The TA described exactly this procedure, with an averaging step</span>
+      <p>&ldquo;If there were five sites and we have five odds for <em>home win</em>, you take one divided by the average of those five — it becomes a number, say 0.30, you say thirty percent. Then you calculate for the next one, it becomes fifty percent, the other becomes forty percent. It becomes more than a hundred — say a hundred and twenty percent. Then you divide everything by a hundred and twenty.&rdquo;</p>
+      <p style="margin-bottom:0">Same algorithm, described with round numbers: implied probabilities, then normalise by their sum. His averaging happens on the <em>odds</em> across bookmakers before inverting.</p>
+    </div>
+
+    <h3>7.3 Where the baseline sits</h3>
+    <p><span class="badge b-pdf">PDF</span> &ldquo;Nothing about this baseline removes any other required model: <strong>the Dummy prior remains the sanity floor, the market is the ceiling to attack, and your models live between them.</strong>&rdquo; Every classification model is reported alongside the market on the <em>identical set of tagged test matches</em>.</p>
+    <div class="box ta">
+      <span class="tag">TA, on what &ldquo;good&rdquo; means</span>
+      <p>&ldquo;Your criterion for seeing how good your model is, is whether you become better than that or not — in the overall metrics. In task one, and likewise in task three.&rdquo; He notes that real bookmaker odds also move during a match, but the dataset only carries pre-match prices, which is why the in-play comparison is anchored at kick-off.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ 8 -->
+  <section id="models">
+    <h2><span class="num">08</span> The model suite and the comparison rules</h2>
+    <p class="lede">You do not get to pick one model. You must train the whole table, on every task where it applies, and report the complete metric suite for every combination. <span class="badge b-pdf">PDF</span> &ldquo;The point is not to crown a winner; it is to understand <em>why</em> performance differs across model families and what each one's failures reveal about the data.&rdquo;</p>
+
+    <div class="tablewrap">
+      <table>
+        <caption>The mandatory model table. C = pre-match classification, R = pre-match margin regression, L = in-play (the same learner families retrained on the snapshot feature set).</caption>
+        <thead><tr><th>Model</th><th>Python library</th><th style="width:80px">Task(s)</th><th>Role &amp; notes</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Dummy / Home-Advantage Prior</strong></td><td><code>sklearn.dummy</code></td><td>C, R, L</td><td>Majority-class and home-win base-rate predictor. For L, also compare against the <em>frozen pre-match prediction</em> as a baseline.</td></tr>
+          <tr><td><strong>Kernel SVM</strong> (SVC / SVR)</td><td><code>sklearn.svm</code></td><td>C, R</td><td>First kernel method. RBF SVC for classification, SVR for regression. Scale-sensitive; drives the O(n&sup2;) discussion.</td></tr>
+          <tr><td><strong>Kernel Ridge Regression</strong></td><td><code>sklearn.kernel_ridge</code> (+ <code>kernel_approximation</code>)</td><td>R</td><td>Second kernel method. Use <code>RBFSampler</code> or <code>Nystroem</code> to scale; compare exact vs. approximate kernels.</td></tr>
+          <tr><td><strong>Random Forest</strong></td><td><code>sklearn.ensemble</code></td><td>C, R, L</td><td>Strong low-tuning ensemble. Variance-reduction reference; inspect feature importances against your engineered features.</td></tr>
+          <tr><td><strong>Gradient Boosting (GBM)</strong></td><td><code>sklearn.ensemble</code></td><td>C, R, L</td><td>Textbook boosting. Slower than XGBoost or LightGBM at scale; quantify the gap in the compute section.</td></tr>
+          <tr><td><strong>XGBoost</strong></td><td><code>xgboost</code></td><td>C, R, L</td><td>Regularised tree boosting; usual state of the art on tabular data. Tune depth, learning rate, subsampling.</td></tr>
+          <tr><td><strong>LightGBM</strong></td><td><code>lightgbm</code></td><td>C, R, L</td><td>Histogram-based boosting. The snapshot table for L is large; compare speed and memory against XGBoost and GBM on it.</td></tr>
+          <tr><td><strong>De-Vigged Market Odds</strong></td><td>derived from tagged odds</td><td>C</td><td><strong>THE main baseline.</strong> De-vigged 1X2 probabilities on the tagged test matches; every classifier must be reported against it.</td></tr>
+          <tr><td><strong>P1 Paper Method</strong></td><td>per student, per paper</td><td>&mdash;</td><td>Your chosen data method (&sect;09), <strong>reimplemented from scratch</strong>, applied wherever it fits.</td></tr>
+          <tr><td><strong>P2 Paper Method</strong></td><td>per student</td><td>C, R, L</td><td>Your chosen non-deep predictive model (&sect;09), with a hand derivation in the appendix.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="box ta">
+      <span class="tag">Libraries: allowed, and where the line is</span>
+      <p>&ldquo;You can use a library for all of them. If you just use <code>XGB.train</code> and <code>fit</code>, that's okay. LightGBM the same, normal GBM the same, random forest the same. Use all of these as built-in.&rdquo;</p>
+      <p style="margin-bottom:0"><strong>But</strong> <span class="badge b-pdf">PDF</span> the two <em>papers</em> are the exception: P2 &ldquo;must be reimplemented following the paper rather than simply called from a library&rdquo;, and P1 is likewise &ldquo;reimplemented from scratch&rdquo;. The library shortcut applies to the baseline suite, not to your paper contributions.</p>
+    </div>
+
+    <h3>8.1 The eight mandatory comparison requirements</h3>
+    <p><span class="badge b-pdf">PDF</span> &ldquo;Treat each requirement as a gradable deliverable.&rdquo;</p>
+    <ol>
+      <li><strong>Installation &amp; pinning.</strong> <code>pip install scikit-learn xgboost lightgbm imbalanced-learn shap statsbombpy</code>. Pin versions in <code>requirements.txt</code>.</li>
+      <li><strong>Calibration.</strong> Apply <strong>Platt Scaling</strong> or <strong>Isotonic Regression</strong> to <em>every</em> probabilistic classifier and report <strong>ECE before and after</strong>, with reliability diagrams. For Task L, report calibration <em>per game phase</em> (0&ndash;15&#8242;, 15&ndash;30&#8242;, &hellip;, 75&ndash;90&#8242;).</li>
+      <li><strong>Market comparison.</strong> Report every Task C model against the de-vigged Football-Data.co.uk baseline on the identical tagged test matches, and state the tagging coverage rate of that test set.</li>
+      <li><strong>In-play evaluation.</strong> Plot every Task L metric as a function of match minute, and always include the frozen pre-match prediction as the reference curve it must beat.</li>
+      <li><strong>Compute cost.</strong> Record wall-clock training time and peak memory for every model on the full training set, presented in one table. &ldquo;The snapshot table makes this non-trivial.&rdquo;</li>
+      <li><strong>Kernel scaling.</strong> Derive or cite the O(n&sup2;) space cost of exact kernel methods and <em>demonstrate it empirically</em> with a training-time vs. dataset-size plot.</li>
+      <li><strong>No cherry-picking.</strong> Report the complete metric suite for every model on every task, including where performance is poor.</li>
+      <li><strong>Fair tuning.</strong> Give every model a comparable hyperparameter budget and describe the search protocol (grid, random or Bayesian) explicitly.</li>
+    </ol>
+
+    <details>
+      <summary>Why kernel methods blow up — the handshake analogy</summary>
+      <div class="details-body">
+        <p>If every person at a party must shake hands with every other person, <em>n</em> people produce about <code>n&sup2;/2</code> handshakes. A kernel method must compute a similarity between every pair of training examples, so its kernel matrix has <code>n&sup2;</code> entries. With 380 matches that is trivial. With a snapshot table of, say, 5,000 matches &times; 18 snapshots = 90,000 rows, the exact kernel matrix has 8.1&nbsp;billion entries. That is the O(n&sup2;) <em>space</em> cost the PDF asks you to derive and then <em>show on a plot</em> by timing training runs at increasing dataset sizes.</p>
+        <p style="margin-bottom:0">This is also why the PDF pairs Kernel Ridge with <code>RBFSampler</code> / <code>Nystroem</code>: those approximate the kernel and let you compare exact vs. approximate.</p>
+      </div>
+    </details>
+
+    <h3>8.2 What the comparison must reveal</h3>
+    <p>The PDF names five conclusions your discussion has to reach. These are essentially the section headings of your results narrative:</p>
+    <div class="grid2">
+      <div class="card"><h4>Family behaviour</h4><p>Why boosted trees typically dominate tabular data, where kernel methods struggle at scale, and when the low-tuning Random Forest is already close to the best result.</p></div>
+      <div class="card"><h4>Calibration vs. accuracy</h4><p>Show that better arg-max accuracy does <em>not</em> imply better calibration, and argue which property matters more for a forecasting product.</p></div>
+      <div class="card"><h4>Market gap</h4><p>Quantify how far each model sits from the de-vigged market baseline, and hypothesise which signals the market prices in that your event-derived features miss.</p></div>
+      <div class="card"><h4>Information value of the live stream</h4><p>Quantify how much each in-play feature group (score state, man-advantage, recent event rates) improves Task L over the pre-match prior, and at which match phases.</p></div>
+      <div class="card"><h4>Paper vs. library</h4><p>Position your P1 and P2 reimplementations against the tuned library baselines and report the outcome honestly, <em>including negative results</em>.</p></div>
+    </div>
+
+    <div class="box ta">
+      <span class="tag">Two extra expectations the TA voiced</span>
+      <ul style="margin-bottom:0">
+        <li><strong>Statistical testing.</strong> &ldquo;Perform statistical tests on the average accuracies&hellip; the data volume is very high, you can have <em>n</em> different experiments and take tests.&rdquo; That is: do not claim model A beats model B from a single run — repeat across folds/seeds and test the difference.</li>
+        <li><strong>Defend every number.</strong> &ldquo;For every number you bring, every chart you draw, every sentence you write saying <em>this model is better than this one</em> — you must be able to defend it. Not: &lsquo;because of such-and-such metric&rsquo; when that metric has no relevance at all.&rdquo;</li>
+      </ul>
+    </div>
+
+    <div class="box think">
+      <span class="tag">Plotting</span>
+      <p><span class="badge b-ta">TA</span> <span class="badge b-opt">Preference</span> &ldquo;For your plots, whether along the way or at the end — generally for this project — use <strong>Plotly instead of Matplotlib</strong>.&rdquo; This is not in the PDF; it is his stated preference for the whole project. Docs: <a href="https://plotly.com/python/" target="_blank" rel="noopener">plotly.com/python</a>.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ 9 -->
+  <section id="papers">
+    <h2><span class="num">09</span> The two papers: P1 (data) and P2 (model)</h2>
+    <p class="lede">You must find and <strong>reimplement two published papers from scratch</strong>. This is 20% of the grade and it gates the two mid defences. Both papers need the TA's sign-off <em>before</em> you start implementing.</p>
+
+    <h3>9.1 The four hard filters — both papers must pass all of them</h3>
+    <div class="box warn">
+      <span class="tag">Non-negotiable</span>
+      <ol style="margin-bottom:0">
+        <li>Published in <strong>2022 or later</strong> (use the publication date, not the preprint date).</li>
+        <li>Published in a <strong>Q1-ranked venue</strong>: verify journals via <a href="https://www.scimagojr.com/" target="_blank" rel="noopener">Scimago</a> or <a href="https://jcr.clarivate.com/" target="_blank" rel="noopener">JCR</a>; verify conferences via <a href="https://portal.core.edu.au/conf-ranks/" target="_blank" rel="noopener">CORE</a> at rank <strong>A*</strong> or <strong>A</strong>.</li>
+        <li>The method must be <strong>directly applicable</strong> to this dataset and your chosen tasks (no unrelated-domain papers).</li>
+        <li><strong>TA sign-off obtained BEFORE implementation begins</strong>, at or before the corresponding mid defence.</li>
+      </ol>
+    </div>
+    <details>
+      <summary>What does &ldquo;Q1&rdquo; actually mean?</summary>
+      <div class="details-body">
+        <p>Journals in a subject area are ranked by an impact indicator and cut into four quartiles. <strong>Q1</strong> is the top 25% of journals in that subject category. Scimago and JCR are two databases that publish these quartile assignments; you look up the journal name and read off its quartile for the relevant year and category. Conferences are not in those databases, which is why the PDF sends you to the CORE ranking instead, where <strong>A*</strong> and <strong>A</strong> are the top two tiers.</p>
+        <p style="margin-bottom:0"><span class="badge b-ta">TA</span> &ldquo;The paper must definitely be Q1. Go to the JCR site, or the Scimago site&hellip; its publisher should be there, search inside, it should be among the Q1s, and it should be published after 2022 — not an old paper, <em>preferably even this year</em>.&rdquo; He repeated that the paper must be <em>applicable</em>: &ldquo;the paper's model shouldn't be such that it's not applicable to your data.&rdquo;</p>
+      </div>
+    </details>
+
+    <h3>9.2 Paper P1 — the data paper</h3>
+    <p>P1 &ldquo;may address any part of how the data is represented, generated, sampled or engineered.&rdquo; Your choice must be justified <em>against the actual imperfections of event data</em>: class imbalance, within-match correlation of snapshots, sparse rare events, distribution shift across competitions and eras.</p>
+    <div class="tablewrap">
+      <table>
+        <caption>Acceptable directions for P1, from the PDF, each with a concrete hook into this dataset.</caption>
+        <thead><tr><th style="width:210px">Direction</th><th>What it could mean here</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Data representation</strong></td><td>Feature construction from event streams; temporal or rolling-window encodings; learned embeddings for teams or players; spatial-zone representations of the 120&times;80 pitch; graph representations of passing networks.</td></tr>
+          <tr><td><strong>Sampling &amp; imbalance</strong></td><td>Resampling schemes, cost-sensitive reweighting, informative under-sampling, or advanced minority-class strategies beyond plain SMOTE.</td></tr>
+          <tr><td><strong>Synthetic data generation</strong></td><td>Tabular synthesis (SMOTE or CTGAN family) to augment scarce situations, <em>with honest validation that the synthetic data actually helps</em>.</td></tr>
+          <tr><td><strong>Negative sampling</strong></td><td>Principled selection of negatives or contrastive pairs, where a paper frames the problem in those terms.</td></tr>
+          <tr><td><strong>Augmentation &amp; data modelling</strong></td><td>Noise injection, feature perturbation, missing-value modelling, or <strong>imputation strategies for matches lacking 360 data</strong>.</td></tr>
+          <tr><td><strong>Data engineering</strong></td><td>Leakage-aware feature pipelines, drift detection across competitions, or published feature-selection methodology.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="box ta">
+      <span class="tag">TA, running through the same menu out loud</span>
+      <p>&ldquo;One paper is about your <em>data pipeline</em>. It can be about data representation — how you built your features. There are many papers for it. Sampling and this imbalance problem: papers for it. Synthetic data generation so the data isn't imbalanced: lots of papers. Negative sampling — creating a negative class. Augmentation: do you want to increase the data? If you want to use the 360 data in training, many of your matches don't have that feature — can you augment? Missing values, noise injection, feature perturbation. <strong>Whatever is related to the data becomes paper one.</strong>&rdquo;</p>
+    </div>
+
+    <div class="box ta">
+      <span class="tag">A requirement stated only by the TA — the P1 ablation</span>
+      <p>&ldquo;The data paper you choose causes there to be <strong>two states</strong> here. One <em>with</em> the paper, one <em>without</em> the paper: your data pipeline once with the paper and once without it, so that later you can compare how important the paper was — what the contribution of your paper one was.&rdquo;</p>
+      <p style="margin-bottom:0">The PDF asks for the same thing less explicitly (&ldquo;Paper vs. library: position your P1 and P2 reimplementations against the tuned library baselines&rdquo;; stage 10 of the pipeline is a re-training and ablation loop). Build your data pipeline so that P1 can be switched off with a flag.</p>
+    </div>
+
+    <h3>9.3 Paper P2 — the model paper</h3>
+    <p>P2 must introduce a <strong>predictive machine-learning model that can be applied to both classification and regression</strong>, so that a single method can serve Models 1, 2 and 3.</p>
+    <div class="box warn">
+      <span class="tag">Deep learning is explicitly out of scope for P2</span>
+      <p><span class="badge b-pdf">PDF</span> &ldquo;No neural networks, transformers, or deep sequence models.&rdquo; Choose a classical or modern non-deep ML model: a novel tree-ensemble or gradient-boosting variant, a probabilistic or Bayesian model, a kernel method, a calibrated ensemble, or a boosting extension aimed at calibration or uncertainty estimation.</p>
+      <p style="margin-bottom:0"><span class="badge b-ta">TA</span> Same message: &ldquo;everything except deep learning and transformers — anything that can be done with ML, you can do.&rdquo; He lists gradient-based, gradient-boosting-based, tree-based, ensemble-based, Bayesian, kernel-based, &ldquo;other different methods that have come out&rdquo;. He notes kernel methods &ldquo;might be heavy&rdquo; given the data volume.</p>
+    </div>
+    <p><strong>Two consequences that catch people out:</strong></p>
+    <ul>
+      <li>&ldquo;The model must be reimplemented following the paper rather than simply called from a library, and your report appendix must contain a <strong>hand derivation of its core update or objective equation</strong>.&rdquo; (Appendix A.)</li>
+      <li>&ldquo;Where the paper demonstrates only one task, <strong>adapting it cleanly to the other is part of your contribution</strong>.&rdquo; A paper that only does classification is acceptable — you must extend it to regression yourself, and explain how.</li>
+    </ul>
+
+    <h3>9.4 How to search</h3>
+    <p>Use <a href="https://scholar.google.com/" target="_blank" rel="noopener">Google Scholar</a>. The PDF supplies starting queries verbatim:</p>
+    <div class="grid2">
+      <div class="card">
+        <h4>For P1 (data)</h4>
+        <pre style="margin:0"><code>event data feature representation sports analytics 2023
+tabular data augmentation imbalanced classification
+spatiotemporal feature engineering football
+rolling window representation time series prediction</code></pre>
+      </div>
+      <div class="card">
+        <h4>For P2 (model)</h4>
+        <pre style="margin:0"><code>gradient boosting calibration probabilistic prediction 2023
+non-deep tabular model classification regression
+Bayesian ensemble sports forecasting
+kernel method calibrated probabilities</code></pre>
+      </div>
+    </div>
+    <p>Then: &ldquo;Use the <em>Cited-by</em> graph to move forwards from a strong survey, and the reference list of each candidate to move backwards. Stop once you have papers that clear the hard filters and that you can realistically implement within the timeline.&rdquo;</p>
+  </section>
+
+  <!-- ============================================================ 10 -->
+  <section id="imbalance">
+    <h2><span class="num">10</span> Imbalance and resampling</h2>
+    <p class="lede">Football outcomes are not evenly split. Across large samples the PDF gives: <strong>home wins ~45%, away wins ~28%, draws ~27%</strong> — and the mix drifts by competition and era.</p>
+
+    <p>That is a mild imbalance compared with, say, fraud detection, but it is real — and for the in-play task it <em>changes shape over the match</em>: &ldquo;snapshots taken while a team leads by two goals are dominated by one eventual outcome.&rdquo; How you handle imbalance interacts with calibration in ways the PDF insists <em>&ldquo;must be studied rather than assumed.&rdquo;</em></p>
+
+    <h3>10.1 The six arms you must run</h3>
+    <p>Run all of these on <em>identical splits</em>, and compare them on both aggregate and per-class metrics, for the pre-match classification task at minimum:</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:190px">Arm</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Vanilla</strong></td><td>Train on the raw class distribution with no resampling — the honest baseline.</td></tr>
+          <tr><td><strong>SMOTE</strong></td><td>Synthetic Minority Over-sampling: invents new minority-class rows by interpolating between a minority point and its nearest minority neighbours. Fit inside training folds only.</td></tr>
+          <tr><td><strong>BorderlineSMOTE</strong></td><td>Concentrates the synthetic samples near the decision boundary, where errors cluster.</td></tr>
+          <tr><td><strong>ADASYN</strong></td><td>Adaptively synthesises <em>more</em> samples for the harder minority regions.</td></tr>
+          <tr><td><strong>Class weights</strong></td><td>Pass <code>class_weight='balanced'</code> to the estimators instead of resampling, and compare the trade-off.</td></tr>
+          <tr><td><strong>Your P1 method</strong></td><td>If P1 addresses imbalance or data generation, include it as an additional arm of this study.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>10.2 How to evaluate them</h3>
+    <p>Compare every method using <strong>both</strong> aggregate scores (RPS, Log-Loss) <strong>and</strong> per-class precision, recall and F1, and plot a reliability diagram for each.</p>
+    <div class="box pdf">
+      <span class="tag">The lesson the PDF wants you to find</span>
+      <p>&ldquo;A recurring lesson is that improving minority-class recall through aggressive oversampling often <em>degrades probability calibration</em>, so this trade-off must be measured and discussed rather than ignored.&rdquo; In this project, calibration is what you are graded on. A resampling scheme that lifts draw-recall while wrecking your ECE is a <em>result</em>, and you should report it as one.</p>
+    </div>
+
+    <div class="box warn">
+      <span class="tag">Three ways resampling becomes leakage</span>
+      <ol style="margin-bottom:0">
+        <li>Fitting SMOTE on the full dataset before splitting <strong>is</strong> data leakage and will be penalised.</li>
+        <li>Use the <a href="https://imbalanced-learn.org/stable/references/generated/imblearn.pipeline.Pipeline.html" target="_blank" rel="noopener"><code>imbalanced-learn</code> Pipeline</a> — <em>not</em> scikit-learn's — so resampling never touches validation or test data.</li>
+        <li><strong>Never oversample the snapshot table across matches</strong>: synthetic snapshots interpolated between two different matches are physically meaningless and leak label information.</li>
+      </ol>
+    </div>
+
+    <details>
+      <summary>Illustrative sketch — resampling that cannot leak</summary>
+      <div class="details-body">
+<pre><code>from imblearn.pipeline import Pipeline        # NOT sklearn.pipeline
+from imblearn.over_sampling import SMOTE
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import GroupKFold
+
+pipe = Pipeline([
+    ("scale",  StandardScaler()),   # fit on the training fold only
+    ("smote",  SMOTE()),            # applied inside the fold only
+    ("model",  clf),
+])
+
+# groups = match_id  ->  all snapshots of a match stay together
+cv = GroupKFold(n_splits=5)
+for tr, va in cv.split(X, y, groups=match_ids):
+    pipe.fit(X[tr], y[tr])
+</code></pre>
+        <p class="small">Two protections in one snippet: the <code>imblearn</code> pipeline confines SMOTE and the scaler to the training fold, and <code>groups=match_ids</code> keeps every snapshot of a match on one side. For the real project, the split must additionally be <strong>chronological</strong>, not random — see the temporal-splitting stage in <a href="#pipeline">section 12</a>. Verify signatures against the <a href="https://imbalanced-learn.org/stable/" target="_blank" rel="noopener">imbalanced-learn</a> and <a href="https://scikit-learn.org/stable/" target="_blank" rel="noopener">scikit-learn</a> docs.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ============================================================ 11 -->
+  <section id="shap">
+    <h2><span class="num">11</span> Explainability with SHAP</h2>
+    <p class="lede">SHAP is not decoration here. It is a required deliverable, it drives your error analysis, and it is the centrepiece of the final defence.</p>
+
+    <h3>11.1 What SHAP gives you</h3>
+    <p><span class="badge b-pdf">PDF</span> &ldquo;SHAP assigns each feature a signed contribution to a specific prediction, grounded in cooperative game theory, so that the contributions for one prediction sum to the gap between that prediction and the model's average output. This turns an opaque score into an <em>auditable statement</em> about which features drove it.&rdquo;</p>
+
+    <div class="tablewrap">
+      <table>
+        <caption>The four SHAP artefacts the project requires.</caption>
+        <thead><tr><th style="width:190px">Artefact</th><th>What it is, and what it is for</th></tr></thead>
+        <tbody>
+          <tr><td><strong>TreeSHAP</strong></td><td>Use the <code>shap</code> library's <code>TreeExplainer</code> for Random Forest, GBM, XGBoost and LightGBM. It is exact and fast on tree ensembles — which is why those models are the natural place to apply SHAP here.</td></tr>
+          <tr><td><strong>Global view</strong></td><td>A SHAP summary (beeswarm) plot per model and task, ranking features by overall impact — and compared against the model's <em>built-in</em> feature importances. (Do they agree? If not, why?)</td></tr>
+          <tr><td><strong>Local view</strong></td><td>SHAP force or waterfall plots for individual predictions, <em>especially the worst ones</em> from the error analysis, to show why the model was confidently wrong.</td></tr>
+          <tr><td><strong>In-play SHAP timeline</strong></td><td>For at least one full match, plot how Model 3's SHAP attributions evolve snapshot by snapshot: watch score-state take over from pre-match form after a goal, or man-advantage surge after a red card. &ldquo;This single figure demonstrates the entire project working end to end.&rdquo;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>11.2 The 10-worst-predictions post-mortem</h3>
+    <p>For each task, take the ten worst predictions on the test set and explain each one with SHAP. <span class="badge b-pdf">PDF</span> This is a required section of the report (8A) and a checklist item.</p>
+
+    <div class="box ta">
+      <span class="tag">The TA's own worked example — memorise the shape of this argument</span>
+      <p>&ldquo;A red card in one of these worst predictions might cause the model to suddenly drop the probability very low — but the side still scores two goals and wins. Ten men win the match. It happened in a Persepolis&ndash;Esteghlal derby. The thing that <em>contributed</em>, that caused your prediction to fail, was that red card: the team was two goals down, a red card arrives, the probability collapses — and then they score anyway. <strong>You can show this with SHAP.</strong> But afterwards they scored; that is the chance that exists in football.&rdquo;</p>
+      <p style="margin-bottom:0">Notice what he is really teaching: a bad prediction is not automatically a bad model. SHAP lets you say <em>which feature</em> was responsible, and then you argue whether the model was wrong or merely unlucky.</p>
+    </div>
+
+    <div class="box think">
+      <span class="tag">Scope of the global SHAP analysis — the two sources differ slightly</span>
+      <p><span class="badge b-pdf">PDF</span> checklist: &ldquo;SHAP <strong>global summary plots per model</strong>, local plots for the worst predictions, and one full-match SHAP timeline.&rdquo;</p>
+      <p style="margin-bottom:0"><span class="badge b-ta">TA</span>: &ldquo;In general apply SHAP overall too, to explain the model — <em>your top model, not all models</em>. But specifically analyse these ten as well and say why these ten were bad.&rdquo; The PDF is the stricter, safer target; the TA at minimum expects a global explanation of your best model plus the per-task 10-worst analysis.</p>
+    </div>
+
+    <p><span class="badge b-pdf">PDF</span> &ldquo;The purpose is not to produce plots for their own sake. SHAP is how you connect the error analysis to concrete feature behaviour: when a model fails on comebacks or on newly promoted teams, SHAP should reveal which features misled it, and <strong>that evidence should inform your re-training and ablation choices</strong>.&rdquo; That sentence is why SHAP sits at stage 9 of the pipeline, immediately before the iteration loop.</p>
+    <p class="small">Library docs: <a href="https://shap.readthedocs.io/en/latest/" target="_blank" rel="noopener">shap.readthedocs.io</a>. Papers to cite: Lundberg &amp; Lee (2017); Lundberg et&nbsp;al. (2020) for TreeSHAP.</p>
+  </section>
+
+  <!-- ============================================================ 12 -->
+  <section id="pipeline">
+    <h2><span class="num">12</span> The end-to-end pipeline</h2>
+    <p class="lede">The PDF prints this as one diagram and then says: <em>&ldquo;Your report must map every implementation choice to its stage in this diagram.&rdquo;</em> Ten stages, one branch into two parallel feature pipelines, one honest iteration loop.</p>
+
+    <figure>
+      <svg viewBox="0 0 900 1010" role="img" aria-label="Ten-stage end-to-end pipeline: ingestion and integration, labeling and problem definition, preprocessing and cleaning, temporal splitting, then a branch into pre-match and in-play feature pipelines, then modeling, calibration, evaluation, error analysis with SHAP, and re-training and ablation with a feedback loop into evaluation.">
+        <defs>
+          <marker id="a2" markerWidth="10" markerHeight="10" refX="7.5" refY="3.4" orient="auto">
+            <path d="M0,0 L7.4,3.4 L0,6.8 z" fill="var(--muted-2)"/>
+          </marker>
+          <marker id="a3" markerWidth="10" markerHeight="10" refX="7.5" refY="3.4" orient="auto">
+            <path d="M0,0 L7.4,3.4 L0,6.8 z" fill="var(--amber)"/>
+          </marker>
+        </defs>
+        <g font-family="system-ui,sans-serif">
+
+          <!-- 1 -->
+          <rect x="270" y="30" width="360" height="64" rx="9" fill="var(--pitch-800)" stroke="var(--line)"/>
+          <text x="288" y="53" font-size="12.5" font-weight="600" fill="var(--mint)">1 &nbsp;INGESTION &amp; INTEGRATION</text>
+          <text x="288" y="70" font-size="10.5" fill="var(--muted)">Parse competitions, matches, events, lineups, 360 from the JSON tree.</text>
+          <text x="288" y="85" font-size="10.5" fill="var(--muted)">Join the five families on competition_id, season_id, match_id.</text>
+          <line x1="450" y1="94" x2="450" y2="114" stroke="var(--muted-2)" marker-end="url(#a2)"/>
+
+          <!-- 2 -->
+          <rect x="270" y="118" width="360" height="64" rx="9" fill="var(--pitch-800)" stroke="var(--line)"/>
+          <text x="288" y="141" font-size="12.5" font-weight="600" fill="var(--mint)">2 &nbsp;LABELING &amp; PROBLEM DEFINITION</text>
+          <text x="288" y="158" font-size="10.5" fill="var(--muted)">W/D/L and signed margin from home_score, away_score. Define one</text>
+          <text x="288" y="173" font-size="10.5" fill="var(--muted)">example: (match) for C and R; (match, time t) for L.</text>
+          <line x1="450" y1="182" x2="450" y2="202" stroke="var(--muted-2)" marker-end="url(#a2)"/>
+
+          <!-- 3 -->
+          <rect x="270" y="206" width="360" height="64" rx="9" fill="var(--pitch-800)" stroke="var(--line)"/>
+          <text x="288" y="229" font-size="12.5" font-weight="600" fill="var(--mint)">3 &nbsp;PREPROCESSING &amp; CLEANING</text>
+          <text x="288" y="246" font-size="10.5" fill="var(--muted)">Validate event ordering (period, timestamp, index). Unify team and</text>
+          <text x="288" y="261" font-size="10.5" fill="var(--muted)">player ids across seasons. Log every dropped row with a reason.</text>
+          <line x1="450" y1="270" x2="450" y2="290" stroke="var(--muted-2)" marker-end="url(#a2)"/>
+
+          <!-- 4 -->
+          <rect x="270" y="294" width="360" height="64" rx="9" fill="var(--pitch-800)" stroke="var(--line)"/>
+          <text x="288" y="317" font-size="12.5" font-weight="600" fill="var(--mint)">4 &nbsp;TEMPORAL SPLITTING</text>
+          <text x="288" y="334" font-size="10.5" fill="var(--muted)">Chronological train / val / test by season and match date. Never</text>
+          <text x="288" y="349" font-size="10.5" fill="var(--muted)">shuffle across time. Snapshots inherit their parent match's side.</text>
+
+          <!-- split lines -->
+          <path d="M450,358 L450,378 L215,378 L215,396" fill="none" stroke="var(--muted-2)" marker-end="url(#a2)"/>
+          <path d="M450,358 L450,378 L685,378 L685,396" fill="none" stroke="var(--muted-2)" marker-end="url(#a2)"/>
+
+          <!-- 5A -->
+          <rect x="40" y="400" width="350" height="102" rx="9" fill="var(--pitch-800)" stroke="var(--mint-dim)"/>
+          <text x="58" y="423" font-size="12.5" font-weight="600" fill="var(--mint)">5A &nbsp;PRE-MATCH FEATURE PIPELINE</text>
+          <text x="58" y="442" font-size="10.5" fill="var(--muted)">One row per match, built ONLY from prior matches:</text>
+          <text x="58" y="457" font-size="10.5" fill="var(--muted)">rolling form, aggregated event rates (shots, pressures,</text>
+          <text x="58" y="472" font-size="10.5" fill="var(--muted)">xG proxies), possession style, head-to-head, rest days.</text>
+          <text x="58" y="491" font-size="10.5" fill="var(--chalk)">Scale and balance inside training folds &rarr; Models 1 and 2.</text>
+
+          <!-- 5B -->
+          <rect x="510" y="400" width="350" height="102" rx="9" fill="var(--pitch-800)" stroke="var(--sky)"/>
+          <text x="528" y="423" font-size="12.5" font-weight="600" fill="var(--sky)">5B &nbsp;IN-PLAY FEATURE PIPELINE</text>
+          <text x="528" y="442" font-size="10.5" fill="var(--muted)">Many rows per match: snapshot the game state at times t</text>
+          <text x="528" y="457" font-size="10.5" fill="var(--muted)">(e.g. every 5 min): score, man-advantage, event counts</text>
+          <text x="528" y="472" font-size="10.5" fill="var(--muted)">and rates in the last window, momentum, + pre-match vector.</text>
+          <text x="528" y="491" font-size="10.5" fill="var(--chalk)">STRICT: only events with timestamp &#8804; t &rarr; Model 3.</text>
+
+          <path d="M215,502 L215,525 L450,525 L450,541" fill="none" stroke="var(--muted-2)" marker-end="url(#a2)"/>
+          <path d="M685,502 L685,525 L450,525" fill="none" stroke="var(--muted-2)"/>
+
+          <!-- 6 -->
+          <rect x="270" y="545" width="360" height="64" rx="9" fill="var(--pitch-700)" stroke="var(--amber)"/>
+          <text x="288" y="568" font-size="12.5" font-weight="600" fill="var(--amber)">6 &nbsp;MODELING (three deliverables)</text>
+          <text x="288" y="585" font-size="10.5" fill="var(--muted)">Model 1: 3-class outcome (C). Model 2: goal margin (R).</text>
+          <text x="288" y="600" font-size="10.5" fill="var(--muted)">Model 3: both, re-estimated at each t. Suite + P1 + P2.</text>
+          <line x1="450" y1="609" x2="450" y2="629" stroke="var(--muted-2)" marker-end="url(#a2)"/>
+
+          <!-- 7 -->
+          <rect x="270" y="633" width="360" height="64" rx="9" fill="var(--pitch-800)" stroke="var(--line)"/>
+          <text x="288" y="656" font-size="12.5" font-weight="600" fill="var(--mint)">7 &nbsp;CALIBRATION &amp; POST-PROCESSING</text>
+          <text x="288" y="673" font-size="10.5" fill="var(--muted)">Platt or isotonic for all probabilistic outputs. For Model 3,</text>
+          <text x="288" y="688" font-size="10.5" fill="var(--muted)">verify calibration at every game phase, not just on average.</text>
+          <line x1="450" y1="697" x2="450" y2="717" stroke="var(--muted-2)" marker-end="url(#a2)"/>
+
+          <!-- 8 -->
+          <rect x="270" y="721" width="360" height="64" rx="9" fill="var(--pitch-800)" stroke="var(--line)"/>
+          <text x="288" y="744" font-size="12.5" font-weight="600" fill="var(--mint)">8 &nbsp;EVALUATION</text>
+          <text x="288" y="761" font-size="10.5" fill="var(--muted)">RPS, Log-Loss, Brier, ECE for C; MAE / RMSE for R. For L, plot</text>
+          <text x="288" y="776" font-size="10.5" fill="var(--muted)">metric-vs-minute curves against the frozen pre-match prior.</text>
+          <line x1="450" y1="785" x2="450" y2="805" stroke="var(--muted-2)" marker-end="url(#a2)"/>
+
+          <!-- 9 -->
+          <rect x="270" y="809" width="360" height="64" rx="9" fill="var(--pitch-800)" stroke="var(--line)"/>
+          <text x="288" y="832" font-size="12.5" font-weight="600" fill="var(--mint)">9 &nbsp;ERROR ANALYSIS (+ SHAP)</text>
+          <text x="288" y="849" font-size="10.5" fill="var(--muted)">10 worst predictions per task, explained with TreeSHAP. For</text>
+          <text x="288" y="864" font-size="10.5" fill="var(--muted)">Model 3, a SHAP timeline across one full match.</text>
+          <line x1="450" y1="873" x2="450" y2="893" stroke="var(--muted-2)" marker-end="url(#a2)"/>
+
+          <!-- 10 -->
+          <rect x="270" y="897" width="360" height="64" rx="9" fill="var(--pitch-800)" stroke="var(--line)"/>
+          <text x="288" y="920" font-size="12.5" font-weight="600" fill="var(--mint)">10 &nbsp;RE-TRAINING &amp; ABLATION</text>
+          <text x="288" y="937" font-size="10.5" fill="var(--muted)">Drop feature groups, change snapshot frequency, swap balancing,</text>
+          <text x="288" y="952" font-size="10.5" fill="var(--muted)">re-train, compare. Never tune against the test set.</text>
+
+          <!-- loop -->
+          <path d="M630,929 L700,929 L700,753 L636,753" fill="none" stroke="var(--amber)" stroke-dasharray="4 4" marker-end="url(#a3)"/>
+          <text x="712" y="848" font-size="10.5" fill="var(--amber)" transform="rotate(-90 712 848)" text-anchor="middle">iterate on failure — honestly</text>
+        </g>
+      </svg>
+      <figcaption>The pipeline as printed in section 6 of the PDF. &ldquo;The gold loop represents honest iteration after error analysis, <em>never</em> repeated tuning against the test set.&rdquo;</figcaption>
+    </figure>
+
+    <details>
+      <summary>Same diagram as Mermaid source (paste into any Mermaid renderer for your report)</summary>
+      <div class="details-body">
+        <p class="small">This page renders no external scripts, so the diagram above is hand-drawn SVG. The Mermaid below is provided for you to reuse in your own documentation.</p>
+<pre><code>flowchart TD
+    A["1. Ingestion &amp; Integration&lt;br/&gt;join 5 JSON families on comp/season/match ids"]
+    B["2. Labeling &amp; Problem Definition&lt;br/&gt;W/D/L + signed margin; define one example"]
+    C["3. Preprocessing &amp; Cleaning&lt;br/&gt;event ordering, identity resolution, drop-log"]
+    D["4. Temporal Splitting&lt;br/&gt;chronological; snapshots inherit parent match"]
+    E1["5A. Pre-match feature pipeline&lt;br/&gt;1 row per match, prior matches only"]
+    E2["5B. In-play feature pipeline&lt;br/&gt;many rows per match, events &lt;= t only"]
+    F["6. Modeling&lt;br/&gt;Model 1 (C) | Model 2 (R) | Model 3 (L) + P1 + P2"]
+    G["7. Calibration &amp; Post-processing&lt;br/&gt;Platt / isotonic; per-phase for Model 3"]
+    H["8. Evaluation&lt;br/&gt;RPS, LogLoss, Brier, ECE, MAE, RMSE; metric-vs-minute"]
+    I["9. Error Analysis + SHAP&lt;br/&gt;10 worst per task; in-play SHAP timeline"]
+    J["10. Re-training &amp; Ablation&lt;br/&gt;drop features, change snapshot rate, compare"]
+
+    A --&gt; B --&gt; C --&gt; D
+    D --&gt; E1
+    D --&gt; E2
+    E1 --&gt; F
+    E2 --&gt; F
+    F --&gt; G --&gt; H --&gt; I --&gt; J
+    J -.->|iterate on failure, never on the test set| H</code></pre>
+      </div>
+    </details>
+
+    <div class="box warn">
+      <span class="tag">The one arrow people get wrong</span>
+      <p>The gold loop goes back into <strong>evaluation</strong>, driven by <strong>error analysis</strong>. It does <em>not</em> mean &ldquo;keep trying hyperparameters until the test score improves&rdquo;. Tuning against the test set is the last, quietest form of leakage, and the PDF calls it out at both ends of the diagram. Iterate against validation; touch test once.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ 13 -->
+  <section id="milestones">
+    <h2><span class="num">13</span> Milestones: the three defences</h2>
+    <p class="lede">This project is not submitted once. It is gated. <span class="badge b-pdf">PDF</span> &ldquo;Each group (1&ndash;2 people) completes three live defences with the teaching assistant: two mid-project defences that gate the two halves of the work, and one final defence built around a live demonstration.&rdquo; Dates and booking are on the course portal.</p>
+
+    <div class="box warn">
+      <span class="tag">Applies to all three</span>
+      <p style="margin-bottom:0">&ldquo;<strong>Every group member must be able to answer for every part of the project</strong>; in two-person groups the TA chooses who answers each question.&rdquo; There is no divide-and-hide.</p>
+    </div>
+
+    <ol class="timeline">
+      <li>
+        <h4>Mid Defence 1 &mdash; Data Paper (P1) &amp; Data Pipeline</h4>
+        <p><span class="badge b-pdf">PDF</span> Held once your integration layer and feature pipelines exist in first working form. <span class="badge b-ta">TA</span> He tied it to the pipeline diagram: it happens <em>&ldquo;when you reach this temporal split&rdquo;</em> — i.e. stages 1&ndash;4 are done — and, per his message to the class, roughly <strong>two weeks</strong> after the briefing.</p>
+        <p><strong>You present two things:</strong></p>
+        <ul>
+          <li><strong>Your P1 pick.</strong> Present the paper, argue why it clears the hard filters, and explain precisely how its method maps onto this dataset's real imperfections. <strong>Sign-off for P1 happens here.</strong></li>
+          <li><strong>Your data pipeline.</strong> Walk through the integration design (joins, keys, identity resolution), the formal problem definition for all three tasks (what one example is, what its label is), the temporal split, the snapshotting scheme, and your leakage defences <em>including the time-t cut assertion</em>.</li>
+        </ul>
+        <p><strong>Expect what-if questions</strong> (the PDF names three): what happens if a snapshot straddles half-time; how you handle matches without 360 data; why your competition selection is justified.</p>
+        <div class="box ta" style="margin-top:8px">
+          <span class="tag">TA's extra expectations for Defence 1</span>
+          <ul style="margin-bottom:0">
+            <li>The data pipeline you show here is the version <strong>without</strong> P1 applied. P1 gets folded in afterwards, which is what makes the with/without comparison possible.</li>
+            <li>Bring <strong>visualizations</strong>: of the initial data, the cleaned data, and the split data in its different states.</li>
+            <li>The purpose is alignment: &ldquo;let's see, are we aligned? Are we all working on the correct data?&rdquo; He described it as &ldquo;a short thing, a short defence.&rdquo;</li>
+            <li>Your papers should be chosen &ldquo;at least initially&rdquo; by this point.</li>
+          </ul>
+        </div>
+      </li>
+
+      <li>
+        <h4>Mid Defence 2 &mdash; Model Paper (P2) &amp; Predictive Modeling</h4>
+        <p><span class="badge b-pdf">PDF</span> Held once your baseline models train end to end. You present two things:</p>
+        <ul>
+          <li><strong>Your P2 pick.</strong> Present the paper, argue the filters, and walk through the core mathematics, <em>including a sketch of the hand derivation destined for Appendix A</em>. <strong>Sign-off for P2 happens here.</strong></li>
+          <li><strong>Your modeling approach.</strong> Justify the model-suite configuration for each of the three deliverables, the hyperparameter budgets and search protocol, the calibration strategy, and how the in-play models are trained on the snapshot table without leaking across the time-<em>t</em> boundary or the match-level split.</li>
+        </ul>
+        <p><strong>Expect design-consequence questions</strong> (the PDF names two): predict what would change if snapshots were taken every minute instead of every five; or if SMOTE were applied to the snapshot table.</p>
+        <div class="box ta" style="margin-top:8px">
+          <span class="tag">TA</span>
+          <p style="margin-bottom:0">&ldquo;For the second defence you must present the modeling, show that the models have been implemented — <em>and</em> your data pipeline: the one you gave in the first defence was without the paper. Your paper does something in that data pipeline; you should show that. Plus your model paper. Then I confirm that it's okay, and you go for the experiments.&rdquo;</p>
+        </div>
+      </li>
+
+      <li class="gold">
+        <h4>Final Defence &mdash; Results &amp; a Live Online Case with SHAP</h4>
+        <p><span class="badge b-pdf">PDF</span> Held <em>after</em> submission. &ldquo;The centrepiece is a live, online walkthrough of one case, run in front of the TA on <strong>a match the TA selects from your held-out data</strong>.&rdquo; Three parts:</p>
+        <ol>
+          <li><strong>Present the results:</strong> final metric tables for all three models, the calibration story, and the headline findings from the error analysis.</li>
+          <li><strong>Run the online case live:</strong> for the selected match, run your pipeline to produce the pre-match prediction (Models 1 and 2), then step through the match with Model 3, showing the probability and margin estimates updating at successive snapshots.</li>
+          <li><strong>Explain it with SHAP:</strong> at each shown snapshot, present the SHAP attribution and narrate it — which features carry the pre-match prediction, and how attributions shift as goals, cards and momentum arrive. State whether the explanation is sensible and what it implies about the model's reliability.</li>
+        </ol>
+        <p><em>Why this format?</em> The PDF answers directly: an aggregate score alone is impossible to trust or debug. The live case proves the pipeline genuinely runs end to end on unseen input, that the in-play machinery respects the time-<em>t</em> boundary <em>in practice and not just on paper</em>, and that you understand what your models key on. &ldquo;It is also the clearest possible evidence that the work is your own.&rdquo; Groups attempting the bonus demonstrate the live API and dashboard here as well.</p>
+        <div class="box ta" style="margin-top:8px">
+          <span class="tag">TA, on the shape of the final session</span>
+          <p style="margin-bottom:0">&ldquo;Your final presentation must be a mix: a PowerPoint you bring, and you present for twenty minutes yourself — twenty is a lot, so a quarter of an hour — and for the rest we go over the code and the report.&rdquo;</p>
+        </div>
+      </li>
+    </ol>
+
+    <div class="box ta">
+      <span class="tag">Version control is checked — and it is not optional</span>
+      <p>&ldquo;Most important of all: you work with <strong>git</strong>, and you put all of this as commits on <strong>GitHub</strong>. Create a repository, put it there from beginning to end, and <strong>include your git history in the appendix of your report</strong> — so I can see how many commits you made and how you did it. You are two people, so <strong>two users must have made commits</strong>. For those working alone, one person.&rdquo;</p>
+      <p style="margin-bottom:0"><span class="badge b-pdf">PDF</span> The submission checklist agrees: &ldquo;Exported git history (<code>git log --oneline --all</code>) showing <strong>genuine iterative development</strong>.&rdquo; A repository created the night before, with one commit called &ldquo;final&rdquo;, fails this item.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ 14 -->
+  <section id="bonus">
+    <h2><span class="num">14</span> The bonus: a real-time prediction service</h2>
+    <p><span class="badge b-opt">Optional</span> <span class="badge b-pdf">PDF</span> &ldquo;This section is optional and carries bonus credit on top of the project grade&hellip; groups that attempt it must be able to present it <strong>running live</strong> at the final defence.&rdquo; It turns Model 3 into what it would actually be in production.</p>
+
+    <h3>14.1 The API</h3>
+    <p>Build a <a href="https://fastapi.tiangolo.com/" target="_blank" rel="noopener">FastAPI</a> service that wraps your trained Model 3 (and, for the pre-kickoff state, Models 1 and 2). It must expose a prediction endpoint that accepts <strong>the identifier of a match and a time t</strong> (or a payload of events up to t), assembles the snapshot feature vector <em>through the same feature code used in training</em>, and returns the current outcome probabilities and expected final margin as JSON.</p>
+
+    <div class="grid2">
+      <div class="card">
+        <h4>Latency budget: under 200&nbsp;ms</h4>
+        <p>End to end, on your demo machine. &ldquo;This forces real engineering: load the model once at startup, precompute and cache the pre-match vector and running in-play aggregates rather than rescanning the event file per request, and keep feature assembly incremental.&rdquo;</p>
+        <p style="margin-bottom:0">Measure and report the latency <strong>distribution (p50 / p95 / p99)</strong> under repeated calls — &ldquo;not a single lucky timing.&rdquo;</p>
+      </div>
+      <div class="card">
+        <h4>Correctness first</h4>
+        <p>&ldquo;The API must <strong>reuse the training feature pipeline</strong>, not a reimplementation. A fast endpoint that computes features differently from training is a deployment bug, and <strong>the TA will check for it</strong> by comparing an API response against your offline prediction for the same snapshot.&rdquo;</p>
+        <p style="margin-bottom:0">Suggested stack: FastAPI with uvicorn, a preloaded model object, an in-memory state store per streamed match. No database required.</p>
+      </div>
+    </div>
+
+    <details>
+      <summary>Illustrative sketch — the shape of the endpoint</summary>
+      <div class="details-body">
+<pre><code>from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+MODEL   = load_model("model3.pkl")      # loaded ONCE, at import time
+PRECOMP = {}                            # match_id -> cached pre-match vector
+
+class Snapshot(BaseModel):
+    match_id: int
+    t_seconds: int
+
+@app.post("/predict")
+def predict(req: Snapshot):
+    pre  = PRECOMP[req.match_id]                     # cached, not recomputed
+    live = incremental_state(req.match_id, req.t_seconds)   # same code as training
+    x    = assemble(pre, live)                       # the SAME assemble() as training
+    p    = MODEL.predict_proba(x)[0]
+    m    = MODEL_MARGIN.predict(x)[0]
+    return {"home": p[0], "draw": p[1], "away": p[2], "expected_margin": m}
+</code></pre>
+        <p class="small">The single most important line is <code>assemble()</code> being imported from your training package rather than rewritten. Verify FastAPI usage against the <a href="https://fastapi.tiangolo.com/" target="_blank" rel="noopener">official documentation</a>.</p>
+      </div>
+    </details>
+
+    <h3>14.2 The dashboard</h3>
+    <p>A small live dashboard that <strong>replays a real match from your held-out data as if it were happening now</strong>: a driver script feeds events to the service in match order, and the dashboard updates after each snapshot.</p>
+    <p><strong>It must show:</strong></p>
+    <ul>
+      <li>the evolving outcome probabilities (three lines, or a stacked area over match time);</li>
+      <li>the expected final margin;</li>
+      <li>the current score and key events (goals, cards) as markers;</li>
+      <li>the top SHAP attributions for the latest snapshot.</li>
+    </ul>
+    <p>&ldquo;Keep it simple: Streamlit, Plotly Dash, or a plain HTML page polling the API are all acceptable. <strong>The dashboard is judged on correctness and clarity, not visual polish.</strong>&rdquo;</p>
+
+    <div class="box ta">
+      <span class="tag">TA</span>
+      <p style="margin-bottom:0">&ldquo;You bring up a FastAPI app — preferably FastAPI — and simulate it, so it takes the feature in real time and predicts: it can predict the regression and the probabilities, in real time. The part that matters is that it responds in <strong>under two hundred milliseconds</strong>, and you design its dashboard&hellip; you can show the events that happened in the match. You can build the dashboard with AI, that's fine, but <em>this</em> part is important: <strong>that it works correctly with your model</strong>.&rdquo;</p>
+    </div>
+
+    <h3>14.3 Presenting it</h3>
+    <p>At the final defence: start the service, launch the replay on a TA-selected held-out match, and narrate what the dashboard shows as the match unfolds — why the probabilities move when they move, what the SHAP panel says is driving the shift, and where the latency stands. <strong>Be prepared to send a hand-crafted request to the endpoint live and explain the response.</strong> &ldquo;Bonus credit is awarded only if the demonstration works in the room.&rdquo;</p>
+  </section>
+
+  <!-- ============================================================ 15 -->
+  <section id="workflow">
+    <h2><span class="num">15</span> Step-by-step: what to do, in what order</h2>
+    <p class="lede">A working order derived from the pipeline diagram and the defence gates. Nothing here invents a deadline — only the sequence. Dates live on the course portal; the TA's own timing hint was that Defence&nbsp;1 comes roughly two weeks after the briefing, at the temporal-splitting stage.</p>
+
+    <ol class="timeline">
+      <li>
+        <h4>Phase 0 &mdash; Set up before you touch data</h4>
+        <p>Create the GitHub repository <em>first</em>, because the git history is graded. Add <code>requirements.txt</code> with pinned versions. Fix your random seeds in one place. Decide who commits what — in a pair, both users must appear in the log.</p>
+        <pre><code>pip install scikit-learn xgboost lightgbm imbalanced-learn shap statsbombpy</code></pre>
+      </li>
+      <li>
+        <h4>Phase 1 &mdash; Ingestion, integration, and the odds join <span class="badge b-pdf">30% of the grade lives here</span></h4>
+        <ul>
+          <li>Clone / download <a href="https://github.com/statsbomb/open-data" target="_blank" rel="noopener">StatsBomb Open Data</a>. Read <code>competitions.json</code> and <strong>decide which competitions you will use</strong> — then write down the justification, because you will defend it.</li>
+          <li>Build the relational store: matches &rarr; lineups &rarr; events &rarr; 360, all keyed by <code>match_id</code>.</li>
+          <li>Download the matching season CSVs from <a href="https://football-data.co.uk/" target="_blank" rel="noopener">Football-Data.co.uk</a>. Tag each row to a <code>match_id</code> on <code>(date, home team, away team)</code> only. Build the team-name alias map. <strong>Record the coverage rate per season and every failure.</strong></li>
+          <li>De-vig the 1X2 odds into the market baseline probabilities.</li>
+        </ul>
+      </li>
+      <li>
+        <h4>Phase 2 &mdash; Labeling and formal problem definition</h4>
+        <p>Write, in prose, the three definitions: what one example is, what its label is, which files may contribute. Put it in the report now, not later — it is graded, and it is the first thing asked at Defence&nbsp;1.</p>
+      </li>
+      <li>
+        <h4>Phase 3 &mdash; Cleaning</h4>
+        <p>Validate event ordering by <code>(period, timestamp, index)</code>. Unify team and player identifiers across seasons. Handle missing lineups and optional attributes. <strong>Log every dropped row with a reason</strong> — that log is evidence at the defence.</p>
+      </li>
+      <li>
+        <h4>Phase 4 &mdash; Temporal split</h4>
+        <p>Chronological train / validation / test by season and match date. Never shuffle across time. Decide the snapshotting scheme now (e.g. every 5 minutes) so snapshots can inherit their parent match's side.</p>
+      </li>
+      <li class="gold">
+        <h4>&#9873; MID DEFENCE 1 &mdash; P1 sign-off + data pipeline</h4>
+        <p>Bring: the paper, the integration design, the three problem definitions, the split, the snapshot scheme, the leakage defences (with the time-<em>t</em> assertion), and visualizations of raw / cleaned / split data. <span class="badge b-ta">TA</span> The pipeline you show here is <em>without</em> P1 applied.</p>
+      </li>
+      <li>
+        <h4>Phase 5 &mdash; The two feature pipelines</h4>
+        <p>5A: one row per match from prior matches only. 5B: many rows per match, events &le;&nbsp;t only, with the cut assertion unit-tested. Build 5B so that P1 can be switched on and off with a flag.</p>
+      </li>
+      <li>
+        <h4>Phase 6 &mdash; Implement P1, then train the baseline suite, then implement P2</h4>
+        <p>Dummy &rarr; Random Forest &rarr; GBM &rarr; XGBoost &rarr; LightGBM &rarr; kernel methods. Get all three tasks training end to end before you optimise anything. Then reimplement P2 from the paper (not from a library) and start the hand derivation for Appendix&nbsp;A.</p>
+      </li>
+      <li class="gold">
+        <h4>&#9873; MID DEFENCE 2 &mdash; P2 sign-off + modeling</h4>
+        <p>Bring: the model paper and its core mathematics, the data pipeline <em>now with P1 in it</em>, all models training, the hyperparameter protocol, the calibration strategy, and your account of how the snapshot table avoids leakage.</p>
+      </li>
+      <li>
+        <h4>Phase 7 &mdash; Experiments</h4>
+        <ul>
+          <li>Calibration: Platt / isotonic on every probabilistic classifier; ECE before and after; per-phase for Model 3.</li>
+          <li>The six-arm imbalance study (vanilla, SMOTE, BorderlineSMOTE, ADASYN, class weights, P1).</li>
+          <li>The market comparison on the identical tagged test matches.</li>
+          <li>Metric-vs-minute curves for Model 3 against the frozen pre-match prior.</li>
+          <li>Compute &amp; memory table; kernel training-time vs. dataset-size plot.</li>
+          <li><span class="badge b-ta">TA</span> Statistical tests across repeated experiments before claiming one model beats another.</li>
+        </ul>
+      </li>
+      <li>
+        <h4>Phase 8 &mdash; Error analysis and SHAP</h4>
+        <p>Ten worst predictions per task, each explained with TreeSHAP. Global beeswarm plots. One full-match SHAP timeline for Model 3. Ask, for each failure: <em>was the model wrong, or merely unlucky?</em></p>
+      </li>
+      <li>
+        <h4>Phase 9 &mdash; Ablation and honest re-training</h4>
+        <p>Drop feature groups, change the snapshot frequency, swap the balancing strategy, and run the <strong>with-P1 vs. without-P1</strong> comparison. Commit each iteration. Never tune against the test set.</p>
+      </li>
+      <li>
+        <h4>Phase 10 &mdash; Report, appendices, reproducibility</h4>
+        <p>Single PDF, max 25 pages excluding appendices. Appendix A: the P2 hand derivation. Appendix B: requirements, seeds, <code>git log --oneline --all</code>.</p>
+      </li>
+      <li>
+        <h4>Phase 11 <span class="badge b-opt">Optional</span> &mdash; The FastAPI service and dashboard</h4>
+        <p>Only worth starting once Model 3 is trained and its feature code is stable, because the API must import that exact code. Measure p50/p95/p99 latency.</p>
+      </li>
+      <li class="gold">
+        <h4>&#9873; FINAL DEFENCE &mdash; results, live case, SHAP narration</h4>
+        <p>After submission. The TA picks a held-out match; you run the pipeline live and narrate the SHAP attributions as the match unfolds. Bonus groups demo the API here.</p>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ============================================================ 16 -->
+  <section id="report">
+    <h2><span class="num">16</span> The written report</h2>
+    <p class="lede">15% of the grade, and the place where &ldquo;honest limitations&rdquo; earn marks. <span class="badge b-pdf">PDF</span> &ldquo;Page counts are guidance, not hard caps; depth and honesty of analysis are weighted above length.&rdquo; The submission is a single PDF, maximum 25 pages excluding appendices.</p>
+
+    <div class="tablewrap">
+      <table>
+        <caption>The mandatory report structure, exactly as prescribed in section 8 of the PDF.</caption>
+        <thead><tr><th style="width:60px">&sect;</th><th>Title</th><th style="width:120px">Suggested pages</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Introduction &amp; Problem Framing (formal definition of all three tasks)</td><td>1&ndash;2</td></tr>
+          <tr><td>2</td><td>Dataset, Integration Design &amp; Competition Selection</td><td>2&ndash;3</td></tr>
+          <tr><td>3</td><td>Feature Engineering: Pre-Match and In-Play Pipelines</td><td>2&ndash;3</td></tr>
+          <tr><td>4</td><td>Paper Reproductions (P1 &amp; P2) with fidelity tables</td><td>3&ndash;4</td></tr>
+          <tr><td>5</td><td>Experimental Setup (splits, snapshotting, metrics, calibration)</td><td>1&ndash;2</td></tr>
+          <tr><td>6</td><td>Results: Models 1, 2 and 3 (full metric tables)</td><td>2&ndash;3</td></tr>
+          <tr><td>7</td><td>Calibration &amp; Reliability Analysis (incl. per-phase for Model 3)</td><td>1&ndash;2</td></tr>
+          <tr><td>8A</td><td>Error &amp; Failure Analysis (10-worst per task, with SHAP)</td><td>1&ndash;2</td></tr>
+          <tr><td>8B</td><td>In-Play Analysis: metric-vs-minute curves, SHAP timeline</td><td>1&ndash;2</td></tr>
+          <tr><td>8C</td><td>Imbalance &amp; Resampling Discussion</td><td>1</td></tr>
+          <tr><td>8D</td><td>Compute &amp; Scaling Analysis (kernel O(n&sup2;) section)</td><td>1</td></tr>
+          <tr><td>8E</td><td>Theory vs. Reality</td><td>1</td></tr>
+          <tr><td>9</td><td>Conclusion &amp; Limitations</td><td>1</td></tr>
+          <tr><td>App. A</td><td>Hand-derivation of the P2 core equation</td><td>as needed</td></tr>
+          <tr><td>App. B</td><td>Reproducibility appendix (requirements, seeds, git log)</td><td>as needed</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>16.1 Results-table format</h3>
+    <p>&ldquo;For every model and task combination, report <strong>one unified results table</strong>. Bold the best value in each column, and <strong>always include the Dummy baseline row</strong> (and, for Task L, the frozen pre-match prediction row) so the reader can locate your models against the sanity floor. <strong>Never present only the single metric on which a model happens to look best.</strong>&rdquo;</p>
+
+    <h3>16.2 Writing standards</h3>
+    <ul>
+      <li>Cite every dataset, library and algorithm with a full bibliographic reference &mdash; <strong>including the StatsBomb attribution required by the data licence</strong>.</li>
+      <li>Give every figure a caption and every table a title row, and refer to each by number in the text.</li>
+      <li><strong>Report negative results honestly.</strong> &ldquo;A model that fails to beat its pre-match prior in-play is a valid finding when you explain why.&rdquo;</li>
+      <li>Use past tense for results (&ldquo;Table 3 shows&hellip;&rdquo;) and present tense for methods (&ldquo;We compute rolling form as&hellip;&rdquo;).</li>
+    </ul>
+
+    <div class="box ta">
+      <span class="tag">The TA's one rule for writing</span>
+      <p style="margin-bottom:0">&ldquo;It doesn't matter at all <em>how</em> you write. What matters is that you know it and can defend it. That's enough.&rdquo; Every sentence claiming superiority must survive the question <em>&ldquo;why?&rdquo;</em>, asked twice.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================ 17 -->
+  <section id="checklist">
+    <h2><span class="num">17</span> Submission checklist</h2>
+    <p class="lede">The PDF's own list, made tickable. &ldquo;Incomplete submissions cannot receive full marks.&rdquo; Ticks are for this browser session only; nothing is stored.</p>
+
+    <ul class="checklist">
+      <li><input type="checkbox" id="c1"><label for="c1">Full written report as a <strong>single PDF</strong>, maximum 25 pages excluding appendices.</label></li>
+      <li><input type="checkbox" id="c2"><label for="c2">Reproducible, zipped <strong>code appendix</strong> with all scripts and notebooks and a pinned <code>requirements.txt</code>.</label></li>
+      <li><input type="checkbox" id="c3"><label for="c3">The <strong>integration layer</strong>: documented code that builds your relational store from the raw StatsBomb JSON tree.</label></li>
+      <li><input type="checkbox" id="c4"><label for="c4"><strong>Both feature pipelines</strong> (pre-match and in-play) as runnable, tested code <strong>with the time-<em>t</em> cut assertion</strong>.</label></li>
+      <li><input type="checkbox" id="c5"><label for="c5">All <strong>three model deliverables</strong> trained and evaluated, with fixed random seeds.</label></li>
+      <li><input type="checkbox" id="c6"><label for="c6">The <strong>complete metric suite</strong> for every model on every task, with no selective reporting.</label></li>
+      <li><input type="checkbox" id="c7"><label for="c7"><strong>Calibration curves and reliability diagrams</strong> for all probabilistic outputs; per-phase calibration for Model 3.</label></li>
+      <li><input type="checkbox" id="c8"><label for="c8"><strong>Metric-vs-match-minute curves</strong> for Model 3 against the frozen pre-match baseline.</label></li>
+      <li><input type="checkbox" id="c9"><label for="c9">A <strong>10-worst-prediction post-mortem per task</strong>, supported by SHAP explanations.</label></li>
+      <li><input type="checkbox" id="c10"><label for="c10">SHAP <strong>global summary plots per model</strong>, local plots for the worst predictions, and <strong>one full-match SHAP timeline</strong>.</label></li>
+      <li><input type="checkbox" id="c11"><label for="c11">A <strong>compute and memory table</strong> covering all models, and the <strong>kernel scaling plot</strong>.</label></li>
+      <li><input type="checkbox" id="c12"><label for="c12">Exported <strong>git history</strong> (<code>git log --oneline --all</code>) showing genuine iterative development.</label></li>
+      <li><input type="checkbox" id="c13"><label for="c13">A <strong>hand-derivation appendix</strong> for the P2 model's core update or objective equation.</label></li>
+      <li><input type="checkbox" id="c14"><label for="c14">The <strong>odds integration</strong>: Football-Data.co.uk CSVs tagged to StatsBomb <code>match_id</code>s, with the alias mapping, per-season coverage rates, and the list of excluded matches.</label></li>
+      <li><input type="checkbox" id="c15"><label for="c15">The <strong>de-vigged market baseline</strong> evaluated on the identical tagged test matches as every Task C model.</label></li>
+      <li><input type="checkbox" id="c16"><label for="c16"><strong>TA sign-off confirmation for both P1 and P2</strong>, obtained at or before the corresponding mid defence.</label></li>
+      <li><input type="checkbox" id="c17"><label for="c17"><span class="badge b-opt">Bonus only</span> The running <strong>FastAPI service</strong>, the <strong>dashboard</strong>, and the <strong>latency evidence</strong>.</label></li>
+    </ul>
+  </section>
+
+  <!-- ============================================================ 18 -->
+  <section id="ta-vs-pdf">
+    <h2><span class="num">18</span> Where the TA adds to, or differs from, the PDF</h2>
+    <p class="lede">The PDF is the specification. The TA's walkthrough is the interpretation, and in a few places it is the only place a requirement appears at all. Everything in this table is traceable to the transcript.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:190px">Topic</th><th>The PDF says</th><th>The TA said</th><th style="width:200px">What to do</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Odds as features</strong></td>
+            <td>Odds may be used <em>either</em> as the market baseline <em>or</em> as a declared feature &mdash; never both in the same experiment.</td>
+            <td>&ldquo;Odds are not features&rdquo; for Task&nbsp;C, because they are the yardstick. But pre-match odds <em>may</em> be used inside live prediction.</td>
+            <td>Keep odds out of Task C entirely. If you use them in Model 3, run it as a separate declared arm.</td>
+          </tr>
+          <tr>
+            <td><strong>P1 with/without ablation</strong></td>
+            <td>Implied: &ldquo;paper vs. library&rdquo; comparison; stage-10 ablation loop.</td>
+            <td>Stated explicitly: build the data pipeline <em>once with P1 and once without</em>, to measure P1's contribution.</td>
+            <td>Put P1 behind a feature flag from day one.</td>
+          </tr>
+          <tr>
+            <td><strong>Library use</strong></td>
+            <td>Model table lists libraries; P1 and P2 must be reimplemented from scratch, P2 with a hand derivation.</td>
+            <td>&ldquo;Use all of these as built-in&rdquo; &mdash; for the baseline suite.</td>
+            <td>Libraries for the suite; from-scratch for the papers. No conflict.</td>
+          </tr>
+          <tr>
+            <td><strong>Global SHAP scope</strong></td>
+            <td>Summary plots <em>per model</em> and task.</td>
+            <td>Global SHAP on &ldquo;your top model, not all models&rdquo;, plus the 10-worst analysis per task.</td>
+            <td>Follow the PDF; it is the stricter target.</td>
+          </tr>
+          <tr>
+            <td><strong>Plotting library</strong></td>
+            <td>Not specified.</td>
+            <td>Use <strong>Plotly</strong> rather than Matplotlib, for the whole project.</td>
+            <td>Use Plotly. <span class="badge b-ta">TA only</span></td>
+          </tr>
+          <tr>
+            <td><strong>Version control</strong></td>
+            <td>Export <code>git log --oneline --all</code> in the reproducibility appendix.</td>
+            <td>Create a <strong>GitHub repository</strong>, commit from start to finish, and in a pair <strong>both users must have commits</strong>.</td>
+            <td>Repo on day zero; commit continuously. <span class="badge b-ta">TA only</span></td>
+          </tr>
+          <tr>
+            <td><strong>Statistical testing</strong></td>
+            <td>Fair tuning; complete metric suite; no cherry-picking.</td>
+            <td>Run <em>n</em> experiments and apply statistical tests to average accuracies before claiming a difference.</td>
+            <td>Do it &mdash; it is how you survive &ldquo;defend that claim&rdquo;. <span class="badge b-ta">TA only</span></td>
+          </tr>
+          <tr>
+            <td><strong>Defence&nbsp;1 timing</strong></td>
+            <td>&ldquo;Once your integration layer and feature pipelines exist in first working form.&rdquo;</td>
+            <td>&ldquo;When you reach this temporal split&rdquo; &mdash; about two weeks after the briefing, per his message.</td>
+            <td>Aim for stages 1&ndash;4 complete, with first-form feature pipelines.</td>
+          </tr>
+          <tr>
+            <td><strong>Final presentation</strong></td>
+            <td>Live results + online case + SHAP narration.</td>
+            <td>Add a <strong>PowerPoint</strong>: you present for about fifteen to twenty minutes, then the session moves to code and report.</td>
+            <td>Prepare slides. <span class="badge b-ta">TA only</span></td>
+          </tr>
+          <tr>
+            <td><strong>Weight of the live model</strong></td>
+            <td>Three models &amp; comparative analysis: 20% overall.</td>
+            <td>&ldquo;Definitely do it &mdash; it is nearly a large part of the grade.&rdquo;</td>
+            <td>Do not treat Model 3 as an afterthought.</td>
+          </tr>
+          <tr>
+            <td><strong>Odds source name</strong></td>
+            <td>Football-Data.co.uk, with per-league pages.</td>
+            <td>Says &ldquo;odds portal&rdquo; once, then demonstrates Football-Data.co.uk's season CSVs and bookmaker triplet columns.</td>
+            <td>Use Football-Data.co.uk. Transcription slip.</td>
+          </tr>
+          <tr>
+            <td><strong>Margin as classes</strong></td>
+            <td>Regression, clipped to [&minus;5,&nbsp;+5], scored with MAE/RMSE.</td>
+            <td>Notes it could equally be seen as a small set of discrete classes (&ldquo;ten states&rdquo;).</td>
+            <td>Deliver the regression. His remark is conceptual.</td>
+          </tr>
+          <tr>
+            <td><strong>Using AI assistants</strong></td>
+            <td>Not addressed.</td>
+            <td>Permitted &mdash; &ldquo;but you must be able to defend it.&rdquo; The dashboard in particular &ldquo;you can build with AI.&rdquo;</td>
+            <td>Understand every line you submit. <span class="badge b-ta">TA only</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============================================================ 19 -->
+  <section id="faq">
+    <h2><span class="num">19</span> Frequently asked questions</h2>
+
+    <details>
+      <summary>Do I really have to train every model in the table, on every task?</summary>
+      <div class="details-body"><p>Yes. The Task column tells you where each applies (kernel SVM: C and R; Kernel Ridge: R only; the tree models and P2: C, R and L). &ldquo;No cherry-picking: report the complete metric suite for every model on every task, <em>including where performance is poor</em>.&rdquo;</p></div>
+    </details>
+
+    <details>
+      <summary>Can I use a neural network anywhere?</summary>
+      <div class="details-body"><p>P2 explicitly excludes them: &ldquo;no neural networks, transformers, or deep sequence models.&rdquo; The TA extended the same exclusion in conversation: &ldquo;everything except deep learning and transformers &mdash; anything that can be done with ML, you can do.&rdquo; Treat deep learning as out of scope for this project.</p></div>
+    </details>
+
+    <details>
+      <summary>What if my model can't beat the bookmakers?</summary>
+      <div class="details-body"><p>That is the expected outcome, and it is fine. &ldquo;Beating the market consistently is a very high bar, and honest, well-analysed failure to beat it is worth more marks than an unexplained score that merely looks good.&rdquo; What is <em>not</em> fine is failing to place your number next to the market's number on the same matches.</p></div>
+    </details>
+
+    <details>
+      <summary>My model <em>does</em> beat the bookmakers. Should I be happy?</summary>
+      <div class="details-body"><p>Be suspicious first. Walk the eight leakage rules one by one. Check the odds are not in your features. Check the rolling averages exclude the target match. Check no snapshot of a test match sits in training. Check the scaler was fit on train only. Only then be happy.</p></div>
+    </details>
+
+    <details>
+      <summary>Which competitions should I train on?</summary>
+      <div class="details-body"><p>Your choice &mdash; but you must justify it, and the justification is examined. The PDF points at La Liga's 18 seasons as &ldquo;the backbone&rdquo; for volume and temporal depth. Tournaments add variety but little history, and mixing naively creates distribution shift &ldquo;that you must measure, not ignore.&rdquo; Remember that your test set is further constrained: it may only contain matches you successfully tagged with odds, and Football-Data.co.uk covers the major European leagues, not international tournaments.</p></div>
+    </details>
+
+    <details>
+      <summary>What about matches with no 360 data?</summary>
+      <div class="details-body"><p>360 exists for a subset only. Three legitimate routes, all mentioned in the sources: drop the 360-derived features entirely; impute them (an explicitly acceptable P1 direction: &ldquo;imputation strategies for matches lacking 360 data&rdquo;); or augment. <span class="badge b-ta">TA</span> He raised exactly this: &ldquo;if you want to use the 360 data in training, many of your matches don't have that feature &mdash; can you augment? What do you want to do?&rdquo; Whatever you choose, it is a defence question at Mid Defence&nbsp;1.</p></div>
+    </details>
+
+    <details>
+      <summary>How often should I snapshot?</summary>
+      <div class="details-body"><p>The PDF's example is &ldquo;one snapshot every five minutes&rdquo;, and calls the scheme yours to design. Be ready for the Defence&nbsp;2 question: &ldquo;predict what would change if snapshots were taken every minute instead of every five.&rdquo; Think about row count, within-match correlation, compute cost, and whether the extra rows carry new information.</p></div>
+    </details>
+
+    <details>
+      <summary>What happens if a snapshot straddles half-time?</summary>
+      <div class="details-body"><p>The PDF names this as a what-if the TA will ask at Defence&nbsp;1. It does not prescribe an answer &mdash; it expects you to have one, and to have implemented it consistently. (Events carry a <code>period</code> field; your ordering key is <code>(period, timestamp, index)</code>.)</p></div>
+    </details>
+
+    <details>
+      <summary>Can I use AI to write my code, my dashboard, or my report?</summary>
+      <div class="details-body"><p><span class="badge b-ta">TA</span> &ldquo;Even if you move forward with AI, do it &mdash; but keep in mind that you must, again I say, be able to <strong>defend</strong> it.&rdquo; He said the same about the bonus dashboard. The examination is on understanding, and in two-person groups he chooses who answers.</p></div>
+    </details>
+
+    <details>
+      <summary>Is the bonus worth doing?</summary>
+      <div class="details-body"><p>It is optional bonus credit on top of the grade, but &ldquo;bonus credit is awarded only if the demonstration works in the room.&rdquo; Attempt it only when Model 3 and its feature code are stable, since the API must import that exact code &mdash; and the TA checks by comparing an API response with your offline prediction for the same snapshot.</p></div>
+    </details>
+
+    <details>
+      <summary>How many people per group, and does that change the work?</summary>
+      <div class="details-body"><p>Groups of 1&ndash;2. The work is identical. In a pair, both members must have commits in the git history, and either member may be asked any question at any defence.</p></div>
+    </details>
+
+    <details>
+      <summary>What is the single most likely way to fail this project?</summary>
+      <div class="details-body"><p>Leaking. Second most likely: leaving Model 3 until the last week. Third: producing beautiful numbers you cannot defend.</p></div>
+    </details>
+  </section>
+
+  <!-- ============================================================ 20 -->
+  <section id="glossary">
+    <h2><span class="num">20</span> Glossary</h2>
+    <p class="lede">Every term used in the sources, defined once.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:210px">Term</th><th>Meaning in this project</th></tr></thead>
+        <tbody>
+          <tr><td><strong>1X2</strong></td><td>The three-way match-result market: 1 = home win, X = draw, 2 = away win.</td></tr>
+          <tr><td><strong>360 data</strong></td><td>StatsBomb freeze-frames giving the positions of all visible players around an event. Available for selected matches only.</td></tr>
+          <tr><td><strong>Ablation</strong></td><td>Removing one component (a feature group, P1, a resampling arm) and re-measuring, to attribute the effect to that component.</td></tr>
+          <tr><td><strong>ADASYN</strong></td><td>Adaptive Synthetic sampling: generates more synthetic minority examples in the regions the classifier finds hard.</td></tr>
+          <tr><td><strong>Asian Handicap</strong></td><td>A betting market with a goal head-start; present as columns in the Football-Data.co.uk CSVs.</td></tr>
+          <tr><td><strong>Bagging</strong></td><td>Training many models on random subsets and averaging them (Random Forest). Reduces variance.</td></tr>
+          <tr><td><strong>Boosting</strong></td><td>Training models sequentially, each correcting its predecessors' errors (GBM, XGBoost, LightGBM).</td></tr>
+          <tr><td><strong>BorderlineSMOTE</strong></td><td>SMOTE restricted to minority points near the decision boundary.</td></tr>
+          <tr><td><strong>Brier Score</strong></td><td>Mean squared error between the predicted probability vector and the one-hot outcome. Lower is better.</td></tr>
+          <tr><td><strong>Calibration</strong></td><td>The property that predicted probabilities match observed frequencies. Measured by ECE and reliability diagrams.</td></tr>
+          <tr><td><strong>CORE ranking</strong></td><td>A ranking of computer-science conferences (A*, A, B, C). P2 conferences must be A* or A.</td></tr>
+          <tr><td><strong>De-vig</strong></td><td>Removing the bookmaker's margin from odds by normalising the implied probabilities to sum to one.</td></tr>
+          <tr><td><strong>Distribution shift</strong></td><td>The data's statistical character differing between groups (eras, competitions), so a model trained on one does not transfer.</td></tr>
+          <tr><td><strong>Dummy model</strong></td><td>A predictor that ignores features and outputs the base rate or majority class. The sanity floor.</td></tr>
+          <tr><td><strong>ECE</strong></td><td>Expected Calibration Error: the size-weighted average gap between confidence and accuracy across confidence buckets.</td></tr>
+          <tr><td><strong>Event data</strong></td><td>A timestamped log of every on-pitch action, with coordinates, player, team and type. ~4,000 rows per match.</td></tr>
+          <tr><td><strong>Feature / label / example</strong></td><td>The inputs, the answer, and one row of the training table.</td></tr>
+          <tr><td><strong>Frozen pre-match prediction</strong></td><td>The Model-1 output held constant through a match, used as the reference curve Model 3 must beat.</td></tr>
+          <tr><td><strong>Imputation</strong></td><td>Filling in missing values (e.g. 360-derived features for matches lacking 360 files). The imputer is fit on train only.</td></tr>
+          <tr><td><strong>In-play / live</strong></td><td>Prediction made during the match, at snapshot time <em>t</em>. Task L.</td></tr>
+          <tr><td><strong>Isotonic regression</strong></td><td>A non-parametric calibration method that fits a monotone mapping from raw scores to calibrated probabilities.</td></tr>
+          <tr><td><strong>Kernel method</strong></td><td>A model that works through pairwise similarities between examples (SVM, Kernel Ridge). Cost grows as O(n&sup2;).</td></tr>
+          <tr><td><strong>Leakage</strong></td><td>Any information reaching the model that would not exist at prediction time.</td></tr>
+          <tr><td><strong>Log-Loss</strong></td><td>Negative log-likelihood of the true class. Punishes confident mistakes severely.</td></tr>
+          <tr><td><strong>MAE / RMSE</strong></td><td>Mean absolute error / root mean squared error. Model 2's metrics.</td></tr>
+          <tr><td><strong>Margin</strong></td><td>Signed goal difference, home minus away, clipped to [&minus;5, +5]. Model 2's label.</td></tr>
+          <tr><td><strong>Over-round (vig)</strong></td><td>The amount by which a bookmaker's implied probabilities exceed 1. Their built-in margin.</td></tr>
+          <tr><td><strong>Platt scaling</strong></td><td>Calibration by fitting a logistic function to the model's scores.</td></tr>
+          <tr><td><strong>Proper scoring rule</strong></td><td>A score minimised only by reporting your true beliefs. RPS, Log-Loss and Brier are proper; accuracy is not.</td></tr>
+          <tr><td><strong>Q1 venue</strong></td><td>A journal in the top quartile of its subject category, per Scimago or JCR.</td></tr>
+          <tr><td><strong>Reliability diagram</strong></td><td>Predicted confidence (x) against observed frequency (y). The diagonal is perfect calibration.</td></tr>
+          <tr><td><strong>RPS</strong></td><td>Ranked Probability Score: the proper scoring rule that respects the ordering Home &rarr; Draw &rarr; Away. Model 1's headline metric.</td></tr>
+          <tr><td><strong>Shapley value / SHAP</strong></td><td>A signed per-feature contribution to one prediction; contributions sum to the gap from the model's average output.</td></tr>
+          <tr><td><strong>SMOTE</strong></td><td>Synthetic Minority Over-sampling Technique: creates new minority rows by interpolating between neighbours.</td></tr>
+          <tr><td><strong>Snapshot</strong></td><td>One (match, time <em>t</em>) row for Model 3, built only from events with timestamp &le; <em>t</em>.</td></tr>
+          <tr><td><strong>Temporal split</strong></td><td>A train/validation/test division ordered in time, so training never sees the future.</td></tr>
+          <tr><td><strong>TreeSHAP</strong></td><td>The exact, fast SHAP algorithm for tree ensembles (<code>shap.TreeExplainer</code>).</td></tr>
+          <tr><td><strong>xG (expected goals)</strong></td><td>The probability a shot becomes a goal. The PDF treats shot counts and locations as an xG <em>proxy</em>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============================================================ 21 -->
+  <section id="links">
+    <h2><span class="num">21</span> Links, references and sources</h2>
+
+    <h3>21.1 The links you will actually use</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:230px">Link</th><th>Where it appears</th><th>What it is for</th></tr></thead>
+        <tbody>
+          <tr><td><a href="https://github.com/statsbomb/open-data" target="_blank" rel="noopener">github.com/statsbomb/open-data</a></td><td>PDF &sect;2, &sect;12&nbsp;[1]</td><td>The single event-data source. Free for research and non-commercial use <strong>with attribution</strong>.</td></tr>
+          <tr><td><a href="https://football-data.co.uk/" target="_blank" rel="noopener">football-data.co.uk</a></td><td>PDF &sect;2.3, &sect;3.2, &sect;12&nbsp;[2]</td><td>Per-season CSVs with pre-match bookmaker odds. The market baseline. League pages: <code>/englandm.php</code>, <code>/spainm.php</code>, etc. Field key in the site's <code>notes.txt</code>.</td></tr>
+          <tr><td><a href="https://scholar.google.com/" target="_blank" rel="noopener">scholar.google.com</a></td><td>PDF &sect;4.3</td><td>Finding P1 and P2. Use the <em>Cited-by</em> graph forwards and reference lists backwards.</td></tr>
+          <tr><td><a href="https://www.scimagojr.com/" target="_blank" rel="noopener">scimagojr.com</a> &middot; <a href="https://jcr.clarivate.com/" target="_blank" rel="noopener">jcr.clarivate.com</a></td><td>PDF &sect;4 hard filters</td><td>Verifying that a journal is Q1. (The PDF names these services; the URLs are their official sites.)</td></tr>
+          <tr><td><a href="https://portal.core.edu.au/conf-ranks/" target="_blank" rel="noopener">CORE conference portal</a></td><td>PDF &sect;4 hard filters</td><td>Verifying a conference is rank A* or A.</td></tr>
+          <tr><td><a href="https://scikit-learn.org/stable/" target="_blank" rel="noopener">scikit-learn</a> &middot; <a href="https://xgboost.readthedocs.io/" target="_blank" rel="noopener">xgboost</a> &middot; <a href="https://lightgbm.readthedocs.io/" target="_blank" rel="noopener">lightgbm</a></td><td>PDF &sect;5</td><td>The baseline model suite.</td></tr>
+          <tr><td><a href="https://imbalanced-learn.org/stable/" target="_blank" rel="noopener">imbalanced-learn</a> &middot; <a href="https://shap.readthedocs.io/en/latest/" target="_blank" rel="noopener">shap</a></td><td>PDF &sect;5.1, &sect;7</td><td>Resampling inside folds; explainability.</td></tr>
+          <tr><td><a href="https://fastapi.tiangolo.com/" target="_blank" rel="noopener">FastAPI</a> &middot; <a href="https://plotly.com/python/" target="_blank" rel="noopener">Plotly</a></td><td>PDF &sect;11 &middot; TA preference</td><td>The bonus service; all project plots.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>21.2 The PDF's reference list</h3>
+    <p class="small">Supplement these with your own P1 and P2 citations. The StatsBomb attribution is required by the data licence.</p>
+    <ol class="small">
+      <li>StatsBomb / Hudl StatsBomb (2018&ndash;2025). <em>StatsBomb Open Data.</em> github.com/statsbomb/open-data</li>
+      <li>Football-Data.co.uk. <em>Historical Football Results and Betting Odds Data.</em></li>
+      <li>Chawla, N. V., Bowyer, K. W., Hall, L. O., &amp; Kegelmeyer, W. P. (2002). SMOTE: Synthetic Minority Over-sampling Technique. <em>JAIR</em>, 16, 321&ndash;357.</li>
+      <li>Chen, T., &amp; Guestrin, C. (2016). XGBoost: A Scalable Tree Boosting System. <em>KDD</em>, 785&ndash;794.</li>
+      <li>Ke, G., et al. (2017). LightGBM: A Highly Efficient Gradient Boosting Decision Tree. <em>NeurIPS</em>, 30, 3146&ndash;3154.</li>
+      <li>Pedregosa, F., et al. (2011). Scikit-learn: Machine Learning in Python. <em>JMLR</em>, 12, 2825&ndash;2830.</li>
+      <li>Lundberg, S. M., &amp; Lee, S. I. (2017). A Unified Approach to Interpreting Model Predictions. <em>NeurIPS</em>, 30, 4765&ndash;4774.</li>
+      <li>Lundberg, S. M., et al. (2020). From Local Explanations to Global Understanding with Explainable AI for Trees. <em>Nature Machine Intelligence</em>, 2(1), 56&ndash;67.</li>
+      <li>Lemaitre, G., Nogueira, F., &amp; Aridas, C. K. (2017). Imbalanced-learn: A Python Toolbox to Tackle the Curse of Imbalanced Datasets in Machine Learning. <em>JMLR</em>, 18(17), 1&ndash;5.</li>
+      <li>Constantinou, A. C., &amp; Fenton, N. E. (2012). Solving the Problem of Inadequate Scoring Rules for Assessing Probabilistic Football Forecast Models. <em>Journal of Quantitative Analysis in Sports</em>, 8(1).</li>
+      <li>Niculescu-Mizil, A., &amp; Caruana, R. (2005). Predicting Good Probabilities with Supervised Learning. <em>ICML</em>, 625&ndash;632.</li>
+    </ol>
+
+    <h3>21.3 Five things to remember</h3>
+    <ol>
+      <li><strong>The data work is the project.</strong> 30% of the grade, and the source of every mark you can lose silently.</li>
+      <li><strong>Define one example before you train anything.</strong> Three tasks, three definitions, written down and graded.</li>
+      <li><strong>Nothing after time <em>t</em> may touch the snapshot at <em>t</em>.</strong> Cut once, assert it, and let no other code path reach the events.</li>
+      <li><strong>Probabilities, not answers.</strong> Calibration is judged as heavily as accuracy, and the market is the ceiling.</li>
+      <li><strong>You must be able to defend every number.</strong> That, more than any metric, is what the three defences examine.</li>
+    </ol>
+
+    <footer class="end">
+      <hr class="chalk">
+      <p>Compiled from <em>Final_Project_Machine_Learning.pdf</em> (official requirements), the TA's Persian briefing transcript (authoritative clarification), and its English translation (interpretive aid). Where the two sources diverge, both readings are shown and labelled. Nothing in this document adds requirements that are not present in those sources.</p>
+      <p class="small">Speaker labels in the transcript are an artefact of automatic transcription; the briefing was delivered by a single speaker, the TA, and is treated as one continuous explanation throughout.</p>
+    </footer>
+  </section>
+
+  </main>
+</div>
+
+<button id="btt" type="button" aria-label="Back to top">&uarr; Top</button>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- build the table of contents from the section headings ---------- */
+  var sections = Array.prototype.slice.call(document.querySelectorAll("main section[id]"));
+  var lists = [document.getElementById("toc-desktop"), document.getElementById("toc-mobile")];
+
+  sections.forEach(function (sec) {
+    var h2 = sec.querySelector("h2");
+    if (!h2) return;
+    var clone = h2.cloneNode(true);
+    var num = clone.querySelector(".num");
+    if (num) num.remove();
+    var title = clone.textContent.trim();
+
+    lists.forEach(function (list) {
+      if (!list) return;
+      var li = document.createElement("li");
+      var a = document.createElement("a");
+      a.href = "#" + sec.id;
+      a.appendChild(document.createTextNode(title));
+      li.appendChild(a);
+      list.appendChild(li);
+    });
+  });
+
+  var tocLinks = Array.prototype.slice.call(document.querySelectorAll("nav.toc a"));
+
+  /* close the mobile drawer after a jump */
+  var drawer = document.getElementById("mobilebar");
+  tocLinks.forEach(function (a) {
+    a.addEventListener("click", function () {
+      if (drawer && drawer.open && window.matchMedia("(max-width: 960px)").matches) drawer.open = false;
+    });
+  });
+
+  /* ---------- active section highlighting ---------- */
+  function markActive(id) {
+    tocLinks.forEach(function (a) {
+      if (a.getAttribute("href") === "#" + id) a.setAttribute("aria-current", "true");
+      else a.removeAttribute("aria-current");
+    });
+  }
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) markActive(e.target.id);
+      });
+    }, { rootMargin: "-15% 0px -70% 0px", threshold: 0 });
+    sections.forEach(function (s) { io.observe(s); });
+  }
+
+  /* ---------- scroll progress + back to top ---------- */
+  var bar = document.getElementById("progress");
+  var btt = document.getElementById("btt");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    var pct = max > 0 ? (h.scrollTop / max) * 100 : 0;
+    bar.style.width = pct + "%";
+    btt.classList.toggle("show", h.scrollTop > 700);
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  btt.addEventListener("click", function () {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    var first = document.querySelector("h1");
+    if (first) first.setAttribute("tabindex", "-1"), first.focus();
+  });
+
+  /* ---------- theme toggle (session only, no storage) ---------- */
+  var themeBtn = document.getElementById("theme-btn");
+  themeBtn.addEventListener("click", function () {
+    var root = document.documentElement;
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    themeBtn.textContent = next === "dark" ? "Light mode" : "Dark mode";
+  });
+
+  /* ---------- expand / collapse every details block ---------- */
+  var expandBtn = document.getElementById("expand-btn");
+  expandBtn.addEventListener("click", function () {
+    var all = Array.prototype.slice.call(document.querySelectorAll("main details"));
+    var anyClosed = all.some(function (d) { return !d.open; });
+    all.forEach(function (d) { d.open = anyClosed; });
+    expandBtn.textContent = anyClosed ? "Collapse all" : "Expand all";
+  });
+
+
+  /* ---------- scroll reveal, with a gentle per-section stagger ---------- */
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var revealSel = [
+    "main h2", "main h3", "main p.lede", "main figure", "main .box", "main .card",
+    "main .tablewrap", "main details", "main .eq", "main pre",
+    "main ol.timeline > li", "main ul.checklist > li"
+  ].join(", ");
+  var revealEls = Array.prototype.slice.call(document.querySelectorAll(revealSel));
+
+  function showAll() {
+    revealEls.forEach(function (el) { el.classList.add("reveal", "in"); });
+  }
+
+  if (reduced || !("IntersectionObserver" in window)) {
+    showAll();
+  } else {
+    revealEls.forEach(function (el) { el.classList.add("reveal"); });
+    var ro = new IntersectionObserver(function (entries) {
+      var shown = 0;
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        var el = e.target;
+        el.style.transitionDelay = Math.min(shown * 70, 280) + "ms";
+        el.classList.add("in");
+        shown++;
+        ro.unobserve(el);
+      });
+    }, { rootMargin: "0px 0px -12% 0px", threshold: 0.08 });
+    revealEls.forEach(function (el) { ro.observe(el); });
+
+    /* anything already on screen at load: no delay, straight in */
+    requestAnimationFrame(function () {
+      revealEls.forEach(function (el) {
+        var r = el.getBoundingClientRect();
+        if (r.top < window.innerHeight * 0.92) { el.classList.add("in"); ro.unobserve(el); }
+      });
+    });
+
+    /* jumping via the TOC must never land on invisible content */
+    window.addEventListener("hashchange", function () {
+      var t = document.querySelector(location.hash);
+      if (!t) return;
+      Array.prototype.forEach.call(t.querySelectorAll(".reveal"), function (el) {
+        el.style.transitionDelay = "0ms";
+        el.classList.add("in");
+      });
+    });
+  }
+
+  /* ---------- keyboard: j / k move between sections ---------- */
+  document.addEventListener("keydown", function (e) {
+    if (e.target.matches("input, textarea, summary, button, a")) return;
+    if (e.key !== "j" && e.key !== "k") return;
+    var y = window.scrollY + 10;
+    var tops = sections.map(function (s) { return s.offsetTop; });
+    var i = tops.findIndex(function (t) { return t > y; });
+    var target = e.key === "j"
+      ? sections[i === -1 ? sections.length - 1 : i]
+      : sections[Math.max(0, (i === -1 ? sections.length : i) - 2)];
+    if (target) target.scrollIntoView({ behavior: "smooth" });
+  });
+})();
+</script>
+</body>
+</html>
