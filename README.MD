@@ -37,6 +37,9 @@ The project follows the ten-stage pipeline (ingestion → integration → labeli
     │
     ├── scripts/                       # Pipeline stage 1: ingestion & integration
     │   ├── build_match_store.py       # Parses matches/*.json → one row per match + labels
+    │   ├── build_label_store.py       # Validates final labels → canonical model targets
+    │   ├── clean_store.py             # Validates, cleans, and audits relational stores
+    │   ├── build_temporal_splits.py   # Chronological parent-match and snapshot splits
     │   ├── build_event_store.py       # Indexes/parses events/{match_id}.json
     │   ├── build_lineup_store.py      # Parses lineups/{match_id}.json
     │   ├── build_relational_store.py  # Joins match/lineup/event tables on competition_id,
@@ -58,6 +61,12 @@ The project follows the ten-stage pipeline (ingestion → integration → labeli
         ├── competition_audit.csv / .html   # Competition/season selection audit
         ├── processed/                      # Modeling-ready intermediate tables
         │   ├── match_store.csv             # One row per match (labels, teams, venue, date)
+        │   ├── model_targets.csv            # Canonical targets for Models 1 / 2 / 3
+        │   ├── clean_events.csv / clean_lineups.csv # Cleaned feature-pipeline inputs
+        │   ├── team_identity_map.csv / player_identity_map.csv # Canonical StatsBomb IDs
+        │   ├── cleaning_drops.csv / data_quality_log.csv # Cleaning evidence
+        │   ├── temporal_match_splits.csv # One chronological split per match
+        │   ├── snapshot_split_plan.csv    # Five-minute snapshots inheriting parent split
         │   ├── events_index.csv            # Indexed/validated event stream reference
         │   ├── lineups.csv                 # Squad & player-position table
         │   ├── alias_map.csv               # StatsBomb ↔ Football-Data team-name aliases
@@ -114,11 +123,13 @@ pip install -r requirements.txt
 #    - Clone/download StatsBomb Open Data into src/data/statsbomb_open_data/data/
 #    - Download the matching Football-Data.co.uk season CSVs into src/data/Football_Data/
 
-# 4. Run the ingestion & integration pipeline
-python src/scripts/run_all.py
+# 4. Run the ingestion, labeling, cleaning, and split pipeline
+python src/scripts/build_relational_store.py
 ```
 
 Paths and shared constants used across the scripts are centralized in [`config.py`](./config.py).
+
+`build_event_store.py` downloads missing StatsBomb event files concurrently (six workers by default). If your connection is stable, increase throughput with `SB_DOWNLOAD_WORKERS=8 python src/scripts/build_event_store.py`; lower it to `1` if GitHub throttles or your connection is unreliable. Cached JSON files are always reused.
 
 ---
 
@@ -132,8 +143,9 @@ Paths and shared constants used across the scripts are centralized in [`config.p
 - ✅ Diagnostic visualizations of the raw and joined data (`visualize_store.py`, `visualize_market_baseline.py`, `viz_raw_matches.py`)
 
 **Planned next (per the course pipeline diagram):**
-- ⬜ Labeling & formal problem definition for Models 1/2/3
-- ⬜ Temporal (chronological) train/val/test split
+- ✅ Labeling & formal problem definition for Models 1/2/3 (`build_label_store.py`, `REPORT.md`)
+- ✅ Cleaning: event ordering, canonical identities, and audit logs (`clean_store.py`)
+- ✅ Temporal train/validation/test split and inherited five-minute snapshot plan (`build_temporal_splits.py`)
 - ⬜ Pre-match feature pipeline (`src/features/`)
 - ⬜ In-play snapshot feature pipeline with the time-`t` leakage cut assertion (`src/features/`)
 - ⬜ Model training suite (`src/models/`) — Dummy, SVM/SVR, Kernel Ridge, Random Forest, GBM, XGBoost, LightGBM

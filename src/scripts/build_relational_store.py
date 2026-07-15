@@ -6,8 +6,11 @@ HERE = Path(__file__).resolve().parent
 
 STEPS = [
     ("Match store", "build_match_store.py"),
+    ("Model targets", "build_label_store.py"),
     ("Lineup store", "build_lineup_store.py"),
     ("Event store", "build_event_store.py"),
+    ("Clean stores", "clean_store.py"),
+    ("Temporal splits", "build_temporal_splits.py"),
 ]
 
 
