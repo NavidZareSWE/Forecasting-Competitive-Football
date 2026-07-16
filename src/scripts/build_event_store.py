@@ -18,7 +18,8 @@ DOWNLOAD_WORKERS = int(os.environ.get("SB_DOWNLOAD_WORKERS", 6))
 HERE = Path(__file__).resolve().parent
 PROJECT = HERE.parent
 LOCAL_SB_DIR = Path(
-    os.environ.get("STATSBOMB_LOCAL", PROJECT / "data" / "statsbomb_open_data" / "data")
+    os.environ.get("STATSBOMB_LOCAL", PROJECT / "data" /
+                   "statsbomb_open_data" / "data")
 )
 PROCESSED_DIR = PROJECT / "reports" / "processed"
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
@@ -28,7 +29,8 @@ def load_json(local_path: Path, url: str):
     if local_path.exists():
         return json.loads(local_path.read_text(encoding="utf-8"))
 
-    request = urllib.request.Request(url, headers={"User-Agent": "football-forecast-course-project"})
+    request = urllib.request.Request(
+        url, headers={"User-Agent": "football-forecast-course-project"})
     for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
         try:
             with urllib.request.urlopen(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
@@ -94,15 +96,18 @@ def load_events(match_id: int) -> pd.DataFrame:
             "card": card,
         })
 
-    events_table = pd.DataFrame(rows).sort_values("index").reset_index(drop=True)
+    events_table = pd.DataFrame(rows).sort_values(
+        "index").reset_index(drop=True)
     assert events_table["index"].is_unique, f"Duplicate event index in match {match_id}"
-    assert events_table["index"].is_monotonic_increasing, f"Events unordered in match {match_id}"
+    assert events_table[
+        "index"].is_monotonic_increasing, f"Events unordered in match {match_id}"
     return events_table
 
 
 def goals_from_events(events_table: pd.DataFrame) -> dict:
     scored = events_table[events_table["is_goal"]].groupby("team_id").size()
-    own_goals = events_table[events_table["type"] == "Own Goal For"].groupby("team_id").size()
+    own_goals = events_table[events_table["type"]
+                             == "Own Goal For"].groupby("team_id").size()
     total = scored.add(own_goals, fill_value=0)
     return {team_id: int(count) for team_id, count in total.items()}
 
@@ -119,8 +124,8 @@ def summarise_events(match, events):
         "score_ok": bool(
             home_goals == match["home_score"] and away_goals == match["away_score"]
         ),
-        "home_xg": round(float(events[events["team"] == match["home_team"]]["shot_xg"].sum()), 3),
-        "away_xg": round(float(events[events["team"] == match["away_team"]]["shot_xg"].sum()), 3),
+        "home_xg": round(float(events[events["team_id"] == match["home_team_id"]]["shot_xg"].sum()), 3),
+        "away_xg": round(float(events[events["team_id"] == match["away_team_id"]]["shot_xg"].sum()), 3),
     }
 
 
@@ -141,9 +146,11 @@ def build_event_store(store: pd.DataFrame) -> pd.DataFrame:
             if completed % 100 == 0 or completed == len(futures):
                 print(f"  Events loaded: {completed}/{len(futures)}")
 
-    index_table = pd.DataFrame(rows).sort_values("match_id").reset_index(drop=True)
+    index_table = pd.DataFrame(rows).sort_values(
+        "match_id").reset_index(drop=True)
     reconstructed = int(index_table["score_ok"].sum())
-    print(f"Score cross-check: {reconstructed}/{len(index_table)} matches reconstruct exactly")
+    print(
+        f"Score cross-check: {reconstructed}/{len(index_table)} matches reconstruct exactly")
     output_path = PROCESSED_DIR / "events_index.csv"
     index_table.to_csv(output_path, index=False, encoding="utf-8")
     print(f"Wrote event index -> {output_path}")
