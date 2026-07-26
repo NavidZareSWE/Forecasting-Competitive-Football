@@ -266,4 +266,12 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+
 **/output
+
+
+# Datasets
+data/
+
+# Generated outputs
+reports/
