@@ -17,67 +17,67 @@ The project follows the ten-stage pipeline (ingestion → integration → labeli
 ```
 .
 ├── .gitignore
-├── config.py                  # Central paths / constants for the pipeline
-├── requirements.txt           # Pinned Python dependencies
-├── README.MD
-├── Extras/                    # Course-provided reference material
-│   ├── Final_Project_Machine_Learning.pdf
-│   └── Predicting a football match — before it starts, and while it happens - Project Guide.html
-├── papers/                    # P1 (data) and P2 (model) paper reimplementations
-└── src/
-    ├── data/                          # Raw source data (not modeling-ready)
-    │   ├── Football_Data/             # Football-Data.co.uk season CSVs (odds, results, stats)
-    │   └── statsbomb_open_data/
-    │       └── data/
-    │           ├── competitions.json  # (expected) master competition/season list
-    │           ├── matches/           # matches/{competition_id}/{season_id}.json
-    │           ├── events/            # events/{match_id}.json (~4,000 rows/match)
-    │           ├── lineups/           # lineups/{match_id}.json
-    │           └── three-sixty/       # three-sixty/{match_id}.json (selected matches only)
-    │
-    ├── scripts/                       # Pipeline stage 1: ingestion & integration
-    │   ├── build_match_store.py       # Parses matches/*.json → one row per match + labels
-    │   ├── build_label_store.py       # Validates final labels → canonical model targets
-    │   ├── clean_store.py             # Validates, cleans, and audits relational stores
-    │   ├── build_temporal_splits.py   # Chronological parent-match and snapshot splits
-    │   ├── build_event_store.py       # Indexes/parses events/{match_id}.json
-    │   ├── build_lineup_store.py      # Parses lineups/{match_id}.json
-    │   ├── build_relational_store.py  # Joins match/lineup/event tables on competition_id,
-    │   │                               #   season_id, match_id into the relational store
-    │   ├── build_market_baseline.py   # Tags Football-Data.co.uk odds to match_id, de-vigs
-    │   │                               #   the 1X2 odds into the market baseline
-    │   ├── run_all.py                 # Orchestrates the full ingestion → store pipeline
-    │   ├── visualize_store.py         # Generates store_overview.html
-    │   ├── visualize_market_baseline.py # Generates market_baseline_overview.html
-    │   └── viz_raw_matches.py         # Generates raw_result_distribution.html
-    │
-    ├── test/
-    │   └── competition_audit.py       # Validates/justifies competition & season selection
-    │
-    ├── features/                      # (planned) Pre-match & in-play feature pipelines
-    ├── models/                        # (planned) Model 1 / 2 / 3 training & evaluation
-    │
-    └── reports/
-        ├── competition_audit.csv / .html   # Competition/season selection audit
-        ├── processed/                      # Modeling-ready intermediate tables
-        │   ├── match_store.csv             # One row per match (labels, teams, venue, date)
-        │   ├── model_targets.csv            # Canonical targets for Models 1 / 2 / 3
-        │   ├── clean_events.csv / clean_lineups.csv # Cleaned feature-pipeline inputs
-        │   ├── team_identity_map.csv / player_identity_map.csv # Canonical StatsBomb IDs
-        │   ├── cleaning_drops.csv / data_quality_log.csv # Cleaning evidence
-        │   ├── temporal_match_splits.csv # One chronological split per match
-        │   ├── snapshot_split_plan.csv    # Five-minute snapshots inheriting parent split
-        │   ├── events_index.csv            # Indexed/validated event stream reference
-        │   ├── lineups.csv                 # Squad & player-position table
-        │   ├── alias_map.csv               # StatsBomb ↔ Football-Data team-name aliases
-        │   ├── market_baseline.csv         # De-vigged 1X2 probabilities per tagged match
-        │   ├── odds_coverage.csv           # Per-season odds-tagging coverage rate
-        │   └── odds_failures.csv           # Matches that failed odds tagging, with reasons
-        └── visualizations/
-            ├── competition_audit.html
-            ├── store_overview.html
-            ├── market_baseline_overview.html
-            └── raw_result_distribution.html
+├── config.py
+├── docs
+│   ├── course-brief
+│   │   ├── Final_Project_Machine_Learning.pdf
+│   │   └── Predicting a football match — before it starts, and while it happens - Project      Guide.html
+│   └── papers
+│       └── Geometric_SMOTE_forimbalanced_datasets_with_nominaland_continuous.pdf
+├── LICENSE
+├── README.md
+├── REPORT.md
+├── requirements.txt
+└── src
+    ├── audit
+    │   └── competition_audit.py
+    ├── data
+    │   ├── FOOTBALL_DATA
+    │   └── statsbomb_open_data
+    │       └── data
+    │           ├── competitions.json
+    │           ├── events/
+    │           ├── lineups/
+    │           ├── matches/
+    │           └── three-sixty/
+    ├── pipeline
+    │   ├── build_event_store.py
+    │   ├── build_label_store.py
+    │   ├── build_lineup_store.py
+    │   ├── build_market_baseline.py
+    │   ├── build_match_store.py
+    │   ├── build_relational_store.py
+    │   ├── build_temporal_splits.py
+    │   ├── clean_store.py
+    │   ├── run_all.py
+    │   └── __pycache__
+    │       └── build_event_store.cpython-314.pyc
+    ├── reports
+    │   ├── processed
+    │   │   ├── alias_map.csv
+    │   │   ├── cleaning_drops.csv
+    │   │   ├── clean_events.csv
+    │   │   ├── clean_lineups.csv
+    │   │   ├── data_quality_log.csv
+    │   │   ├── events_index.csv
+    │   │   ├── lineups.csv
+    │   │   ├── market_baseline.csv
+    │   │   ├── match_store.csv
+    │   │   ├── model_targets.csv
+    │   │   ├── odds_coverage.csv
+    │   │   ├── odds_failures.csv
+    │   │   ├── player_identity_map.csv
+    │   │   ├── snapshot_split_plan.csv
+    │   │   ├── team_identity_map.csv
+    │   │   └── temporal_match_splits.csv
+    │   └── visualizations
+    │       ├── market_baseline_overview.html
+    │       ├── raw_result_distribution.html
+    │       └── store_overview.html
+    └── viz
+        ├── visualize_market_baseline.py
+        ├── visualize_store.py
+        └── viz_raw_matches.py
 ```
 
 > **Note:** `src/data/` holds large raw source files (StatsBomb JSON tree, Football-Data CSVs) and is expected to be excluded from version control via `.gitignore`. Populate it locally before running the pipeline (see [Setup](#️-setup)).
