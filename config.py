@@ -5,12 +5,13 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parent
 
 # --- Raw data sources (git-ignored) ----------------------------------------
-DATA_DIR = PROJECT / "data"
+SRC = PROJECT / "src"
+DATA_DIR = SRC / "data"
 STATSBOMB_DIR = DATA_DIR / "statsbomb_open_data" / "data"
 FOOTBALL_DATA_DIR = DATA_DIR / "Football_Data"
 
 # --- Generated outputs (git-ignored) ---------------------------------------
-REPORTS_DIR = PROJECT / "reports"
+REPORTS_DIR = SRC / "reports"
 PROCESSED_DIR = REPORTS_DIR / "processed"
 FEATURE_DIR = REPORTS_DIR / "features"
 VIS_DIR = REPORTS_DIR / "visualizations"
