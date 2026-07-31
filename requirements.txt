@@ -1,9 +1,13 @@
-numpy
-pandas
-scikit-learn
-xgboost
-lightgbm
-imbalanced-learn
-shap
-statsbombpy
-plotly
+# Python 3.13.7. xgboost and lightgbm need OpenMP on macOS, and model_zoo.py
+# drops them silently if the import fails: brew install libomp
+numpy==2.3.2
+pandas==2.3.2
+scipy==1.16.3
+scikit-learn==1.6.1
+xgboost==3.3.0
+lightgbm==4.6.0
+imbalanced-learn==0.14.2
+shap==0.52.0
+statsbombpy==1.21.0
+plotly==6.9.0
+psutil==7.0.0
