@@ -16,12 +16,8 @@ ON_TARGET_OUTCOMES = {"Goal", "Saved", "Saved To Post"}
 
 
 def effective_minute(events_sorted):
-    # Leakage invariant: maximum.accumulate only raises, so eff[i] >= minute[i].
-    # An event enters a snapshot only when eff[i] <= t, which implies
-    # minute[i] <= t. No event after t can ever be included, however corrupted
-    # the timestamps are. Half-time consequence: period 2 restarts at 45' while
-    # period 1 ran to 47', so the second half's opening events are held back to
-    # t=50. Deliberate -- the cut errs toward excluding.
+    # Leakage invariant: accumulate only raises, so eff[i] <= t implies minute[i] <= t.
+    # Side effect: period 2 restarts at 45', so its opening events wait until t=50.
     return np.maximum.accumulate(events_sorted["minute"].to_numpy())
 
 
