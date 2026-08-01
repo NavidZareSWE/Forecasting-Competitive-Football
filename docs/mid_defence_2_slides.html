@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Forecasting Competitive Football — Mid Defence 2</title>
+<meta name="description" content="Pre-match and in-play forecasting of football results on StatsBomb Open Data, judged against the de-vigged bookmaker baseline. Mid Defence 2.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#10100f">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Forecasting Competitive Football — Mid Defence 2">
+<meta property="og:description" content="Seven models, one equal budget, and a bookmaker on identical rows. The gap is 0.02 RPS.">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d1512'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%23ffc24b' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%23ffc24b'/%3E%3C/svg%3E">
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/reveal.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/reveal.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+
+<style>
+:root{
+  --ink:#10100f;
+  --panel:#1a1916;
+  --panel-2:#222019;
+  --cream:#f4efe4;
+  --cream-dim:#cfc8b8;
+  --line:rgba(244,239,228,.14);
+
+  --tc:#4fd1c5;
+  --tr:#a78bfa;
+  --tl:#5b9cf6;
+  --market:#ffc24b;
+  --hs:#e26fe8;
+  --p1:#ff8a3d;
+  --ok:#6bd47e;
+  --warn:#ff8a3d;
+  --bad:#ff5c5c;
+  --grey:#9aa3b2;
+  --turf:#0d1512;
+
+  --font-display:'Fraunces',serif;
+  --font-body:'Space Grotesk',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+}
+
+html,body{background:var(--ink);}
+.reveal{font-family:var(--font-body);color:var(--cream);font-size:20px;}
+.reveal .slides{text-align:left;}
+.reveal .slides section{height:100%;padding:0;}
+
+.reveal h1,.reveal h2,.reveal h3,.reveal h4{
+  font-family:var(--font-display);
+  text-transform:none;font-weight:600;letter-spacing:-.012em;line-height:1.04;
+  margin:0 0 .38em;color:var(--cream);
+}
+.reveal h1{font-size:4.3rem;font-weight:600;}
+.reveal h2{font-size:2.45rem;}
+.reveal h3{font-size:1.42rem;}
+.reveal p,.reveal li{line-height:1.5;}
+.reveal strong{color:#fff;font-weight:600;}
+.reveal em{color:var(--cream-dim);font-style:italic;}
+.reveal ::selection{background:var(--market);color:var(--ink);}
+
+.pad{
+  box-sizing:border-box;width:100%;height:100%;
+  padding:2.4rem 3rem;
+  display:flex;flex-direction:column;justify-content:center;
+}
+.pad.stretch{justify-content:flex-start;}
+
+.eyebrow{
+  font-family:var(--font-mono);font-size:.72rem;
+  letter-spacing:.26em;text-transform:uppercase;color:var(--cream-dim);
+  margin:0 0 .8rem;display:flex;align-items:center;gap:.7rem;
+}
+.eyebrow::before{content:"";width:34px;height:2px;background:currentColor;display:inline-block;}
+
+.muted{color:var(--cream-dim);}
+.mono{font-family:var(--font-mono);}
+.small{font-size:.85rem;}
+.tiny{font-size:.76rem;}
+
+.srcfoot{
+  font-family:var(--font-mono);font-size:.68rem;
+  color:var(--cream-dim);opacity:.6;margin-top:auto;padding-top:.8rem;
+  border-top:1px solid var(--line);flex:0 0 auto;
+}
+
+#hero .pad{justify-content:center;position:relative;overflow:hidden;}
+#pitch{position:absolute;inset:0;width:100%;height:100%;z-index:0;}
+#hero .hero-content{position:relative;z-index:2;}
+#hero h1{margin-bottom:.16em;}
+#hero h1 .l2{display:block;font-style:italic;font-weight:400;}
+.hero-sub{font-size:1.22rem;max-width:38rem;color:var(--cream-dim);margin:.4rem 0 1.4rem;
+  text-shadow:0 2px 18px rgba(16,16,15,.9);}
+.scoreline{
+  display:inline-flex;align-items:center;gap:.85rem;font-family:var(--font-mono);
+  font-size:.82rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-dim);
+  border:1px solid var(--line);border-radius:999px;padding:.42em 1.1em;
+  background:rgba(13,21,18,.55);backdrop-filter:blur(5px);margin-bottom:1.1rem;
+}
+.scoreline b{color:var(--market);letter-spacing:.06em;}
+.scoreline .sep{opacity:.4;}
+
+.algo-chips{display:flex;flex-wrap:wrap;gap:.5rem;max-width:46rem;}
+.chip{
+  font-family:var(--font-mono);font-size:.74rem;
+  padding:.38em .8em;border-radius:999px;border:1.5px solid;background:rgba(13,21,18,.5);
+  display:inline-flex;align-items:center;gap:.45em;backdrop-filter:blur(4px);
+}
+.chip::before{content:"";width:.55em;height:.55em;border-radius:50%;background:currentColor;}
+.chip.tc{color:var(--tc);border-color:var(--tc);}
+.chip.tr{color:var(--tr);border-color:var(--tr);}
+.chip.tl{color:var(--tl);border-color:var(--tl);}
+.chip.market{color:var(--market);border-color:var(--market);}
+.chip.hs{color:var(--hs);border-color:var(--hs);}
+.chip.p1{color:var(--p1);border-color:var(--p1);}
+.chip.ok{color:var(--ok);border-color:var(--ok);}
+.chip.grey{color:var(--grey);border-color:var(--grey);}
+
+.lead{font-size:1.14rem;max-width:44rem;color:var(--cream-dim);}
+.feature-list{list-style:none;padding:0;margin:.9rem 0 0;}
+.feature-list li{padding:.48rem 0 .48rem 1.75rem;position:relative;border-bottom:1px solid var(--line);font-size:1.02rem;}
+.feature-list li:last-child{border-bottom:none;}
+.feature-list li::before{content:"";position:absolute;left:0;top:1.05em;width:9px;height:9px;border-radius:2px;background:var(--c,var(--market));transform:rotate(45deg);}
+
+.algo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1rem;margin-top:.85rem;}
+.algo-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:1.1rem 1.15rem;border-top:4px solid var(--c,#fff);transition:transform .25s ease,box-shadow .25s ease;}
+.algo-card:hover{transform:translateY(-4px);box-shadow:0 14px 40px rgba(0,0,0,.4);}
+.algo-card.tc{--c:var(--tc);} .algo-card.tr{--c:var(--tr);} .algo-card.tl{--c:var(--tl);}
+.algo-card.market{--c:var(--market);} .algo-card.hs{--c:var(--hs);} .algo-card.p1{--c:var(--p1);}
+.algo-card.ok{--c:var(--ok);} .algo-card.grey{--c:var(--grey);}
+.algo-card h4{font-size:1.12rem;margin-bottom:.38rem;color:var(--c);}
+.algo-card .meta{font-size:.85rem;line-height:1.62;color:var(--cream-dim);}
+.algo-card .meta b{color:var(--cream);font-weight:500;}
+.algo-card .year{font-family:var(--font-mono);font-size:.7rem;color:var(--c);opacity:.85;margin-top:.42rem;}
+
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:start;}
+.cols-3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.4rem;align-items:start;}
+.cols-wide{grid-template-columns:1.4fr 1fr;}
+.cols-narrow{grid-template-columns:1fr 1.4fr;}
+
+.tag{display:inline-block;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;padding:.3em .7em;border-radius:6px;margin-bottom:.5rem;}
+.tag.good{background:rgba(107,212,126,.15);color:var(--ok);}
+.tag.bad{background:rgba(255,92,92,.15);color:var(--bad);}
+.tag.warn{background:rgba(255,138,61,.15);color:var(--warn);}
+.tag.info{background:rgba(255,194,75,.15);color:var(--market);}
+.tag.grey{background:rgba(154,163,178,.15);color:var(--grey);}
+
+.mini-list{list-style:none;padding:0;margin:0;}
+.mini-list li{padding:.28rem 0 .28rem 1.2rem;position:relative;font-size:.93rem;color:var(--cream-dim);}
+.mini-list li::before{content:"›";position:absolute;left:0;color:var(--c,var(--market));font-weight:700;}
+
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:.8rem;border-radius:14px;border:1px solid var(--line);}
+table.data{width:100%;border-collapse:collapse;font-size:.9rem;}
+table.data th,table.data td{padding:.5em .75em;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;}
+table.data thead th{background:var(--panel-2);font-family:var(--font-mono);font-size:.7em;letter-spacing:.05em;text-transform:uppercase;color:var(--cream-dim);font-weight:500;}
+table.data tbody tr:last-child td{border-bottom:none;}
+table.data tbody tr:hover{background:rgba(255,255,255,.03);}
+table.data td:not(:first-child),table.data th:not(:first-child){text-align:center;}
+table.data td:first-child{font-weight:600;}
+table.data tr.hl td{background:rgba(255,194,75,.09);}
+table.data tr.hl td:first-child{color:var(--market);}
+table.data.wide td:nth-child(2){text-align:left;}
+.v-best{color:var(--ok);font-weight:600;font-family:var(--font-mono);}
+.v-mid{color:var(--market);font-weight:600;font-family:var(--font-mono);}
+.v-low{color:var(--bad);font-weight:600;font-family:var(--font-mono);}
+.num{font-family:var(--font-mono);}
+.fam{font-family:var(--font-mono);font-size:.8em;color:var(--cream-dim);}
+
+.chart-full{
+  flex:1 1 auto;min-height:0;display:flex;flex-direction:column;
+  background:var(--panel);border:1px solid var(--line);border-radius:18px;
+  padding:1rem 1.25rem 1.1rem;margin:.2rem 0 .7rem;
+}
+.chart-full h4{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-dim);font-weight:500;margin:0 0 .55rem;flex:0 0 auto;}
+.chart-full .canvas-wrap{position:relative;flex:1 1 auto;min-height:0;width:100%;}
+.chart-full .canvas-wrap canvas{position:absolute!important;inset:0;width:100%!important;height:100%!important;}
+.chart-cap{flex:0 0 auto;font-size:.88rem;color:var(--cream-dim);margin:0;}
+.chart-cap b{color:var(--cream);}
+
+.winner-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.9rem;margin-top:.9rem;}
+.winner{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:1rem 1.1rem;}
+.winner .label{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.07em;text-transform:uppercase;color:var(--cream-dim);}
+.winner .who{font-family:var(--font-display);font-size:1.6rem;font-weight:600;margin:.16rem 0;color:var(--c,var(--cream));}
+.winner .why{font-size:.86rem;color:var(--cream-dim);}
+.winner.tc{--c:var(--tc);} .winner.tr{--c:var(--tr);} .winner.tl{--c:var(--tl);}
+.winner.market{--c:var(--market);} .winner.hs{--c:var(--hs);} .winner.p1{--c:var(--p1);}
+.winner.ok{--c:var(--ok);} .winner.bad{--c:var(--bad);} .winner.grey{--c:var(--grey);}
+
+.statline{display:flex;flex-wrap:wrap;gap:2rem;margin:.9rem 0 .2rem;}
+.statline.col{flex-direction:column;gap:1rem;}
+.stat{min-width:6.5rem;}
+.stat .v{font-family:var(--font-display);font-size:2.4rem;font-weight:600;line-height:1;color:var(--c,var(--cream));}
+.stat .v.sm{font-size:1.85rem;}
+.stat .k{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--cream-dim);margin-top:.3rem;}
+.stat.tc{--c:var(--tc);} .stat.tr{--c:var(--tr);} .stat.tl{--c:var(--tl);}
+.stat.market{--c:var(--market);} .stat.hs{--c:var(--hs);} .stat.p1{--c:var(--p1);}
+.stat.ok{--c:var(--ok);} .stat.bad{--c:var(--bad);} .stat.grey{--c:var(--grey);}
+
+.formula{font-family:var(--font-mono);background:var(--ink);border:1px solid var(--line);border-radius:12px;padding:.8em 1em;display:block;max-width:100%;margin:.4rem 0;font-size:.92rem;color:var(--c,var(--hs));white-space:pre;overflow-x:auto;-webkit-overflow-scrolling:touch;line-height:1.55;}
+.formula.big{font-size:1.06rem;}
+.formula.sm{font-size:.82rem;}
+pre.diagram{font-family:var(--font-mono);background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:1rem 1.15rem;margin:.4rem 0 0;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  font-size:.7rem;line-height:1.5;color:var(--cream-dim);white-space:pre;}
+pre.diagram.lg{font-size:.78rem;}
+pre.diagram b{color:var(--cream);font-weight:500;}
+pre.diagram .a{color:var(--tc);} pre.diagram .b{color:var(--tl);}
+pre.diagram .m{color:var(--market);} pre.diagram .h{color:var(--hs);}
+pre.diagram .g{color:var(--ok);} pre.diagram .r{color:var(--bad);}
+
+.invariant{border:1.5px solid var(--ok);background:rgba(107,212,126,.07);border-radius:14px;padding:.95rem 1.2rem;margin-top:.75rem;}
+.invariant .step{font-family:var(--font-mono);font-size:.86rem;color:var(--cream-dim);line-height:1.7;}
+.invariant .punch{font-family:var(--font-display);font-size:1.32rem;font-weight:600;color:var(--ok);margin-top:.42rem;line-height:1.25;}
+
+.splitbar{display:flex;width:100%;height:58px;border-radius:12px;overflow:hidden;border:1px solid var(--line);margin-top:.9rem;}
+.splitbar div{display:flex;flex-direction:column;justify-content:center;padding:0 .9rem;font-family:var(--font-mono);font-size:.72rem;line-height:1.35;}
+.splitbar .s-train{flex:896;background:rgba(79,209,197,.16);color:var(--tc);border-right:2px solid var(--tc);}
+.splitbar .s-val{flex:277;background:rgba(255,194,75,.16);color:var(--market);border-right:2px solid var(--market);}
+.splitbar .s-test{flex:344;background:rgba(226,111,232,.16);color:var(--hs);}
+.splitbar b{color:var(--cream);font-size:1.12em;}
+
+.tick{color:var(--ok);font-weight:700;}
+.cross{color:var(--grey);}
+
+.refs{list-style:none;padding:0;margin:.7rem 0 0;counter-reset:r;column-count:2;column-gap:2rem;}
+.refs li{padding:.4rem 0 .4rem 2.2rem;position:relative;border-bottom:1px solid var(--line);font-size:.8rem;color:var(--cream-dim);line-height:1.45;break-inside:avoid;}
+.refs li::before{counter-increment:r;content:counter(r,decimal-leading-zero);position:absolute;left:0;top:.45rem;font-family:var(--font-mono);font-size:.8em;color:var(--market);}
+
+.qa{display:grid;gap:.55rem;margin-top:.7rem;}
+.q{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--c,var(--market));border-radius:12px;padding:.7rem .95rem;}
+.q .ask{font-weight:600;color:var(--cream);font-size:.98rem;margin-bottom:.22rem;}
+.q .ans{font-size:.86rem;color:var(--cream-dim);}
+.q.dense .ans{font-size:.82rem;}
+.q .ans b{color:var(--c,var(--market));}
+
+.reveal .progress{height:4px;color:var(--market);}
+.reveal .slide-number{background:transparent;font-family:var(--font-mono);font-size:.7rem;color:var(--cream-dim);}
+
+.closing-mark{font-size:4rem;line-height:1;margin-bottom:.3rem;color:var(--market);}
+
+html.phone .reveal{font-size:clamp(14px,4.2vw,18px);}
+html.phone .reveal h1{font-size:clamp(2rem,10.5vw,3.1rem);}
+html.phone .reveal h2{font-size:clamp(1.4rem,7vw,2.1rem);}
+html.phone .reveal h3{font-size:clamp(1.05rem,4.6vw,1.4rem);}
+html.phone .reveal .slides section{height:100%;}
+html.phone .pad{height:100%;box-sizing:border-box;justify-content:flex-start;
+  overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:1.4rem 1rem 3.2rem;}
+html.phone #hero .pad{justify-content:center;}
+html.phone .cols,html.phone .cols-3{grid-template-columns:1fr;gap:1rem;}
+html.phone .algo-grid{grid-template-columns:1fr;}
+html.phone .winner-grid{grid-template-columns:1fr 1fr;}
+html.phone .refs{column-count:1;}
+html.phone table.data{min-width:440px;font-size:.8rem;}
+html.phone table.data th,html.phone table.data td{padding:.45em .55em;}
+html.phone .chart-full{flex:0 0 auto;height:56vh;min-height:280px;}
+html.phone .statline{gap:1.1rem;}
+html.phone .stat .v{font-size:1.9rem;}
+html.phone pre.diagram,html.phone pre.diagram.lg{font-size:2.35vw;}
+html.phone .formula,html.phone .formula.big{font-size:.8rem;}
+html.phone .srcfoot{margin-top:1.2rem;}
+html.phone .reveal .controls{display:none;}
+
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important;}}
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<section id="hero" data-background-color="#0d1512">
+  <canvas id="pitch"></canvas>
+  <div class="pad">
+    <div class="hero-content">
+      <div class="scoreline"><span>Mid Defence 2</span><span class="sep">·</span><span>P2 paper &amp; predictive modeling</span><span class="sep">·</span><b>1,517 matches</b></div>
+      <h1>Forecasting<span class="l2">competitive football.</span></h1>
+      <p class="hero-sub">One question — who wins, and by how much — asked at two different moments: before kick-off, and again at every fifth minute of the match. Judged, always, against the price the bookmaker put on the same game.</p>
+      <div class="algo-chips">
+        <span class="chip tc">Task C · pre-match P(H/D/A)</span>
+        <span class="chip tr">Task R · signed margin, clipped ±5</span>
+        <span class="chip tl">Task L · in-play, t ∈ {0,5,…,90}</span>
+        <span class="chip market">Baseline · de-vigged 1X2 odds</span>
+        <span class="chip hs">P2 · Hierarchical Shrinkage, ICML 2022</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-background-color="#10100f">
+  <div class="pad">
+    <p class="eyebrow">The problem</p>
+    <h2>Three deliverables, one question</h2>
+    <p class="lead">The same match is predicted twice — once from history alone, and once from history plus everything that has happened up to minute <em>t</em>. Every label is derived once, from the match file, and never from odds or events.</p>
+    <div class="algo-grid">
+      <div class="algo-card tc">
+        <h4>Task C — classification</h4>
+        <p class="meta"><b>Label</b> · <span class="mono">label_result ∈ {H, D, A}</span><br>
+        <b>Known at</b> · kick-off<br>
+        <b>Headline metric</b> · RPS (ordered outcome)<br>
+        <b>Judged against</b> · the de-vigged market</p>
+        <p class="year">1,517 rows · one per match</p>
+      </div>
+      <div class="algo-card tr">
+        <h4>Task R — regression</h4>
+        <p class="meta"><b>Label</b> · <span class="mono">clip(home − away, −5, +5)</span><br>
+        <b>Known at</b> · kick-off<br>
+        <b>Headline metric</b> · MAE / RMSE<br>
+        <b>Clipping</b> · 5 matches sit on each rail</p>
+        <p class="year">1,517 rows · one per match</p>
+      </div>
+      <div class="algo-card tl">
+        <h4>Task L — in-play</h4>
+        <p class="meta"><b>Labels</b> · both of the above, per snapshot<br>
+        <b>Known at</b> · minute <em>t</em>, 19 snapshots per match<br>
+        <b>Reference</b> · the frozen pre-match prediction<br>
+        <b>Trap</b> · nothing after <em>t</em> may enter the row</p>
+        <p class="year">28,823 rows = 1,517 × 19</p>
+      </div>
+    </div>
+    <p class="muted small" style="margin-top:.85rem">Outcome base rates across the 1,517 matches — <b class="mono" style="color:var(--tc)">H 44.5%</b> · <b class="mono" style="color:var(--market)">D 26.5%</b> · <b class="mono" style="color:var(--tr)">A 29.0%</b>. The draw is the minority class, and it is the class every model is worst at.</p>
+    <p class="srcfoot">REPORT.md §1 · src/pipeline/build_match_store.py · src/pipeline/build_label_store.py</p>
+  </div>
+</section>
+
+<section data-background-color="#10100f">
+  <div class="pad">
+    <p class="eyebrow">The inputs</p>
+    <h2>Two sources that share no key</h2>
+    <div class="cols">
+      <div>
+        <span class="tag info">Source A · the events</span>
+        <h3 style="color:var(--tc)">StatsBomb Open Data</h3>
+        <ul class="mini-list" style="--c:var(--tc)">
+          <li>Raw JSON — matches, lineups, and the full event stream per match</li>
+          <li><b>4 league seasons, 2015/16</b> — La Liga, Premier League, Serie A, Ligue 1</li>
+          <li>Selection is a <b>documented rule</b>, not a preference: partial or single-club releases (<span class="mono">top_team_share ≥ 0.5</span>) are excluded because opponent-side form would be undefined; women's competitions and tournaments are excluded because they cannot be joined to a bookmaker</li>
+          <li>No 360 data — the selected seasons have none</li>
+        </ul>
+      </div>
+      <div>
+        <span class="tag warn">Source B · the market</span>
+        <h3 style="color:var(--market)">Football-Data.co.uk</h3>
+        <ul class="mini-list" style="--c:var(--market)">
+          <li>Closing 1X2 decimal odds, one CSV per league-season</li>
+          <li>De-vigged to probabilities: <span class="mono">p = (1/o) / Σ(1/o)</span></li>
+          <li>Tagged to a <span class="mono">match_id</span> on <b>pre-match identity only</b> — date, home, away. Accent stripping, token similarity, Levenshtein, and exactly one documented manual override</li>
+          <li><b>Never a feature and a baseline in the same experiment.</b> We chose baseline — the comparison is the whole framing of the project</li>
+        </ul>
+      </div>
+    </div>
+    <div class="statline">
+      <div class="stat tc"><div class="v">1,517</div><div class="k">matches</div></div>
+      <div class="stat market"><div class="v">343 / 344</div><div class="k">test matches tagged with odds</div></div>
+      <div class="stat ok"><div class="v">0.9971</div><div class="k">tagging coverage</div></div>
+      <div class="stat grey"><div class="v">1</div><div class="k">unmatched · logged with a reason</div></div>
+    </div>
+    <p class="srcfoot">src/pipeline/build_market_baseline.py · src/audit/competition_audit.py · reports/processed/odds_coverage.csv</p>
+  </div>
+</section>
+
+<section data-background-color="#10100f">
+  <div class="pad stretch">
+    <p class="eyebrow">How we solve it</p>
+    <h2>The pipeline forks</h2>
+<pre class="diagram lg">   <span class="a">StatsBomb Open Data (JSON)</span>                          <span class="m">Football-Data.co.uk (CSV)</span>
+   <span class="a">matches · events · lineups</span>                          <span class="m">closing 1X2 odds, 4 leagues</span>
+            │                                                    │
+            ▼                                                    ▼
+   ┌────────────────────────┐                       ┌──────────────────────────────┐
+   │ <b>Relational store</b>│                       │ <b>Tag to match_id</b>       │
+   │ labels · cleaning      │                       │ (date, home, away) only      │
+   │ identity by *_id       │                       │ de-vig: p = (1/o)/Σ(1/o)     │
+   └───────────┬────────────┘                       └───────────────┬──────────────┘
+               ▼                                                    │
+   ┌──────────────────────────────────┐                             │
+   │<b>Chronological split by DATE</b>│                             │
+   │ 896 train · 277 val · 344 test   │                             │
+   └────────┬──────────────────┬──────┘                             │
+            ▼                  ▼                                    │
+ ┌──────────────────────┐  ┌──────────────────────────┐             │
+ │ <span class="a"><b>5A · PRE-MATCH</b></span>       │  │ <span class="b"><b>5B · IN-PLAY</b></span>            │             │
+ │ 1 row per match      │  │ 19 snapshots per match   │             │
+ │ shift(1) → rolling(5)│  │ effective-minute cut ≤ t │             │
+ │ 1,517 × 25 features  │  │ 28,823 × 11 features     │             │
+ └──────────┬───────────┘  └────────────┬─────────────┘             │
+            └───────────┬───────────────┘                           │
+                        ▼                                           │
+        ┌───────────────────────────────────────┐                   │
+        │ <b>Model suite</b>  ·  C · R · Lc · Lr│                   │
+        │ tune → fit → calibrate → persist rows │                   │
+        └────────────────────┬──────────────────┘                   │
+                             ▼                                      ▼
+        ┌────────────────────────────────────────────────────────────────┐
+        │ <b>Evaluation</b> — every Task C model reported beside the <span class="m">de-vigged</span>   │
+        │ <span class="m">market</span> on the <b>same</b> odds-tagged matches, with the coverage rate │
+        └────────────────────────────────────────────────────────────────┘</pre>
+    <p class="muted small" style="margin-top:.7rem">The fork is the argument. Everything after this slide zooms into one box: the leakage slides into <b style="color:var(--tl)">5B</b>, the P2 slides and the protocol into the <b>model suite</b>, the results into <b>evaluation</b>. The <b style="color:var(--market)">amber branch</b> never joins the feature path.</p>
+    <p class="srcfoot">src/pipeline/run_all.py — the STEPS list is this diagram in code form (17 stages, all idempotent)</p>
+  </div>
+</section>
+
+<section data-background-color="#10100f">
+  <div class="pad">
+    <p class="eyebrow">Barrier 1 of 4</p>
+    <h2>The split is a date, not a shuffle</h2>
+    <p class="lead">Whole <b>dates</b> are assigned to a side. No random split, no stratification — a shuffled split would let a model learn February from March and then be scored on January.</p>
+    <div class="splitbar">
+      <div class="s-train"><b>TRAIN · 896</b><span>2015-08-07 → 2016-01-31</span></div>
+      <div class="s-val"><b>VALIDATION · 277</b><span>2016-02-01 → 2016-03-18</span></div>
+      <div class="s-test"><b>TEST · 344</b><span>2016-03-19 → 2016-05-17</span></div>
+    </div>
+    <div class="cols" style="margin-top:1rem">
+      <div>
+        <h3>Asserted, not assumed</h3>
+        <ul class="mini-list" style="--c:var(--ok)">
+          <li>Every train date is strictly <b>before</b> every validation date, which is strictly before every test date</li>
+          <li><b>One split per <span class="mono">match_id</span></b> — and all 19 snapshots of a match inherit that match's side</li>
+          <li>The validation split is spent on <b>calibration</b>, so no hyperparameter is ever tuned on it</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Why it costs us</h3>
+        <p class="muted small">The test window is the run-in — March to May, when title races and relegation fights distort team behaviour. That is the honest, hard version of the problem, and it is also where the bookmaker is at its sharpest. We did not pick an easy quarter.</p>
+        <p class="muted small">Snapshot rows follow the match: <b class="mono" style="color:var(--tc)">17,024 train</b> · <b class="mono" style="color:var(--market)">5,263 val</b> · <b class="mono" style="color:var(--hs)">6,536 test</b>.</p>
+      </div>
+    </div>
+    <p class="srcfoot">src/pipeline/build_temporal_splits.py · reports/processed/temporal_match_splits.csv, snapshot_split_plan.csv</p>
+  </div>
+</section>
+
+<section data-background-color="#10100f">
+  <div class="pad">
+    <p class="eyebrow">Barrier 2 of 4</p>
+    <h2>Two tables, two definitions of "known"</h2>
+    <div class="cols">
+      <div>
+        <span class="tag" style="background:rgba(79,209,197,.15);color:var(--tc)">5A · pre-match</span>
+        <h3 style="color:var(--tc)">Only matches that finished first</h3>
+        <div class="formula" style="--c:var(--tc)">.shift(1)  →  .rolling(5)      # in that order</div>
+        <ul class="mini-list" style="--c:var(--tc)">
+          <li>Rolling form over the previous 5 matches: <span class="mono">gf · ga · xgf · xga · points · win</span>, per side, plus the <b>difference</b> of each</li>
+          <li><span class="mono">rest_days</span> and <span class="mono">played_prior</span></li>
+          <li><b>Every team's first match of the season is NaN</b> — asserted, because a non-NaN there would mean the window reached into the present</li>
+          <li>Shift <em>before</em> roll. Roll-then-shift silently includes the match being predicted</li>
+        </ul>
+      </div>
+      <div>
+        <span class="tag" style="background:rgba(91,156,246,.15);color:var(--tl)">5B · in-play</span>
+        <h3 style="color:var(--tl)">Only events at or before <em>t</em></h3>
+        <div class="formula" style="--c:var(--tl)">events sorted by (period, index) — not timestamp</div>
+        <ul class="mini-list" style="--c:var(--tl)">
+          <li>State at <em>t</em>: <span class="mono">goal_diff · home/away goals · man_advantage · shot_diff · sot_diff · xg_diff · home/away xg · recent_xg_diff · events_so_far</span></li>
+          <li>Sorted by <b><span class="mono">(period, index)</span></b> deliberately — roughly <b>26 events across 24 matches</b> carry corrupted <span class="mono">00:00:00</span> timestamps that would otherwise sort to the front of their period</li>
+          <li>19 snapshots per match, at <span class="mono">t ∈ {0, 5, …, 90}</span></li>
+        </ul>
+      </div>
+    </div>
+    <p class="muted small" style="margin-top:.8rem"><b>Known caveat, volunteered:</b> <span class="mono">REPORT.md</span> §3 says events are ordered by <span class="mono">(period, timestamp, index)</span>. The prose is stale and the code is right — the timestamp is precisely the corrupted field. It is on the fix list in <span class="mono">TODO.md</span>.</p>
+    <p class="srcfoot">src/features/build_prematch_features.py · src/features/build_inplay_features.py</p>
+  </div>
+</section>
+
+<section>
+  <section data-background-color="#0a1320">
+    <div class="pad stretch">
+      <p class="eyebrow" style="color:var(--tl)">Barrier 3 of 4 · the sharpest trap</p>
+      <h2 style="color:var(--tl)">The time-<em>t</em> cut, and why it can only err safely</h2>
+<pre class="diagram lg">  index      →   0     1     2     3     4     <span class="r">5</span>     6     7     8   ...
+  minute     →   0     3     7     9    10   <span class="r">⚠ 0</span>    12    14    18        <span class="r">← raw: corrupted row at index 5</span>
+  effective  →   0     3     7     9    10   <span class="g">10</span>    12    14    18        <span class="g">← np.maximum.accumulate(minute)</span>
+                                              <span class="g">▲</span>
+                                     <span class="g">repaired: pinned to 10, not dragged to 0</span>
+
+                              cut at <b>t = 10</b> ─────┐
+                  [ ──────────  prefix, feeds the row  ─┤ ]   excluded ───────────▶</pre>
+      <div class="invariant">
+        <div class="step"><span class="mono">accumulate</span> only ever raises &nbsp;⇒&nbsp; <span class="mono">eff[i] ≥ minute[i]</span> for every i<br>
+        so &nbsp;<span class="mono">eff[i] ≤ t</span>&nbsp; ⇒ &nbsp;<span class="mono">minute[i] ≤ t</span></div>
+        <div class="punch">The cut can only ever exclude too much. It can never include an event that happened after <em>t</em>.</div>
+      </div>
+      <p class="muted small" style="margin-top:.65rem">That is the sentence that turns a claim into a proof. <span class="mono">prefix_length_at()</span> uses <span class="mono">searchsorted(…, side="right")</span>, and <span class="mono">assert_prefix()</span> checks <b>both</b> directions — nothing after <em>t</em> is in, nothing at-or-before <em>t</em> is out.</p>
+      <p class="srcfoot">src/features/build_inplay_features.py — effective_minute(), prefix_length_at(), assert_prefix() · 7/7 tests</p>
+    </div>
+  </section>
+
+  <section data-background-color="#0a1320">
+    <div class="pad">
+      <p class="eyebrow" style="color:var(--tl)">Barrier 3 · the case that surprised us</p>
+      <h2>What happens at half-time</h2>
+      <div class="cols cols-wide">
+        <div>
+          <p class="lead">StatsBomb's <span class="mono">minute</span> is <b>not globally monotonic</b>. Period 1 runs into stoppage — 46′, 47′ — and then period 2 restarts the clock at 45′.</p>
+          <ul class="mini-list" style="--c:var(--tl)">
+            <li>The running maximum therefore <b>pins the opening second-half events behind the first half's last minute</b></li>
+            <li>They are absent at <em>t</em> = 45, and reappear at <em>t</em> = 50</li>
+            <li>This is deliberate. Under the reading "<em>t</em> = 45 means half-time", it is the correct cut</li>
+            <li>The alternative — capping period 1 at 45′ — would pull first-half stoppage events <b>into</b> the <em>t</em> = 45 snapshot. That is the direction that actually leaks</li>
+          </ul>
+        </div>
+        <div>
+          <div class="invariant" style="border-color:var(--tl);background:rgba(91,156,246,.07)">
+            <div class="step">Of the two ways to be wrong at the period boundary, we chose the one that <b>drops information</b> over the one that <b>invents it</b>.</div>
+            <div class="punch" style="color:var(--tl)">A conservative cut costs accuracy. A leaky cut costs the whole result.</div>
+          </div>
+        </div>
+      </div>
+      <p class="srcfoot">docs/mid_defence_2.md §5.1 · src/features/test_inplay_cut.py</p>
+    </div>
+  </section>
+
+  <section data-background-color="#0a1320">
+    <div class="pad">
+      <p class="eyebrow">Barrier 4 of 4 · and the summary</p>
+      <h2>Four barriers, all asserted in code</h2>
+      <div class="table-wrap">
+        <table class="data wide">
+          <thead><tr><th>Barrier</th><th>Mechanism</th><th>Enforced by</th></tr></thead>
+          <tbody>
+            <tr><td style="color:var(--tc)">Chronological split</td><td>Whole <b>dates</b> assigned; train ends before validation begins</td><td class="fam">assert · build_temporal_splits.py</td></tr>
+            <tr><td style="color:var(--tc)">Prior-only form</td><td><span class="mono">.shift(1)</span> <b>before</b> <span class="mono">.rolling(5)</span>; first match is NaN</td><td class="fam">assert · build_prematch_features.py</td></tr>
+            <tr><td style="color:var(--tl)">Time-<em>t</em> prefix cut</td><td>Effective minute + <b>two-sided</b> prefix assertion</td><td class="fam">7/7 · test_inplay_cut.py</td></tr>
+            <tr><td style="color:var(--hs)">Train-only fitting</td><td>Imputer · scaler · resampler fit on <b>train</b>; calibrator on <b>validation</b></td><td class="fam">prepare_matrices() · modeling_common.py</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted small" style="margin-top:.8rem">One extra guard worth naming: <span class="mono">prepare_matrices</span> <b>raises a <span style="color:var(--bad)">ValueError</span></b> — it does not warn — if any resampling arm is requested on a frame containing <span class="mono">snapshot_minute</span>. Oversampling across match boundaries is refused structurally rather than left to discipline.</p>
+      <p class="muted small">We do not claim "no leakage is possible". We claim these four barriers hold, and that each one fails the build if it stops holding.</p>
+      <p class="srcfoot">Assertions are the specification — when a contract changes, the assert changes deliberately, in the same commit</p>
+    </div>
+  </section>
+</section>
+
+<section>
+  <section data-background-color="#170d18">
+    <div class="pad">
+      <p class="eyebrow" style="color:var(--hs)">P2 · the sign-off gate</p>
+      <h2 style="color:var(--hs)">Hierarchical Shrinkage</h2>
+      <p class="mono small" style="color:var(--cream-dim);margin:0 0 .7rem">Agarwal, Tan, Ronen, Singh, Yu — <em>“Hierarchical Shrinkage: Improving the accuracy and interpretability of tree-based models.”</em> ICML 2022, PMLR 162:111–135.</p>
+      <div class="table-wrap">
+        <table class="data wide">
+          <thead><tr><th>Hard filter</th><th>Evidence</th></tr></thead>
+          <tbody>
+            <tr><td>Published 2022 or later</td><td>ICML 2022, PMLR v162 — the <b>publication</b> date, not a preprint date</td></tr>
+            <tr><td>Q1 journal / CORE A* or A</td><td>ICML is CORE <b>A*</b> (verified on the CORE portal)</td></tr>
+            <tr><td>Applicable to this data and these tasks</td><td>Regularises CART and forests — mixed-type tabular, small effective <em>n</em></td></tr>
+            <tr><td>Not deep learning</td><td>A closed-form transform of leaf values. No neural component anywhere</td></tr>
+            <tr class="hl"><td>Reimplementable from the paper</td><td>One closed-form recursion, no hidden constants — confidence <b>9.5 / 10</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="cols" style="margin-top:.85rem">
+        <div>
+          <span class="tag bad">Rejected — and why</span>
+          <ul class="mini-list" style="--c:var(--bad)">
+            <li><b>DRF</b> (JMLR 2022) and <b>GPBoost</b> (JMLR 2022 / TPAMI 2023) — correct year, correct venue, but large C++/Rcpp codebases whose approximations are <b>not specified in the paper text</b>. They fail the from-scratch filter, not the quality filter</li>
+            <li><b>NGBoost</b> (ICML 2020), <b>PGBM</b> (KDD 2021) — fail the date filter outright</li>
+            <li><b>fabOF</b> (BJMSP 2025) — elegant ordinal fit for H/D/A, but scored <b>8.0</b>, below our 8.5 bar: the quantile conventions live only in the R source</li>
+          </ul>
+        </div>
+        <div>
+          <span class="tag good">Declared fallback</span>
+          <p class="muted small"><b>FIGS</b> — Fast Interpretable Greedy-Tree Sums, PNAS 2025, Q1, numbered Algorithm 1, confidence 9.0. Ready if the sign-off goes against HS.</p>
+          <span class="tag info">The precise claim</span>
+          <p class="muted small">Implemented <b>from the paper, against the raw <span class="mono">tree_</span> arrays</b>. sklearn grows the underlying CART and nothing else — exactly as the paper does. <span class="mono">imodels</span> was used to cross-check the scheme, never called to produce a result.</p>
+        </div>
+      </div>
+      <p class="srcfoot">docs/p2_paper_selection.md — the full audit, every rejection with a specific reason</p>
+    </div>
+  </section>
+
+  <section data-background-color="#170d18">
+    <div class="pad">
+      <p class="eyebrow" style="color:var(--hs)">P2 · the core equation</p>
+      <h2>Damp each split by the node it was estimated <em>from</em></h2>
+      <div class="cols cols-wide">
+        <div>
+          <p class="muted small" style="margin-bottom:.45rem">A leaf mean is exactly the root mean plus the increments picked up along the path. That is an identity — it telescopes, it assumes nothing:</p>
+          <div class="formula" style="--c:var(--cream-dim)">μ(t_L) = μ(t₀) + Σ_l [ μ(t_l) − μ(t_{l−1}) ]        (A.1)</div>
+          <p class="muted small" style="margin:.6rem 0 .35rem">The deeper a split sits, the fewer samples supported the decision to make it. HS damps each increment:</p>
+          <div class="formula big" style="--c:var(--hs);border-color:var(--hs)">f_HS(x) = μ(t₀) + Σ_l  [ μ(t_l) − μ(t_{l−1}) ] / ( 1 + λ / <b style="color:var(--ok)">N(t_{l−1})</b> )</div>
+          <p class="small" style="margin-top:.45rem"><b style="color:var(--ok)">The divisor is the <u>parent's</u> count, not the child's.</b> That annotation is the whole method: a split taken off a large node is trusted almost fully; the identical split taken off a nearly-empty node is almost ignored.</p>
+          <p class="muted tiny mono" style="margin-top:.45rem">t₀ ⊃ … ⊃ t_L = root-to-leaf path · μ(t) = node mean · N(t) = node count · one parameter λ ≥ 0</p>
+        </div>
+        <div>
+<pre class="diagram lg">   <span class="h">t₀</span>   N = 800    μ₀
+    │
+    │   ×  1/(1 + λ/800)   <span class="g">← trusted</span>
+    ▼
+   <span class="h">t₁</span>   N = 140    μ₁
+    │
+    │   ×  1/(1 + λ/140)
+    ▼
+   <span class="h">t₂</span>   N =  12    μ₂
+    │
+    │   ×  1/(1 + λ/12)    <span class="r">← nearly ignored</span>
+    ▼
+   <span class="h">t₃</span>   (leaf)     μ₃</pre>
+          <p class="muted small" style="margin-top:.65rem">For classification, μ(t) is the class distribution in the node rather than a scalar. <b>Every line of the derivation holds coordinate-wise</b> — which is why one method serves Tasks C, R and L with no per-task adaptation.</p>
+        </div>
+      </div>
+      <p class="srcfoot">src/papers/hierarchical_shrinkage.py — _shrink_tree() damps with counts[parent], matching the equation</p>
+    </div>
+  </section>
+
+  <section data-background-color="#170d18">
+    <div class="pad">
+      <p class="eyebrow" style="color:var(--hs)">Appendix A.3 · first derivation</p>
+      <h2>HS is a convex combination of the ancestor means</h2>
+      <div class="cols">
+        <div>
+          <p class="muted small">Set the damping factors and re-index the second sum by <span class="mono">l ↦ l+1</span>:</p>
+          <div class="formula" style="--c:var(--cream-dim)">w_l = N(t_{l−1}) / ( N(t_{l−1}) + λ ),   w_{L+1} := 0</div>
+          <div class="formula" style="--c:var(--hs);border-color:var(--hs)">f_HS(x) = Σ_{l=0..L}  c_l · μ(t_l)
+
+c₀ = 1 − w₁     c_l = w_l − w_{l+1}     c_L = w_L</div>
+          <p class="small" style="margin-top:.55rem"><b>The c_l are a probability vector.</b></p>
+          <ul class="mini-list" style="--c:var(--ok)">
+            <li><b>They sum to 1</b> — the sum telescopes: (1−w₁) + (w₁−w₂) + … + w_L = 1</li>
+            <li><b>They are non-negative</b> — u ↦ u/(u+λ) increases in u, and the path is nested, so N(t_{l−1}) ≥ N(t_l) ⇒ w_l ≥ w_{l+1}</li>
+          </ul>
+        </div>
+        <div>
+          <span class="tag good">Consequence 1 — the one worth saying aloud</span>
+          <p class="muted small">Each μ(t_l) already lies on the simplex, and a convex combination of simplex points is a simplex point. <b>So the classifier's output is a valid probability vector for <em>any</em> λ.</b> No clipping. No renormalisation. The safety is structural, not patched in.</p>
+          <span class="tag info">Consequence 2 — the two limits</span>
+          <ul class="mini-list" style="--c:var(--market)">
+            <li><b>λ = 0</b> → all w_l = 1, so c_L = 1 and every other c is 0 — <b>plain CART</b></li>
+            <li><b>λ → ∞</b> → all w_l → 0, so c₀ → 1 — <b>the root mean</b>, which for Task C is exactly the Dummy prior</li>
+          </ul>
+          <p class="muted small">HS is therefore a continuous interpolation between the sanity floor and the full unshrunk tree, with λ choosing the point on that line.</p>
+        </div>
+      </div>
+      <p class="srcfoot">docs/appendix_a_hierarchical_shrinkage.md §A.3 · verified by test_classifier_output_is_a_valid_probability_vector</p>
+    </div>
+  </section>
+
+  <section data-background-color="#170d18">
+    <div class="pad">
+      <p class="eyebrow" style="color:var(--hs)">Appendix A.4 · second derivation</p>
+      <h2>It is not an ad-hoc formula — it is a ridge minimiser</h2>
+      <div class="cols cols-wide">
+        <div>
+          <p class="muted small">Write the tree in its <b>increment basis</b>: for every non-root node t, let ψ_t(x) = 1{x ∈ t}. Only a point's ancestors are active, so the sum <em>is</em> the telescoping identity, and the coefficients <em>are</em> the increments — which is exactly what we want to penalise.</p>
+          <div class="formula sm" style="--c:var(--cream-dim)">f(x) = β₀ + Σ_{t≠t₀} β_t ψ_t(x),   β_t = μ(t) − μ(parent(t))</div>
+          <p class="muted small" style="margin-top:.5rem">Estimate one increment δ by ridge, restricted to the parent's samples, holding μ(p) fixed. Only the N(t) points inside t contribute:</p>
+          <div class="formula sm" style="--c:var(--cream-dim)">J(δ) = Σ_{i ∈ p} ( y_i − μ(p) − δ·1{x_i ∈ t} )² + λ_t δ²
+
+∂J/∂δ = 0   ⇒   δ̂ = ( μ(t) − μ(p) ) · N(t) / ( N(t) + λ_t )</div>
+          <p class="muted small" style="margin-top:.5rem">Now pick the penalty weight that reproduces the paper's rule:</p>
+          <div class="formula" style="--c:var(--ok);border-color:var(--ok)">λ_t = λ · N(t) / N(parent(t))</div>
+        </div>
+        <div>
+          <span class="tag info">Reading the objective back out</span>
+          <div class="formula sm" style="--c:var(--hs);border-color:var(--hs)">min_β  Σ_i ( y_i − β₀ − Σ_t β_t ψ_t(x_i) )²
+       + λ · Σ_t  [ N(t) / N(parent(t)) ] · β_t²</div>
+          <p class="muted small" style="margin-top:.55rem">The penalty weight <span class="mono">N(t)/N(parent(t))</span> is <b>the fraction of its parent's samples that the split sent into t</b>. So:</p>
+          <ul class="mini-list" style="--c:var(--hs)">
+            <li>A split that cleanly halves a large node is <b>barely penalised</b></li>
+            <li>A split that peels a handful of points off an already-small node is <b>penalised hard</b></li>
+          </ul>
+          <p class="muted small">That is the entire method. Grow the tree greedily as usual, then ridge-shrink its increments in proportion to how little data supported each one. HS is the greedy, top-down solution of that objective.</p>
+        </div>
+      </div>
+      <p class="srcfoot">docs/appendix_a_hierarchical_shrinkage.md §A.4 — equations (A.4), (A.5), (A.6)</p>
+    </div>
+  </section>
+
+  <section data-background-color="#170d18">
+    <div class="pad">
+      <p class="eyebrow" style="color:var(--hs)">P2 · what λ actually chose</p>
+      <h2>The method diagnosed our own data</h2>
+      <p class="lead">λ is selected from <span class="mono">{0, 0.1, 1, 10, 25, 50, 100}</span> by <b>3-fold CV inside the training rows only</b> — the validation split is reserved for calibration, so tuning λ there would turn the calibration set into a second training set. We did not pick these values. The CV did.</p>
+      <div class="winner-grid">
+        <div class="winner tc"><div class="label">Task C · 896 rows</div><div class="who">λ = 100</div><div class="why">the top of the grid — shrink almost all the way to the base rate</div></div>
+        <div class="winner tr"><div class="label">Task R · 896 rows</div><div class="who">λ = 100</div><div class="why">same story, same scarcity</div></div>
+        <div class="winner tl"><div class="label">Task Lc · 17,024 rows</div><div class="who">λ = 0</div><div class="why">no shrinkage at all — plain CART wins</div></div>
+        <div class="winner tl"><div class="label">Task Lr · 17,024 rows</div><div class="who">λ = 0</div><div class="why">same</div></div>
+      </div>
+      <div class="invariant" style="margin-top:.9rem">
+        <div class="step">896 pre-match rows with weak features → the deep splits are noise → <b>shrink them away entirely</b>.<br>
+        17,024 in-play rows where the state variables are strongly informative → the deep splits are real → <b>keep them</b>.</div>
+        <div class="punch">λ went to opposite ends of the grid on the two tables — precisely the behaviour the paper predicts, recovered without being told.</div>
+      </div>
+      <p class="muted small" style="margin-top:.6rem"><b>Honest limitation, volunteered:</b> HS cannot repair a badly grown tree. It redistributes weight along paths that CART already chose. If the split criterion picked the wrong variable, HS averages over a wrong path. It is a <b>variance intervention, not a bias one</b>.</p>
+      <p class="srcfoot">_HSBase._select_lambda() · LAMBDA_GRID in src/papers/hierarchical_shrinkage.py · hs_lambda in model_results.csv</p>
+    </div>
+  </section>
+
+  <section data-background-color="#170d18">
+    <div class="pad">
+      <p class="eyebrow" style="color:var(--hs)">P2 · how we know it is right</p>
+      <h2>Eight tests, and what each one buys</h2>
+      <div class="table-wrap">
+        <table class="data wide">
+          <thead><tr><th>Claim under test</th><th>What would break if it failed</th></tr></thead>
+          <tbody>
+            <tr><td>λ = 0 ≡ plain CART</td><td>The shrinkage is applied where it should be a no-op</td></tr>
+            <tr><td>λ → ∞ ≡ the root mean</td><td>The damping direction is inverted</td></tr>
+            <tr><td>Simplex closure at every λ</td><td>The classifier emits something that is not a probability</td></tr>
+            <tr class="hl"><td>Independent per-path transcription</td><td>A <b>second, literal</b> implementation of the paper equation — written from the PDF, walking each path node by node — agrees with the fast recursion. This is the test that says we implemented <b>the paper</b>, not just something that runs</td></tr>
+            <tr><td>Hand-written leaf descent ≡ <span class="mono">tree_.apply</span></td><td>Our own level-wise descent finds different leaves than sklearn's</td></tr>
+            <tr><td>λ selected on training rows only</td><td>The split contract — validation would become a second training set</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="statline">
+        <div class="stat ok"><div class="v">8/8</div><div class="k">P2 · hierarchical shrinkage</div></div>
+        <div class="stat ok"><div class="v">8/8</div><div class="k">P1 · G-SMOTENC</div></div>
+        <div class="stat ok"><div class="v">7/7</div><div class="k">in-play time-<em>t</em> cut</div></div>
+        <div class="stat market"><div class="v">23/23</div><div class="k">re-run on the current tree</div></div>
+      </div>
+      <p class="muted small" style="margin-top:.45rem">All three suites are <b>stages of <span class="mono">run_all.py</span></b>, not an optional side-check. A pipeline run that breaks a paper reimplementation fails the pipeline.</p>
+      <p class="srcfoot">src/papers/test_hierarchical_shrinkage.py · src/papers/test_g_smotenc.py · src/features/test_inplay_cut.py</p>
+    </div>
+  </section>
+</section>
+
+<section data-background-color="#10100f">
+  <div class="pad">
+    <p class="eyebrow">Modeling protocol · I</p>
+    <h2>The suite is declared in one place</h2>
+    <div class="cols cols-wide">
+      <div>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>Model</th><th style="color:var(--tc)">C</th><th style="color:var(--tr)">R</th><th style="color:var(--tl)">Lc</th><th style="color:var(--tl)">Lr</th></tr></thead>
+            <tbody>
+              <tr><td>Dummy / prior</td><td class="tick">✓</td><td class="tick">✓</td><td class="tick">✓</td><td class="tick">✓</td></tr>
+              <tr><td>Kernel SVM / SVR</td><td class="tick">✓</td><td class="tick">✓</td><td class="cross">—</td><td class="cross">—</td></tr>
+              <tr><td>Kernel Ridge — exact</td><td class="cross">—</td><td class="tick">✓</td><td class="cross">—</td><td class="cross">—</td></tr>
+              <tr><td>Kernel Ridge — Nyström</td><td class="cross">—</td><td class="tick">✓</td><td class="cross">—</td><td class="cross">—</td></tr>
+              <tr><td>Random Forest</td><td class="tick">✓</td><td class="tick">✓</td><td class="tick">✓</td><td class="tick">✓</td></tr>
+              <tr><td>GBM</td><td class="tick">✓</td><td class="tick">✓</td><td class="tick">✓</td><td class="tick">✓</td></tr>
+              <tr><td>XGBoost</td><td class="tick">✓</td><td class="tick">✓</td><td class="tick">✓</td><td class="tick">✓</td></tr>
+              <tr><td>LightGBM</td><td class="tick">✓</td><td class="tick">✓</td><td class="tick">✓</td><td class="tick">✓</td></tr>
+              <tr class="hl"><td style="color:var(--hs)">P2 — Hier. Shrinkage</td><td class="tick">✓</td><td class="tick">✓</td><td class="tick">✓</td><td class="tick">✓</td></tr>
+              <tr><td style="color:var(--market)">De-vigged market</td><td class="tick">✓</td><td class="cross">—</td><td class="cross">—</td><td class="cross">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted small" style="margin-top:.55rem"><b>7 · 9 · 6 · 6 = 28 rows</b> in the sweep.</p>
+      </div>
+      <div>
+        <span class="tag info">Why a matrix and not a loop</span>
+        <p class="muted small"><span class="mono">TASK_SUPPORT</span> in <span class="mono">model_zoo.py</span> declares this table in code, so <b>the sweep cannot silently run a model on a task where the brief did not specify it</b>. Model builders all take <span class="mono">(random_state, **params)</span>, so the tuner and the sweep share one definition of every model.</p>
+        <span class="tag warn">The one deliberate omission</span>
+        <p class="muted small">Kernel methods are <b>pre-match only, by design</b>. An exact Gram matrix on the 17,024 in-play training rows is <b>2,211 MB</b>. We do not pay that cost inside the sweep — we <b>measure</b> it as a separate deliverable and report the curve.</p>
+        <span class="tag bad">A trap we chose to flag ourselves</span>
+        <p class="muted small"><span class="mono">model_zoo.py</span> guards the xgboost and lightgbm imports in <span class="mono">try/except</span>. Without <span class="mono">libomp</span> they vanish <b>with no warning</b> and the zoo silently returns 4 of 6. An early result table was short by one booster for exactly this reason. It is now pinned and documented.</p>
+      </div>
+    </div>
+    <p class="srcfoot">src/models/model_zoo.py — TASK_SUPPORT, CLASSIFIER_SPACES, REGRESSOR_SPACES</p>
+  </div>
+</section>
+
+<section data-background-color="#10100f">
+  <div class="pad">
+    <p class="eyebrow">Modeling protocol · II</p>
+    <h2>Equal budget, or the comparison means nothing</h2>
+    <div class="cols">
+      <div>
+        <div class="formula big" style="--c:var(--ok);border-color:var(--ok)">12 configurations × 3 folds = 36 fits
+identical for every tuned model, per task</div>
+        <ul class="mini-list" style="--c:var(--ok)">
+          <li><b>Random search, not grid.</b> A full grid would silently hand LightGBM 729 configurations and Kernel SVM 20. Random search fixes the number of <em>fits</em> rather than the shape of the space — the only thing "comparable budget" can honestly mean</li>
+          <li><b>CV runs inside the training split only.</b> Validation is the calibration set; tuning there would fit hyperparameters and the calibrator on the same rows and make every reported ECE optimistic</li>
+          <li><b><span class="mono">GroupKFold</span> on <span class="mono">match_id</span> for Task L</b> — so minute 40 and minute 45 of the same match never straddle a fold boundary</li>
+          <li><b><span class="mono">dummy</span> is excluded</b> — deliberately given no budget rather than a free pass. It has nothing to tune</li>
+          <li>Tables over 8,000 rows are tuned on a seeded subsample of <b>whole matches</b>, declared per row in the audit CSV</li>
+        </ul>
+      </div>
+      <div>
+        <div class="statline col">
+          <div class="stat ok"><div class="v">288</div><div class="k">candidate evaluations written to tuning_results.csv</div></div>
+          <div class="stat market"><div class="v sm">24 × 12</div><div class="k">(task, model) pairs × candidates — the equal-budget assert</div></div>
+        </div>
+        <p class="muted small" style="margin-top:.85rem">The assert is the point: <span class="mono">tuning.py</span> <b>fails the run</b> if any model on a task saw a different candidate count than its peers. An unfair budget cannot survive to the results table.</p>
+        <span class="tag warn" style="margin-top:.5rem">Two honest declarations</span>
+        <ul class="mini-list" style="--c:var(--warn)">
+          <li>Exact Kernel Ridge is capped at <b>8,000</b> training rows. The results table carries a <span class="mono">subsampled</span> flag and the actual <span class="mono">n_train</span> used, so its compute row cannot be misread as a full-data fit</li>
+          <li>P2's λ is <b>not</b> tuned by the outer search. It is chosen by the paper's own inner 3-fold CV. Giving HS an outer λ grid as well would hand it a larger budget than every other model</li>
+        </ul>
+      </div>
+    </div>
+    <p class="srcfoot">src/models/tuning.py → best_params.json · reports/tuning_results.csv (288 rows)</p>
+  </div>
+</section>
+
+<section data-background-color="#10100f">
+  <div class="pad">
+    <p class="eyebrow">Modeling protocol · III</p>
+    <h2>Calibration, and the bug it exposed</h2>
+    <div class="cols cols-wide">
+      <div>
+        <div class="formula" style="--c:var(--tc)">isotonic → Platt → raw     fit on VALIDATION, applied to TEST</div>
+        <ul class="mini-list" style="--c:var(--tc)">
+          <li>ECE reported <b>before and after</b>, per model — so the calibrator's effect is visible rather than absorbed</li>
+          <li>Reliability diagrams drawn <b>twice per model</b>, raw and calibrated</li>
+          <li>Task L additionally reports ECE <b>per game phase</b>: 0–15′, 15–30′, … 75–90′</li>
+          <li>Metrics are hand-rolled — RPS, Brier, log-loss, ECE, per-class P/R/F1 — because RPS on an <em>ordered</em> outcome is not what a generic classification report gives you</li>
+        </ul>
+      </div>
+      <div>
+        <span class="tag bad">The artefact that nearly cost us the whole comparison</span>
+        <p class="muted small">Isotonic regression fitted on a ~340-row validation split emits <b>exact zeros</b>. RPS and Brier barely notice. <b>Log-loss exploded to 1.9–2.8 nats</b>, which made every model look far worse than the market — for a reason that was entirely an artefact of the calibrator, not of the model.</p>
+        <div class="formula" style="--c:var(--ok);border-color:var(--ok)">PROBABILITY_FLOOR = 0.005   # then renormalise</div>
+        <p class="muted small">Post-fix, log-loss lands at <b>1.05–1.22</b>. We report this deliberately: a number that moves by 1.5 nats because of a floor is a number you have to understand before you present it.</p>
+      </div>
+    </div>
+    <p class="srcfoot">src/models/modeling_common.py — calibrate_proba(), PROBABILITY_FLOOR · src/viz/plot_calibration.py</p>
+  </div>
+</section>
+
+<section>
+  <section data-background-color="#1a1408">
+    <div class="pad stretch">
+      <p class="eyebrow" style="color:var(--market)">Results · Task C</p>
+      <h2>Zero of seven models beat the market</h2>
+      <div class="chart-full">
+        <h4>RPS on the 343 odds-tagged test matches · lower is better · reports/market_comparison.csv</h4>
+        <div class="canvas-wrap"><canvas id="mktBar" role="img" aria-label="Ranked probability score of the de-vigged market against seven Task C models"></canvas></div>
+      </div>
+      <p class="chart-cap">Market <b>0.19665</b> · best model Kernel SVM <b>0.21656</b> · P2 <b>0.21659</b> · prior <b>0.22839</b>. The gap we could not close is <b>+0.01991 RPS</b>.</p>
+      <p class="srcfoot">src/models/market_comparison.py → reports/market_comparison.csv, market_coverage.csv</p>
+    </div>
+  </section>
+
+  <section data-background-color="#1a1408">
+    <div class="pad">
+      <p class="eyebrow" style="color:var(--market)">Results · Task C · reading it</p>
+      <h2>Why this is the result we trust most</h2>
+      <div class="cols cols-wide">
+        <div>
+          <span class="tag info">Why the intersection matters</span>
+          <p class="muted small">Scoring the model on all 344 test matches and the market on the 343 tagged ones would compare <b>two different samples</b>. Both are scored on the same rows, and the coverage rate is printed beside the number. The de-vigging contract — overround &gt; 1, probabilities summing to 1 — is <b>re-asserted at the point of use</b>, not only where the baseline was built.</p>
+          <span class="tag bad">We are not softening this</span>
+          <p class="muted small">The brief is explicit that an honest, well-analysed failure to beat the market is worth more than an unexplained score that merely looks good. So: <b>zero of seven</b>, stated plainly, and no hedging about being "close".</p>
+        </div>
+        <div>
+          <div class="statline col">
+            <div class="stat market"><div class="v">0.19665</div><div class="k">de-vigged market · RPS</div></div>
+            <div class="stat tc"><div class="v">0.21656</div><div class="k">best model · kernel SVM</div></div>
+            <div class="stat bad"><div class="v">+0.01991</div><div class="k">the gap</div></div>
+          </div>
+        </div>
+      </div>
+      <p class="muted small" style="margin-top:.8rem"><b>The defensible hypothesis</b> — offered as a hypothesis, not a finding — is that the market prices information our features do not contain: squad availability, injuries, confirmed lineups, transfer and managerial news. None of that is in StatsBomb event data. We can test that claim; we have not, so we will not assert it.</p>
+      <p class="srcfoot">reports/market_coverage.csv — La Liga 89/89 · Premier League 87/87 · Serie A 90/90 · Ligue 1 77/78</p>
+    </div>
+  </section>
+
+  <section data-background-color="#1a1408">
+    <div class="pad">
+      <p class="eyebrow" style="color:var(--tr)">Results · Task R</p>
+      <h2>The margin is nearly unpredictable pre-match</h2>
+      <div class="cols cols-wide">
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>Model</th><th>MAE</th><th>RMSE</th><th>vs prior</th></tr></thead>
+            <tbody>
+              <tr><td>XGBoost</td><td class="v-best">1.38656</td><td class="num">1.75594</td><td class="num">−6.9%</td></tr>
+              <tr class="hl"><td style="color:var(--hs)">P2 — Hier. Shrinkage</td><td class="v-best">1.38965</td><td class="num">1.76268</td><td class="num">−6.7%</td></tr>
+              <tr><td>Kernel Ridge · Nyström</td><td class="num">1.39140</td><td class="v-best">1.74846</td><td class="num">−6.6%</td></tr>
+              <tr><td>Random Forest</td><td class="num">1.39217</td><td class="num">1.75730</td><td class="num">−6.6%</td></tr>
+              <tr><td>LightGBM</td><td class="num">1.40139</td><td class="num">1.78516</td><td class="num">−5.9%</td></tr>
+              <tr><td>GBM</td><td class="num">1.40483</td><td class="num">1.77830</td><td class="num">−5.7%</td></tr>
+              <tr><td>Kernel SVR</td><td class="num">1.42755</td><td class="num">1.81790</td><td class="num">−4.2%</td></tr>
+              <tr><td>Kernel Ridge · exact</td><td class="num">1.43274</td><td class="num">1.81717</td><td class="num">−3.8%</td></tr>
+              <tr><td style="color:var(--grey)">Dummy (prior)</td><td class="v-low">1.48997</td><td class="v-low">1.89230</td><td class="num">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <span class="tag warn">Read this honestly</span>
+          <p class="muted small">The whole suite spans <b>1.387 → 1.433 MAE</b>, and the prior sits at <b>1.490</b>. Eight very different learners, given identical budgets, land within <b>0.05 goals</b> of each other and beat "always predict the mean" by about <b>7%</b>.</p>
+          <p class="muted small">That is not eight models failing. That is the <b>signal ceiling of pre-match features</b> being measured eight independent ways. The goal margin before kick-off is close to irreducibly noisy, and the flatness of this table is the evidence.</p>
+          <p class="muted small">Note that <b>Nyström beats exact kernel ridge</b> on both metrics. The approximation is not a compromise here — the subsampling the exact method needs to stay tractable costs it more than the Nyström approximation does.</p>
+          <p class="muted small mono" style="color:var(--hs)">P2 is second on MAE across the full suite, on a task it was not specialised for.</p>
+        </div>
+      </div>
+      <p class="srcfoot">src/models/run_models.py → reports/model_results.csv (28 rows) · reports/predictions_R.csv</p>
+    </div>
+  </section>
+</section>
+
+<section>
+  <section data-background-color="#0a1320">
+    <div class="pad stretch">
+      <p class="eyebrow" style="color:var(--tl)">Results · Task L · the headline finding</p>
+      <h2>The live stream buys nothing until minute 15</h2>
+      <div class="chart-full">
+        <h4>RPS by snapshot minute · in-play models vs the frozen pre-match reference · reports/inplay_metric_by_minute.csv</h4>
+        <div class="canvas-wrap"><canvas id="inplayCurve" role="img" aria-label="Ranked probability score falling with match minute for five in-play models against a flat frozen pre-match reference"></canvas></div>
+      </div>
+      <p class="chart-cap"><b>The dashed amber line is the argument.</b> It is the pre-match prediction, frozen and repeated across all 19 snapshots of its match — flat <b>by construction</b>, and the code asserts it is flat, because any slope would mean the reference leaked match progress.</p>
+      <p class="srcfoot">src/models/inplay_curves.py — freeze_prematch() · reports/inplay_metric_by_minute.csv</p>
+    </div>
+  </section>
+
+  <section data-background-color="#0a1320">
+    <div class="pad">
+      <p class="eyebrow" style="color:var(--tl)">Results · Task L · reading the curve</p>
+      <h2>Three things that curve says</h2>
+      <div class="statline">
+        <div class="stat tl"><div class="v">10–15′</div><div class="k">crossover · when live data starts to pay</div></div>
+        <div class="stat hs"><div class="v">0.218 → 0.032</div><div class="k">P2 in-play, minute 0 → 90</div></div>
+        <div class="stat ok"><div class="v">0.02385</div><div class="k">best at minute 90 · random forest</div></div>
+      </div>
+      <ul class="feature-list">
+        <li style="--c:var(--tl)"><strong>Before minute 15 the events add nothing.</strong> The best frozen reference is P2 at <span class="mono">0.21641</span>. Its in-play counterpart starts <em>above</em> it — <span class="mono">0.21825</span> at t=0, <span class="mono">0.21955</span> at t=10 — and only crosses below at minute 15. Knowing who is playing beats knowing what has happened, for a sixth of the match.</li>
+          <li style="--c:var(--ok)"><strong>The frozen reference is the right baseline, not the prior.</strong> Both are reported. The prior (<span class="mono">0.22812</span>) is the sanity floor. The frozen curve is the bar that justifies Model 3 existing at all — a model that merely matches it has learned nothing from the live stream, however good its absolute RPS looks.</li>
+        <li style="--c:var(--bad)"><strong>Do not misread the endpoint.</strong> Near full time the in-play goal difference nearly determines the label. RPS 0.024 at minute 90 is the task definition asserting itself, not model skill. We measured a falling curve with a crossover; we will not say the model "converges to certainty".</li>
+      </ul>
+      <p class="srcfoot">All five in-play models cross their own frozen reference between minute 10 and minute 20</p>
+    </div>
+  </section>
+
+  <section data-background-color="#0a1320">
+    <div class="pad stretch">
+      <p class="eyebrow" style="color:var(--tl)">Results · Task L · calibration</p>
+      <h2>One ECE number hides two opposite failures</h2>
+      <div class="chart-full">
+        <h4>Over-confidence by game phase · mean confidence − accuracy · reports/inplay_calibration_by_phase.csv</h4>
+        <div class="canvas-wrap"><canvas id="phaseChart" role="img" aria-label="Over-confidence per game phase, positive through minute 75 then negative in the final phase"></canvas></div>
+      </div>
+      <p class="chart-cap">Over-confident by <b>+0.02 to +0.09 through minute 75</b>, then flipping to <b>under-confident by −0.03 to −0.10 in 75–90′</b>. Aggregate ECE averages those two errors against each other and reports a small, reassuring number — reassuring about nothing.</p>
+      <p class="srcfoot">src/models/inplay_curves.py — PHASE_EDGES · reports/inplay_calibration_by_phase.csv</p>
+    </div>
+  </section>
+
+  <section data-background-color="#0a1320">
+    <div class="pad">
+      <p class="eyebrow" style="color:var(--tl)">Results · Task L · why the sign flips</p>
+      <h2>The model hedges exactly when it should commit</h2>
+      <div class="cols cols-wide">
+        <div>
+          <span class="tag info">The mechanism</span>
+          <p class="muted small">Late in a match the model is looking at a goal difference that has all but settled the result — but its training distribution is dominated by earlier, more uncertain snapshots, where hedging was correct. So it carries that hedge into the 75–90′ window and ends up <b>less confident than it should be</b>, having been <b>more confident than it should be</b> for the previous 75 minutes.</p>
+          <span class="tag good">Why this is a deliverable, not a defect report</span>
+          <p class="muted small">This is exactly why the brief demands calibration <b>per game phase</b> rather than one number over all snapshots. A single ECE would have shown a small value and hidden both halves of the failure. The per-phase table is what makes it visible.</p>
+        </div>
+        <div>
+          <div class="table-wrap">
+            <table class="data">
+              <thead><tr><th>Phase</th><th style="color:var(--hs)">P2</th><th>random forest</th><th>gbm</th></tr></thead>
+              <tbody>
+                <tr><td>0–15′</td><td class="num">+0.058</td><td class="num">+0.058</td><td class="num">+0.093</td></tr>
+                <tr><td>15–30′</td><td class="num">+0.077</td><td class="num">+0.083</td><td class="num">+0.070</td></tr>
+                <tr><td>30–45′</td><td class="num">+0.071</td><td class="num">+0.082</td><td class="num">+0.048</td></tr>
+                <tr><td>45–60′</td><td class="num">+0.062</td><td class="num">+0.070</td><td class="num">+0.020</td></tr>
+                <tr><td>60–75′</td><td class="num">+0.041</td><td class="num">+0.061</td><td class="num">+0.003</td></tr>
+                <tr class="hl"><td>75–90′</td><td class="v-low">−0.086</td><td class="v-low">−0.029</td><td class="v-low">−0.097</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="muted tiny" style="margin-top:.5rem">Positive = over-confident. Every model, every phase, same shape.</p>
+        </div>
+      </div>
+      <p class="srcfoot">reports/inplay_calibration_by_phase.csv — n = 1,032 snapshots per phase, 1,376 in the final phase</p>
+    </div>
+  </section>
+</section>
+
+<section>
+  <section data-background-color="#1a1006">
+    <div class="pad stretch">
+      <p class="eyebrow" style="color:var(--p1)">The imbalance study · six arms</p>
+      <h2>The draw trade-off, measured rather than assumed</h2>
+      <div class="chart-full">
+        <h4>Mean over 4 models · RPS (lower better) vs draw recall (higher better) · reports/resampling_study.csv</h4>
+        <div class="canvas-wrap"><canvas id="resampChart" role="img" aria-label="Scatter of ranked probability score against draw recall for six resampling arms"></canvas></div>
+      </div>
+      <p class="chart-cap"><b>Bottom-left is best RPS, right is best draw recall, and nothing is in the bottom-right.</b> SMOTE buys the most draws at the worst RPS; P1 gives the best RPS by finding fewer of them.</p>
+      <p class="srcfoot">src/models/resampling_study.py · src/papers/g_smotenc.py (8/8) · reports/resampling_study.csv</p>
+    </div>
+  </section>
+
+  <section data-background-color="#1a1006">
+    <div class="pad">
+      <p class="eyebrow" style="color:var(--p1)">The imbalance study · the numbers</p>
+      <h2>Neither arm is "the winner"</h2>
+      <div class="cols cols-wide">
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>Arm</th><th>RPS</th><th>recall D</th><th>f1 D</th><th>ECE after</th></tr></thead>
+            <tbody>
+              <tr class="hl"><td style="color:var(--p1)">P1 · G-SMOTENC</td><td class="v-best">0.21907</td><td class="num">0.17722</td><td class="num">0.21736</td><td class="v-best">0.04519</td></tr>
+              <tr><td>class_weight</td><td class="num">0.22000</td><td class="num">0.20570</td><td class="num">0.21856</td><td class="num">0.06080</td></tr>
+              <tr><td>ADASYN</td><td class="num">0.22004</td><td class="num">0.19937</td><td class="num">0.22453</td><td class="num">0.04792</td></tr>
+              <tr><td>Borderline SMOTE</td><td class="num">0.22040</td><td class="v-low">0.12342</td><td class="v-low">0.16472</td><td class="num">0.06031</td></tr>
+              <tr><td>vanilla</td><td class="num">0.22149</td><td class="num">0.19304</td><td class="num">0.23068</td><td class="v-low">0.07703</td></tr>
+              <tr><td>SMOTE</td><td class="v-low">0.22283</td><td class="v-best">0.23101</td><td class="v-best">0.24267</td><td class="num">0.04979</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <p class="muted small"><b>The two ends of the table are the finding.</b> SMOTE takes the best draw recall (0.231) and the best draw F1 (0.243) at the <b>worst</b> RPS (0.2228). P1 takes the best RPS and the best calibration — by finding <em>fewer</em> draws.</p>
+          <p class="muted small">They optimise different things, and the brief asks us to know which. If the deliverable were "identify draws", SMOTE wins. Our headline metric is RPS, so P1 wins the arm we actually run.</p>
+          <p class="muted small">Borderline SMOTE is the cautionary row: it collapses draw recall to <b>0.123</b> and buys nothing for it.</p>
+          <span class="tag good">Scope</span>
+          <p class="muted small">Six arms × four models that all accept <span class="mono">class_weight</span>, on identical splits, <b>Task C only</b>. P1 is a <b>training-time toggle</b> — it never touches the feature CSVs, so no downstream artefact depends on which arm ran.</p>
+        </div>
+      </div>
+      <p class="srcfoot">Training class balance H 0.445 · D 0.265 · A 0.290 — the draw is the minority class every arm is aimed at</p>
+    </div>
+  </section>
+</section>
+
+<section>
+  <section data-background-color="#12130f">
+    <div class="pad stretch">
+      <p class="eyebrow">The cost we chose not to pay</p>
+      <h2>O(n²) is not a warning — it is a measurement</h2>
+      <div class="chart-full">
+        <h4>Fit time vs training rows · log–log · measured on the real in-play matrix · reports/kernel_scaling.csv</h4>
+        <div class="canvas-wrap"><canvas id="kernelChart" role="img" aria-label="Log-log fit time against training rows for exact kernel ridge, exact SVR and Nystroem"></canvas></div>
+      </div>
+      <p class="chart-cap">Exponents are <b>fitted from these measurements and then asserted</b> — the script fails if the exact methods stop looking super-linear. Exact kernel ridge <b>t ~ n^2.245</b> · exact SVR <b>n^1.852</b> · Nyström <b>n^0.392</b>.</p>
+      <p class="srcfoot">src/models/kernel_scaling.py → reports/kernel_scaling.csv</p>
+    </div>
+  </section>
+
+  <section data-background-color="#12130f">
+    <div class="pad">
+      <p class="eyebrow">Kernel scaling · the read-out</p>
+      <h2>Why kernels are absent from Task L</h2>
+      <div class="cols cols-wide">
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>Method</th><th>fitted t ~ n^</th><th>fit @ 17,024</th><th>peak MB</th></tr></thead>
+            <tbody>
+              <tr><td>Kernel ridge · exact</td><td class="v-low">2.245</td><td class="num">11.89 s</td><td class="v-low">1,133</td></tr>
+              <tr><td>Kernel SVR · exact</td><td class="v-mid">1.852</td><td class="num">3.92 s</td><td class="num">55</td></tr>
+              <tr class="hl"><td>Kernel ridge · Nyström</td><td class="v-best">0.392</td><td class="v-best">0.10 s</td><td class="num">130</td></tr>
+            </tbody>
+          </table>
+          <div class="statline" style="margin-top:1rem">
+            <div class="stat bad"><div class="v sm">2,211 MB</div><div class="k">theoretical Gram @ 17,024 rows</div></div>
+            <div class="stat ok"><div class="v sm">119×</div><div class="k">Nyström speed-up at full size</div></div>
+          </div>
+        </div>
+        <div>
+          <p class="muted small">This is why the suite matrix excludes kernel methods from Task L. The exclusion is a <b>measured engineering decision with a curve behind it</b>, not a gap in the work.</p>
+          <p class="muted small">And from the Task R table: Nyström is not only 119× faster, it is also <b>more accurate</b> than the exact method it approximates — because the exact method has to be subsampled to 8,000 rows to stay tractable at all, and that subsampling costs more than the approximation does.</p>
+          <span class="tag warn">The honest caveat</span>
+          <p class="muted small">Peak memory is a <em>measured</em> RSS delta, so it is noisier than the timing — exact SVR reports 55 MB at full size because sklearn's SMO never materialises the whole Gram at once. The <b>theoretical</b> Gram is the fair number for the design decision, and it is 2,211 MB.</p>
+        </div>
+      </div>
+      <p class="srcfoot">n ∈ {500, 1000, 2000, 4000, 8000, 12000, 17024} · exponents fitted by least squares on log n vs log t</p>
+    </div>
+  </section>
+</section>
+
+<section data-background-color="#10100f">
+  <div class="pad">
+    <p class="eyebrow">What the numbers actually say</p>
+    <h2>Four findings, in order of how much we trust them</h2>
+    <ul class="feature-list">
+      <li style="--c:var(--ok)"><strong>The market wins pre-match, by 0.02 RPS, and none of our seven models closes it.</strong> Measured on identical rows with 99.71% coverage. The most defensible result in the project — because it is the one we most wanted to be different.</li>
+      <li style="--c:var(--tl)"><strong>Live event data is worthless for the first ten to fifteen minutes.</strong> The in-play model does not beat its own frozen pre-match prediction until minute 15. That is a substantive statement about football, not about our code, and it falls straight out of the frozen-reference design.</li>
+      <li style="--c:var(--hs)"><strong>Shrinkage strength tracks data scarcity exactly as the paper predicts.</strong> λ = 100 on 896 pre-match rows, λ = 0 on 17,024 in-play rows — chosen by cross-validation, at opposite ends of the grid, with no thumb on the scale.</li>
+      <li style="--c:var(--market)"><strong>Aggregate calibration metrics lie on this data.</strong> Over-confident for 75 minutes, under-confident for the last 15. One ECE number reports neither.</li>
+    </ul>
+    <p class="muted small" style="margin-top:.85rem">Three things we are <b>not</b> claiming: that any model beat the market; that RPS 0.024 at minute 90 is skill; that the model "converges to certainty". We measured a falling curve with a crossover at 10–15′, and that is all we will say about it.</p>
+    <p class="srcfoot">Zero-fabrication policy — every figure in this deck was read from a CSV in src/reports/ and re-verified before the deck was built</p>
+  </div>
+</section>
+
+<section>
+  <section data-background-color="#10100f">
+    <div class="pad">
+      <p class="eyebrow">Design consequences · the two questions the brief names</p>
+      <h2>Asked and answered before you ask</h2>
+      <div class="qa">
+        <div class="q dense" style="--c:var(--tl)">
+          <div class="ask">What changes if snapshots are taken every minute instead of every five?</div>
+          <div class="ans">Rows go <b>19 → 91</b> per match, <b>28,823 → ~138,000</b> — but information barely moves. State variables only change on discrete events (~2.7 goals, ~4 cards per match), so adjacent snapshots differ only in the rolling recent-rate features and their autocorrelation approaches 1. <b>Nominal n rises 4.8× while effective sample size does not.</b> Ungrouped CV becomes <em>more</em> optimistic, so <span class="mono">GroupKFold</span> matters more, not less; naive standard errors are optimistic by roughly <span class="mono">√(1+(m−1)ρ)</span>; compute rises ~5× for trees and ~23× for anything with a Gram matrix. The leakage machinery is unchanged — <span class="mono">prefix_length_at</span> is defined for any <em>t</em>. <b>What we defend:</b> the 5-minute grid wins on cost per unit information, and the right way to buy resolution is not a finer uniform grid but <b>event-triggered snapshots</b> — at each goal, red card and substitution, where the state actually changes.</div>
+        </div>
+        <div class="q dense" style="--c:var(--bad)">
+          <div class="ask">What if SMOTE were applied to the snapshot table?</div>
+          <div class="ans">It breaks in three ways, which is why the code <b>refuses rather than warns</b>. <b>(1)</b> The synthetic rows are not game states — interpolating (min 40, 1–0, 11v11) with (min 75, 0–2, 10v11) yields minute 57.5, goal difference −0.4, 10.6 players; goal difference and man-advantage are integers and cumulative xG is monotone in minute. <b>(2)</b> It moves match-level label information across the match boundary: a synthetic row inherits match A's eventual result while half its feature mass comes from match B. <b>(3)</b> It inflates n while shrinking effective sample size, so a handful of matches dominate training and every internal CV score gets more optimistic while the model gets worse. Plus <span class="mono">snapshot_minute</span> is itself a feature, so interpolation produces off-grid minutes and makes the per-phase analysis incoherent. <b>Enforced structurally:</b> <span class="mono">prepare_matrices</span> raises. If forced to rebalance anyway, the defensible options are <span class="mono">class_weight='balanced'</span>, resampling <em>within</em> a match or phase, or resampling whole matches carrying all 19 snapshots together.</div>
+        </div>
+      </div>
+      <p class="srcfoot">docs/mid_defence_2.md §6.1, §6.2 — do not put these on a slide you present; they are what you turn to when asked</p>
+    </div>
+  </section>
+
+  <section data-background-color="#10100f">
+    <div class="pad">
+      <p class="eyebrow">Q&amp;A · the rest of the ammunition</p>
+      <h2>One or two sentences each</h2>
+      <div class="qa">
+        <div class="q"><div class="ask">Why is your P2 a forest and not a single tree?</div><div class="ans">Both exist — <span class="mono">HSTreeClassifier</span> and <span class="mono">HSForestClassifier</span>. The single tree is the paper's interpretability argument and the cleaner object to demonstrate; the forest goes in the results table, because the comparison set is ensembles and a lone depth-limited CART would lose for reasons unrelated to HS.</div></div>
+        <div class="q"><div class="ask">Why is Task L's baseline the frozen pre-match prediction and not the prior?</div><div class="ans">Both are reported. The prior is the sanity floor; the frozen curve is the bar that justifies the in-play model existing at all. A Model 3 that merely matches the frozen curve has learned nothing from the live stream, however good its absolute RPS looks.</div></div>
+        <div class="q"><div class="ask">Kernel ridge was subsampled — isn't that cheating?</div><div class="ans">Capped at 8,000 rows, with <span class="mono">subsampled</span> and the actual <span class="mono">n_train</span> carried in the results table, so the compute row cannot be read as a full-data fit. The full cost curve is a separate deliverable: exact <span class="mono">t ~ n^2.245</span>, Nyström <span class="mono">t ~ n^0.392</span>.</div></div>
+        <div class="q"><div class="ask">Why not use the odds as a feature?</div><div class="ans">The brief permits either/or, never both in one experiment. We chose baseline, because the model-versus-market comparison is the framing of the entire project.</div></div>
+        <div class="q"><div class="ask">Did P1 actually help?</div><div class="ans">Averaged over four models it had the best RPS (0.21907) and the best calibration (ECE 0.04519), while SMOTE bought the best draw recall (0.23101) at the worst RPS (0.22283). The trade-off the brief predicts is measured, not assumed.</div></div>
+        <div class="q"><div class="ask">Your report says events are ordered by timestamp, but your code sorts by index.</div><div class="ans">The code is right and the prose is stale; it is on the fix list in <span class="mono">TODO.md</span>. Roughly 26 events across 24 matches carry corrupted <span class="mono">00:00:00</span> timestamps — which is precisely why the builder orders by <span class="mono">(period, index)</span> and repairs the clock with a running maximum.</div></div>
+        <div class="q"><div class="ask">Why these four leagues?</div><div class="ans"><span class="mono">competition_audit.py</span> implements the rule and produces the evidence. Single-club or partial releases (<span class="mono">top_team_share ≥ 0.5</span>) are excluded because opponent-side form features would be undefined for most teams; women's competitions and international tournaments are excluded because they cannot be joined to Football-Data.co.uk, and a test set that cannot be placed beside the market is meaningless in this domain.</div></div>
+      </div>
+      <p class="srcfoot">docs/mid_defence_2.md §5 — reread the morning of the defence</p>
+    </div>
+  </section>
+</section>
+
+<section data-background-color="#10100f">
+  <div class="pad">
+    <p class="eyebrow">Closing honestly</p>
+    <h2>What is not built, and what happens next</h2>
+    <div class="cols">
+      <div>
+        <span class="tag grey">Not built yet</span>
+        <ul class="mini-list" style="--c:var(--grey)">
+          <li><b>SHAP</b> — global beeswarm, local waterfalls for the 10 worst predictions, one full-match in-play timeline. There is no SHAP code in the repository</li>
+          <li><b>Model 2 → Model 1</b> — converting the regressed margin into H/D/A probabilities. Required by the brief; not attempted</li>
+          <li><span class="mono">REPORT.md</span> currently ends at <b>§3 of §9</b> plus Appendix A/B</li>
+          <li>The FastAPI bonus is <b>optional, unstarted</b>, and will be attempted only after the required deliverables are complete</li>
+        </ul>
+      </div>
+      <div>
+        <span class="tag good">Next, in order</span>
+        <ul class="mini-list" style="--c:var(--ok)">
+          <li><b>P2 sign-off — today.</b> Presented for approval, not presented as approved</li>
+          <li><b>SHAP on the tree models</b> (TreeSHAP — exact and fast on precisely the models we ran), joining to the already-persisted <span class="mono">predictions_*.csv</span> — <b>no refitting</b>. <span class="mono">shap==0.52.0</span> is already pinned</li>
+          <li><b>Deeper pre-match features from events</b> — pressure intensity, passing volume by zone, carries into the final third, set-piece counts, possession share. Same <span class="mono">clean_events.csv</span> the in-play builder already walks; the leakage machinery is unchanged. Directly motivated by the market gap</li>
+          <li><b>Model 2 → Model 1</b> — an analysis over two prediction files that already exist on the same test matches, not new modelling</li>
+        </ul>
+      </div>
+    </div>
+    <p class="muted small" style="margin-top:.85rem">Not on the roadmap, deliberately: more leagues or seasons. StatsBomb has only these four full league seasons joinable to our odds source, so "more data" is not a realistic next step and claiming it would be dishonest.</p>
+    <p style="text-align:center;margin-top:.7rem;font-family:var(--font-mono);font-size:.9rem;color:var(--hs)">P2 presented for sign-off — Hierarchical Shrinkage, ICML 2022.</p>
+  </div>
+</section>
+
+<section data-background-color="#10100f">
+  <div class="pad">
+    <p class="eyebrow">Speaker run sheet</p>
+    <h2>17 minutes, and where to cut</h2>
+    <div class="table-wrap">
+      <table class="data wide">
+        <thead><tr><th>Section</th><th>Target</th><th>If you are running long</th></tr></thead>
+        <tbody>
+          <tr><td>Title + three tasks</td><td class="num">1:15</td><td>Speak, do not explain. The audience reads the chips</td></tr>
+          <tr><td>Data + pipeline + splits</td><td class="num">3:00</td><td class="v-mid">Cut the league-selection rule; keep it for Q&amp;A</td></tr>
+          <tr><td>Feature fork + the time-<em>t</em> cut</td><td class="num">3:30</td><td class="v-mid">Drop the half-time slide — it is excellent Q&amp;A ammunition</td></tr>
+          <tr class="hl"><td style="color:var(--hs)">P2 — the sign-off gate</td><td class="num">4:30</td><td class="v-low"><b>Never cut here.</b> This is what the defence is for</td></tr>
+          <tr><td>Suite + budget + calibration</td><td class="num">2:15</td><td class="v-mid">Cut the probability-floor story first</td></tr>
+          <tr><td>Results — chart pages + read-outs</td><td class="num">3:30</td><td class="v-mid">Show the chart, skip the read-out slide; then cut kernel scaling</td></tr>
+          <tr><td>Synthesis + limitations</td><td class="num">1:30</td><td>Keep. Ending on the honest reading is the point</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="cols" style="margin-top:.85rem">
+      <div>
+        <span class="tag good">Say these three without notes</span>
+        <ul class="mini-list" style="--c:var(--ok)">
+          <li>The four hard filters, and why DRF and GPBoost failed the <b>fifth</b> one</li>
+          <li>The HS equation, and why the damping uses the <b>parent's</b> count</li>
+          <li>"The cut can only ever exclude too much"</li>
+        </ul>
+      </div>
+      <div>
+        <span class="tag bad">Never say</span>
+        <ul class="mini-list" style="--c:var(--bad)">
+          <li>That any model beat the market · that P2 is approved · that Task L is "real time"</li>
+          <li>That you implemented HS "from <span class="mono">imodels</span>" — you implemented it from the paper against raw <span class="mono">tree_</span> arrays</li>
+          <li>"We will improve accuracy." Say what you will build and what it will show</li>
+        </ul>
+      </div>
+    </div>
+    <p class="srcfoot">Each results section is a chart page followed by its read-out — drop the read-out, not the chart, when time is short</p>
+  </div>
+</section>
+
+<section data-background-color="#10100f">
+  <div class="pad">
+    <p class="eyebrow">Sources</p>
+    <h2>References &amp; artefacts</h2>
+    <ul class="refs">
+      <li><b>P2 —</b> Agarwal, Tan, Ronen, Singh &amp; Yu (2022). Hierarchical Shrinkage: Improving the accuracy and interpretability of tree-based models. <em>ICML, PMLR 162:111–135.</em></li>
+      <li><b>P2 fallback —</b> Tan, Singh, Nasseri, Agarwal, Duncan, Ronen, Epland, Kornblith &amp; Yu (2025). Fast Interpretable Greedy-Tree Sums. <em>PNAS 122(7):e2310151122.</em></li>
+      <li><b>Rejected —</b> Ćevid, Michel, Näf, Bühlmann &amp; Meinshausen (2022). Distributional Random Forests. <em>JMLR 23(333).</em> Reproducibility.</li>
+      <li><b>Rejected —</b> Sigrist (2022). Gaussian Process Boosting. <em>JMLR 23(232)</em> / <em>IEEE TPAMI 2023.</em> Reproducibility.</li>
+      <li><b>Rejected —</b> Duan et al. (2020). NGBoost. <em>ICML, PMLR 119:2690–2700.</em> Date filter.</li>
+      <li><b>Borderline —</b> Buczak (2025). Frequency-adjusted borders ordinal forest. <em>Br. J. Math. Stat. Psychol. 78(2):594–616.</em></li>
+      <li><b>Data —</b> StatsBomb Open Data — events, lineups and matches, four league seasons 2015/16.</li>
+      <li><b>Data —</b> Football-Data.co.uk — closing 1X2 decimal odds, one CSV per league-season.</li>
+      <li><b>Metric —</b> Epstein (1969); Constantinou &amp; Fenton (2012) on RPS for ordered football outcomes.</li>
+      <li><b>Artefacts —</b> <span class="mono">model_results.csv</span> (28 rows) · <span class="mono">market_comparison.csv</span> · <span class="mono">inplay_metric_by_minute.csv</span> · <span class="mono">inplay_calibration_by_phase.csv</span> · <span class="mono">resampling_study.csv</span> · <span class="mono">kernel_scaling.csv</span> · <span class="mono">tuning_results.csv</span> (288 rows) · <span class="mono">predictions_{C,R,Lc,Lr}.csv</span></li>
+      <li><b>Reproduce —</b> <span class="mono">python src/pipeline/run_all.py</span> · <span class="mono">SKIP_TUNING=1</span> reuses <span class="mono">best_params.json</span>.</li>
+      <li><b>Derivation —</b> <span class="mono">docs/appendix_a_hierarchical_shrinkage.md</span> · <b>Audit —</b> <span class="mono">docs/p2_paper_selection.md</span> · <b>Defence brief —</b> <span class="mono">docs/mid_defence_2.md</span></li>
+    </ul>
+  </div>
+</section>
+
+<section data-background-color="#0d1512">
+  <div class="pad" style="justify-content:center;text-align:left">
+    <div class="closing-mark">◎</div>
+    <h2>The market still wins. We can say exactly why not.</h2>
+    <p class="lead">Seven models, one equal budget, and a bookmaker on identical rows — with a leakage boundary that is asserted rather than trusted, a paper reimplemented from its own equation, and a live-data curve that says the first fifteen minutes tell you nothing. The gap is 0.02 RPS, and every number here came out of a CSV in this repository.</p>
+    <p class="mono muted" style="margin-top:1.2rem;font-size:.86rem">← → between sections · ↑ ↓ inside a section · Esc for the overview</p>
+  </div>
+</section>
+
+</div>
+</div>
+
+<script>
+var smallScreen = ()=> window.innerWidth < 820 || window.innerHeight < 520;
+function sizing(){
+  if(smallScreen()){
+    document.documentElement.classList.add('phone');
+    return {width:window.innerWidth,height:window.innerHeight,minScale:1,maxScale:1};
+  }
+  document.documentElement.classList.remove('phone');
+  return {width:1280,height:760,minScale:0.2,maxScale:2.0};
+}
+Reveal.initialize(Object.assign({
+  hash:true,controls:true,progress:true,center:false,touch:true,
+  slideNumber:'c/t',transition:'slide',transitionSpeed:'default',
+  backgroundTransition:'fade',margin:0,
+}, sizing()));
+(function(){
+  var t;
+  window.addEventListener('resize',function(){
+    clearTimeout(t);
+    t=setTimeout(function(){
+      Reveal.configure(sizing()); Reveal.layout();
+      Object.values(LIVE).forEach(c=>{ try{ c.resize(); }catch(e){} });
+    },200);
+  },{passive:true});
+})();
+
+(function(){
+  const c=document.getElementById('pitch');
+  if(!c) return;
+  const ctx=c.getContext('2d');
+  let w,h,dpr,home=[],away=[],ball=null,raf;
+  const LINE='rgba(244,239,228,.10)';
+
+  function resize(){
+    dpr=Math.min(window.devicePixelRatio||1,2);
+    w=c.clientWidth;h=c.clientHeight;
+    c.width=w*dpr;c.height=h*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+
+  const SHAPE=[[0.06,0.50],
+               [0.22,0.18],[0.22,0.40],[0.22,0.60],[0.22,0.82],
+               [0.38,0.16],[0.38,0.38],[0.38,0.62],[0.38,0.84],
+               [0.46,0.36],[0.46,0.64]];
+
+  function makeTeam(mirror,col){
+    return SHAPE.map(([fx,fy])=>{
+      const bx=(mirror?1-fx:fx)*w, by=fy*h;
+      return {bx,by,x:bx,y:by,phase:Math.random()*Math.PI*2,
+              sx:14+Math.random()*20,sy:10+Math.random()*16,col};
+    });
+  }
+  function init(){
+    resize();
+    home=makeTeam(false,'#4fd1c5');
+    away=makeTeam(true ,'#e26fe8');
+    ball={x:w*0.5,y:h*0.5,tx:w*0.5,ty:h*0.5,t:1,from:null,to:null,trail:[]};
+    pickPass();
+  }
+  function pickPass(){
+    const all=home.concat(away);
+    const target=all[Math.floor(Math.random()*all.length)];
+    ball.from={x:ball.x,y:ball.y};
+    ball.to=target;
+    ball.t=0;
+  }
+
+  function pitch(){
+    const m=Math.min(w,h)*0.06;
+    const L=m, R=w-m, T=m, B=h-m, midX=(L+R)/2, midY=(T+B)/2;
+    ctx.strokeStyle=LINE; ctx.lineWidth=1.4;
+    ctx.strokeRect(L,T,R-L,B-T);
+    ctx.beginPath(); ctx.moveTo(midX,T); ctx.lineTo(midX,B); ctx.stroke();
+    const r=Math.min(w,h)*0.11;
+    ctx.beginPath(); ctx.arc(midX,midY,r,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(midX,midY,3,0,Math.PI*2); ctx.fillStyle=LINE; ctx.fill();
+    const bw=(R-L)*0.13, bh=(B-T)*0.42;
+    ctx.strokeRect(L,midY-bh/2,bw,bh);
+    ctx.strokeRect(R-bw,midY-bh/2,bw,bh);
+    const sw=(R-L)*0.05, sh=(B-T)*0.20;
+    ctx.strokeRect(L,midY-sh/2,sw,sh);
+    ctx.strokeRect(R-sw,midY-sh/2,sw,sh);
+  }
+
+  function step(ts){
+    ctx.clearRect(0,0,w,h);
+    pitch();
+
+    const all=home.concat(away);
+    for(const p of all){
+      p.phase+=0.0055;
+      p.x=p.bx+Math.cos(p.phase)*p.sx;
+      p.y=p.by+Math.sin(p.phase*1.35)*p.sy;
+    }
+    for(const team of [home,away]){
+      for(let i=0;i<team.length;i++){
+        for(let j=i+1;j<team.length;j++){
+          const a=team[i],b=team[j],d=Math.hypot(a.x-b.x,a.y-b.y);
+          if(d<Math.min(w,h)*0.26){
+            ctx.strokeStyle='rgba(244,239,228,'+(0.07*(1-d/(Math.min(w,h)*0.26)))+')';
+            ctx.lineWidth=.7;
+            ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+          }
+        }
+      }
+    }
+    for(const p of all){
+      ctx.fillStyle=p.col;ctx.globalAlpha=.55;
+      ctx.beginPath();ctx.arc(p.x,p.y,3.1,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=1;
+    }
+
+    if(ball.to){
+      ball.t=Math.min(1,ball.t+0.012);
+      const e=ball.t<.5 ? 2*ball.t*ball.t : 1-Math.pow(-2*ball.t+2,2)/2;
+      ball.x=ball.from.x+(ball.to.x-ball.from.x)*e;
+      ball.y=ball.from.y+(ball.to.y-ball.from.y)*e;
+      if(ball.t>=1) pickPass();
+    }
+    ball.trail.push({x:ball.x,y:ball.y});
+    if(ball.trail.length>26) ball.trail.shift();
+    ctx.strokeStyle='rgba(255,194,75,.30)';ctx.lineWidth=1.3;
+    ctx.beginPath();
+    ball.trail.forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
+    ctx.stroke();
+    ctx.fillStyle='#ffc24b';
+    ctx.beginPath();ctx.arc(ball.x,ball.y,3.6,0,Math.PI*2);ctx.fill();
+
+    raf=requestAnimationFrame(step);
+  }
+
+  window.addEventListener('resize',()=>{init();},{passive:true});
+  setTimeout(()=>{cancelAnimationFrame(raf);init();step();},60);
+})();
+
+const CREAM='#f4efe4', DIM='#cfc8b8', GRID='rgba(244,239,228,.07)';
+const MONO="'JetBrains Mono'", BODY="'Space Grotesk'";
+const LIVE={};
+
+const legend=(size)=>({labels:{color:CREAM,font:{family:BODY,size:size||13},
+  boxWidth:16,boxHeight:2,usePointStyle:true,pointStyle:'line',padding:14}});
+const ax=(text)=>({display:true,text:text,color:DIM,font:{family:MONO,size:12}});
+const ticks=(extra)=>Object.assign({color:DIM,font:{family:MONO,size:12}},extra||{});
+
+function drawMarket(){
+  const el=document.getElementById('mktBar'); if(!el) return;
+  const labels=['MARKET (de-vig)','kernel_svm','P2 hier_shrinkage','lightgbm','xgboost','random_forest','gbm','dummy (prior)'];
+  const data=[0.19665,0.21656,0.21659,0.22052,0.22104,0.22202,0.22771,0.22839];
+  const colors=['#ffc24b','#4fd1c5','#e26fe8','#5b9cf6','#5b9cf6','#5b9cf6','#5b9cf6','#9aa3b2'];
+  LIVE.mkt=new Chart(el,{type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:6,barPercentage:.8}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      layout:{padding:{right:12}},
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>' RPS '+c.parsed.x.toFixed(5)}}},
+      scales:{
+        x:{min:0.19,max:0.2325,ticks:ticks(),grid:{color:GRID},title:ax('RPS · lower is better')},
+        y:{ticks:ticks({font:{family:MONO,size:13}}),grid:{display:false}}
+      }}});
+}
+
+function drawInplay(){
+  const el=document.getElementById('inplayCurve'); if(!el) return;
+  const labels=[0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90];
+  const line=(l,c,d,dash,w)=>({label:l,data:d,borderColor:c,backgroundColor:'transparent',
+    borderDash:dash||[],tension:.32,fill:false,borderWidth:w||2.4,pointRadius:0,pointHitRadius:12});
+  LIVE.inplay=new Chart(el,{type:'line',data:{labels,datasets:[
+    line('P2 · hier. shrinkage','#e26fe8',[0.21825,0.21677,0.21955,0.21008,0.20687,0.19979,0.19575,0.18409,0.17040,0.15582,0.14666,0.13383,0.11947,0.10876,0.10238,0.08401,0.06373,0.04622,0.03247],null,3),
+    line('random forest','#4fd1c5',[0.21851,0.21784,0.21710,0.20867,0.20694,0.20257,0.19609,0.18461,0.17352,0.15875,0.14988,0.13782,0.12342,0.11114,0.10405,0.08415,0.06255,0.04027,0.02385]),
+    line('xgboost','#5b9cf6',[0.21875,0.21772,0.21735,0.20954,0.20655,0.20023,0.19622,0.18272,0.17028,0.15565,0.14895,0.13777,0.12287,0.11110,0.10286,0.08453,0.06208,0.04130,0.02410]),
+    line('lightgbm','#a78bfa',[0.22517,0.22424,0.21974,0.21116,0.20869,0.20078,0.19657,0.18353,0.17260,0.15840,0.15171,0.13949,0.12665,0.11436,0.10428,0.08751,0.06555,0.04690,0.03041]),
+    line('gbm','#ff8a3d',[0.22314,0.22150,0.21695,0.20990,0.20548,0.19961,0.19490,0.18544,0.17391,0.15866,0.15156,0.14239,0.13127,0.12225,0.11276,0.09774,0.08056,0.06531,0.05134]),
+    line('FROZEN pre-match (P2) — flat by construction','#ffc24b',labels.map(()=>0.21641),[10,5],3.2),
+    line('prior / dummy','#9aa3b2',labels.map(()=>0.22812),[2,4],2),
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    plugins:{legend:legend(13),tooltip:{callbacks:{label:c=>' '+c.dataset.label+'  '+c.parsed.y.toFixed(5)}}},
+    scales:{
+      x:{ticks:ticks(),grid:{color:GRID},title:ax('snapshot minute t')},
+      y:{ticks:ticks(),grid:{color:GRID},title:ax('RPS · lower is better')}
+    }}});
+}
+
+function drawPhase(){
+  const el=document.getElementById('phaseChart'); if(!el) return;
+  const labels=['0–15′','15–30′','30–45′','45–60′','60–75′','75–90′'];
+  const bar=(l,c,d)=>({label:l,data:d,backgroundColor:c,borderRadius:4,
+    barPercentage:.9,categoryPercentage:.82});
+  LIVE.phase=new Chart(el,{type:'bar',data:{labels,datasets:[
+    bar('P2 · hier. shrinkage','#e26fe8',[0.05841,0.07686,0.07094,0.06227,0.04125,-0.08589]),
+    bar('random forest','#4fd1c5',[0.05836,0.08275,0.08170,0.07018,0.06098,-0.02870]),
+    bar('xgboost','#5b9cf6',[0.06379,0.08467,0.08755,0.07087,0.05143,-0.03733]),
+    bar('lightgbm','#a78bfa',[0.09279,0.09135,0.08025,0.07496,0.04316,-0.05745]),
+    bar('gbm','#ff8a3d',[0.09311,0.06956,0.04778,0.01993,0.00320,-0.09730]),
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:Object.assign(legend(13),{labels:Object.assign(legend(13).labels,{pointStyle:'rect'})}),
+      tooltip:{callbacks:{label:c=>' '+c.dataset.label+'  '+(c.parsed.y>0?'+':'')+c.parsed.y.toFixed(5)}}},
+    scales:{
+      x:{ticks:ticks({font:{family:MONO,size:13}}),grid:{color:GRID},title:ax('game phase')},
+      y:{ticks:ticks(),grid:{color:GRID},
+         title:ax('over-confident (+)   ·   under-confident (−)')}
+    }}});
+}
+
+function drawResamp(){
+  const el=document.getElementById('resampChart'); if(!el) return;
+  const pts=[
+    {n:'P1 · G-SMOTENC (best RPS + best ECE)',x:0.17722,y:0.21907,c:'#ff8a3d'},
+    {n:'class_weight',  x:0.20570,y:0.22000,c:'#4fd1c5'},
+    {n:'ADASYN',        x:0.19937,y:0.22004,c:'#5b9cf6'},
+    {n:'Borderline SMOTE', x:0.12342,y:0.22040,c:'#9aa3b2'},
+    {n:'vanilla',       x:0.19304,y:0.22149,c:'#f4efe4'},
+    {n:'SMOTE (best draw recall, worst RPS)', x:0.23101,y:0.22283,c:'#e26fe8'},
+  ];
+  LIVE.resamp=new Chart(el,{type:'scatter',
+    data:{datasets:pts.map(p=>({label:p.n,data:[{x:p.x,y:p.y}],
+      backgroundColor:p.c,borderColor:p.c,pointRadius:11,pointHoverRadius:14}))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:CREAM,font:{family:BODY,size:13},boxWidth:10,
+          usePointStyle:true,pointStyle:'circle',padding:14}},
+        tooltip:{callbacks:{label:c=>' recall_D '+c.parsed.x.toFixed(5)+'  ·  RPS '+c.parsed.y.toFixed(5)}}},
+      scales:{
+        x:{min:0.10,max:0.25,ticks:ticks(),grid:{color:GRID},title:ax('draw recall · higher is better →')},
+        y:{min:0.2185,max:0.2233,ticks:ticks(),grid:{color:GRID},title:ax('↓ RPS · lower is better')}
+      }}});
+}
+
+function drawKernel(){
+  const el=document.getElementById('kernelChart'); if(!el) return;
+  const n=[500,1000,2000,4000,8000,12000,17024];
+  const mk=(l,c,d,dash)=>({label:l,data:n.map((x,i)=>({x:x,y:d[i]})),borderColor:c,
+    backgroundColor:c,borderDash:dash||[],tension:.15,fill:false,borderWidth:2.8,pointRadius:4});
+  LIVE.kernel=new Chart(el,{type:'line',data:{datasets:[
+    mk('kernel ridge · exact      t ~ n^2.245','#ff5c5c',[0.0071,0.0104,0.0480,0.3426,2.0301,4.6688,11.8897]),
+    mk('kernel SVR · exact         t ~ n^1.852','#ffc24b',[0.0059,0.0195,0.0693,0.2731,1.0651,1.8625,3.9170],[8,4]),
+    mk('kernel ridge · Nyström   t ~ n^0.392','#6bd47e',[0.0243,0.0296,0.0279,0.0389,0.0573,0.0759,0.0999],[3,3]),
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    interaction:{mode:'nearest',intersect:false},
+    plugins:{legend:legend(13),
+      tooltip:{callbacks:{label:c=>' '+c.dataset.label.split('  ')[0]+'  n='+c.parsed.x.toLocaleString()+'  '+c.parsed.y.toFixed(4)+' s'}}},
+    scales:{
+      x:{type:'logarithmic',ticks:ticks({callback:v=>Number(v).toLocaleString()}),
+         grid:{color:GRID},title:ax('training rows n · log scale')},
+      y:{type:'logarithmic',ticks:ticks(),grid:{color:GRID},title:ax('fit seconds · log scale')}
+    }}});
+}
+
+const CHARTS=[['mktBar',drawMarket],['inplayCurve',drawInplay],['phaseChart',drawPhase],
+              ['resampChart',drawResamp],['kernelChart',drawKernel]];
+const done={};
+function sweep(slide){
+  if(!slide||typeof Chart==='undefined') return;
+  CHARTS.forEach(([id,fn])=>{
+    if(slide.querySelector('#'+id) && !done[id]){ done[id]=true; fn(); }
+  });
+}
+Reveal.on('ready',e=>sweep(e.currentSlide));
+Reveal.on('slidechanged',e=>sweep(e.currentSlide));
+</script>
+</body>
+</html>
