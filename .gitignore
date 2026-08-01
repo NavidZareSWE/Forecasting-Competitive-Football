@@ -273,3 +273,6 @@ data/
 
 # Generated outputs
 reports/
+# Local agent tooling — not part of the project
+.claude/
+CLAUDE.md
