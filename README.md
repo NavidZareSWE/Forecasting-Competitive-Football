@@ -18,75 +18,103 @@ The project follows the ten-stage pipeline (ingestion → integration → labeli
 
 ```
 ├── .gitignore
-├── config.py                       # declared leagues, split ratios, snapshot grid, paths
-├── LICENSE
-├── README.md
-├── REPORT.md
-├── TODO.md                         # gap list against the course brief
-├── requirements.txt
+├── config.py
 ├── docs
-│   ├── index.html                  # redirect to the Mid Defence 2 deck
-│   ├── mid_defence_2.md            # MD2 defence brief (P2 pick + modeling approach)
-│   ├── mid_defence_2_slides.html
-│   ├── md2_delivery_plan.md
-│   ├── p2_paper_selection.md       # P2 filter table and rejected candidates
-│   ├── appendix_a_hierarchical_shrinkage.md   # P2 hand derivation
+│   ├── .nojekyll
 │   ├── course-brief
 │   │   ├── Final_Project_Machine_Learning.pdf
 │   │   └── Predicting a football match — before it starts, and while it happens - Project Guide.html
+│   ├── index.html
+│   ├── mid_defence_2_slides.html
 │   └── papers
 │       ├── P1_GeometricSMOTE_ImbalancedData.pdf
-│       └── P2_HierarchicalShrinkage_TreeModels.pdf
-├── forME
-│   ├── Guide.md
-│   ├── Summary.md                  # code audit notes
-│   └── roadmap.html
-└── src
-    ├── data                        # git-ignored; populate locally
-    │   ├── Football_Data/          # Football-Data.co.uk season CSVs
-    │   └── statsbomb_open_data/data/   # competitions.json, matches/, events/, lineups/
-    ├── audit
-    │   └── competition_audit.py    # competition/season selection justification
-    ├── pipeline
-    │   ├── build_match_store.py
-    │   ├── build_label_store.py
-    │   ├── build_lineup_store.py
-    │   ├── build_event_store.py
-    │   ├── clean_store.py
-    │   ├── build_temporal_splits.py
-    │   ├── build_market_baseline.py
-    │   ├── build_relational_store.py   # phases 1-4 in order
-    │   └── run_all.py                  # full end-to-end run
-    ├── features
-    │   ├── build_prematch_features.py
-    │   ├── build_inplay_features.py
-    │   └── test_inplay_cut.py          # time-t leakage tests
-    ├── papers
-    │   ├── g_smotenc.py                # P1, from scratch
-    │   ├── hierarchical_shrinkage.py   # P2, from scratch
-    │   ├── test_g_smotenc.py
-    │   └── test_hierarchical_shrinkage.py
-    ├── models
-    │   ├── modeling_common.py      # matrices, resampling arms, metrics, calibration
-    │   ├── model_zoo.py            # estimator builders + tuning grids
-    │   ├── train.py                # fit / calibrate / score for one estimator
-    │   ├── tuning.py               # equal-budget random search inside train
-    │   ├── run_models.py           # full sweep (C, R, Lc, Lr)
-    │   ├── train_prematch.py       # sweep, pre-match half only
-    │   ├── train_inplay.py         # sweep, in-play half only
-    │   ├── resampling_study.py     # six-arm imbalance study, Task C
-    │   ├── market_comparison.py    # Task C vs de-vigged odds
-    │   ├── inplay_curves.py        # metric vs minute, per-phase calibration
-    │   └── kernel_scaling.py       # exact Gram vs Nystroem scaling
-    ├── viz
-    │   ├── plot_calibration.py
-    │   ├── visualize_store.py
-    │   ├── visualize_market_baseline.py
-    │   └── viz_raw_matches.py
-    └── reports                     # git-ignored; every table and figure is generated
-        ├── processed/
-        ├── features/
-        └── visualizations/
+│       ├── P2_HierarchicalShrinkage_TreeModels.pdf
+│       ├── p2_paper_Appendix A — Hand derivation of the P2 model.md
+│       └── p2_paper_selection.md
+├── LICENSE
+├── README.md
+├── REPORT.md
+├── requirements.txt
+├── src
+│   ├── data
+│   │   ├── FOOTBALL_DATA
+│   │   └── statsbomb_open_data
+│   │       └── data
+│   │           ├── competitions.json
+│   │           ├── events/
+│   │           ├── lineups/
+│   │           ├── matches/
+│   │           └── three-sixty/
+│   ├── audit
+│   │   └── competition_audit.py
+│   ├── features
+│   │   ├── build_inplay_features.py
+│   │   ├── build_prematch_features.py
+│   │   ├── test_inplay_cut.py
+│   │   └── __pycache__
+│   │       └── build_inplay_features.cpython-314.pyc
+│   ├── models
+│   │   ├── inplay_curves.py
+│   │   ├── kernel_scaling.py
+│   │   ├── market_comparison.py
+│   │   ├── modeling_common.py
+│   │   ├── model_zoo.py
+│   │   ├── resampling_study.py
+│   │   ├── run_models.py
+│   │   ├── train.py
+│   │   ├── train_inplay.py
+│   │   ├── train_prematch.py
+│   │   └── tuning.py
+│   ├── papers
+│   │   ├── g_smotenc.py
+│   │   ├── hierarchical_shrinkage.py
+│   │   ├── test_g_smotenc.py
+│   │   ├── test_hierarchical_shrinkage.py
+│   │   └── __pycache__
+│   │       └── g_smotenc.cpython-314.pyc
+│   ├── pipeline
+│   │   ├── build_event_store.py
+│   │   ├── build_label_store.py
+│   │   ├── build_lineup_store.py
+│   │   ├── build_market_baseline.py
+│   │   ├── build_match_store.py
+│   │   ├── build_relational_store.py
+│   │   ├── build_temporal_splits.py
+│   │   ├── clean_store.py
+│   │   ├── run_all.py
+│   │   └── __pycache__
+│   │       └── build_event_store.cpython-314.pyc
+│   ├── reports
+│   │   ├── features
+│   │   │   ├── inplay_features.csv
+│   │   │   └── prematch_features.csv
+│   │   ├── processed
+│   │   │   ├── alias_map.csv
+│   │   │   ├── cleaning_drops.csv
+│   │   │   ├── clean_events.csv
+│   │   │   ├── clean_lineups.csv
+│   │   │   ├── data_quality_log.csv
+│   │   │   ├── events_index.csv
+│   │   │   ├── lineups.csv
+│   │   │   ├── market_baseline.csv
+│   │   │   ├── match_store.csv
+│   │   │   ├── model_targets.csv
+│   │   │   ├── odds_coverage.csv
+│   │   │   ├── odds_failures.csv
+│   │   │   ├── player_identity_map.csv
+│   │   │   ├── snapshot_split_plan.csv
+│   │   │   ├── team_identity_map.csv
+│   │   │   └── temporal_match_splits.csv
+│   │   └── visualizations
+│   │       ├── market_baseline_overview.html
+│   │       ├── raw_result_distribution.html
+│   │       └── store_overview.html
+│   └── viz
+│       ├── plot_calibration.py
+│       ├── visualize_market_baseline.py
+│       ├── visualize_store.py
+│       └── viz_raw_matches.py
+└── TODO.md
 ```
 
 > **Note:** `src/data/` (raw sources) and `src/reports/` (generated outputs) are excluded from version control via `.gitignore`. Populate `src/data/` locally and regenerate `src/reports/` by running the pipeline.
