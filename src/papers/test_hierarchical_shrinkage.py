@@ -71,7 +71,8 @@ def test_shrinkage_matches_the_paper_equation_on_every_path():
         literal = mu[path[0]].copy()
         for depth in range(1, len(path)):
             ancestor = path[depth - 1]
-            literal += (mu[path[depth]] - mu[ancestor]) / (1 + lam / counts[ancestor])
+            literal += (mu[path[depth]] - mu[ancestor]) / \
+                (1 + lam / counts[ancestor])
         assert np.allclose(fast[node], literal), \
             f"node {node} disagrees with the paper equation"
     print("ok  recursion equals the paper's telescoping sum on every path")
@@ -115,16 +116,20 @@ def test_shrinkage_is_monotone_towards_the_root():
 
 def test_forest_variants_fit_predict_and_beat_a_constant():
     X, y = make_classification_data(n=600, seed=5)
-    clf = HSForestClassifier(lam=25.0, n_estimators=40, random_state=0).fit(X, y)
+    clf = HSForestClassifier(lam=25.0, n_estimators=40,
+                             random_state=0).fit(X, y)
     proba = clf.predict_proba(X)
     assert proba.shape == (600, 3)
     assert np.allclose(proba.sum(axis=1), 1.0)
-    assert (clf.predict(X) == y).mean() > 0.8, "forest classifier underfits badly"
+    assert (clf.predict(X) == y).mean(
+    ) > 0.8, "forest classifier underfits badly"
 
     Xr, yr = make_regression_data(n=600, seed=6)
-    reg = HSForestRegressor(lam=25.0, n_estimators=40, random_state=0).fit(Xr, yr)
+    reg = HSForestRegressor(lam=25.0, n_estimators=40,
+                            random_state=0).fit(Xr, yr)
     mae = np.abs(reg.predict(Xr) - yr).mean()
-    assert mae < np.abs(yr - yr.mean()).mean(), "forest regressor worse than the mean"
+    assert mae < np.abs(
+        yr - yr.mean()).mean(), "forest regressor worse than the mean"
     print("ok  forest classifier and regressor fit, predict and beat a constant")
 
 
@@ -136,7 +141,26 @@ def test_cv_selects_a_lambda_from_the_grid_without_touching_validation():
     assert set(clf.cv_scores_) == set(LAMBDA_GRID), "grid not fully scored"
     best = min(clf.cv_scores_, key=clf.cv_scores_.get)
     assert clf.lam_ == best, "selected lambda is not the CV minimiser"
-    print(f"ok  CV selected lambda={clf.lam_} from the grid on training rows only")
+    print(
+        f"ok  CV selected lambda={clf.lam_} from the grid on training rows only")
+
+
+def test_shap_base_estimator_reproduces_the_shrunk_predictions():
+    X, y = make_classification_data(n=400, seed=11)
+    clf = HSForestClassifier(lam=25.0, cv_lambdas=None, n_estimators=25,
+                             random_state=0).fit(X, y)
+    base = clf.shap_base_estimator()
+    assert list(base.classes_) == list(clf.classes_), "class order diverged"
+    assert np.allclose(base.predict_proba(X), clf.predict_proba(X), atol=1e-12), \
+        "materialised forest does not reproduce the shrunk probabilities"
+
+    Xr, yr = make_regression_data(n=400, seed=12)
+    reg = HSForestRegressor(lam=25.0, cv_lambdas=None, n_estimators=25,
+                            random_state=0).fit(Xr, yr)
+    base_reg = reg.shap_base_estimator()
+    assert np.allclose(base_reg.predict(Xr), reg.predict(Xr), atol=1e-12), \
+        "materialised forest does not reproduce the shrunk regression output"
+    print("ok  shap_base_estimator reproduces the shrunk model exactly")
 
 
 def main():
@@ -147,7 +171,8 @@ def main():
              test_own_leaf_descent_matches_sklearn_apply,
              test_shrinkage_is_monotone_towards_the_root,
              test_forest_variants_fit_predict_and_beat_a_constant,
-             test_cv_selects_a_lambda_from_the_grid_without_touching_validation]
+             test_cv_selects_a_lambda_from_the_grid_without_touching_validation,
+             test_shap_base_estimator_reproduces_the_shrunk_predictions]
     for test in tests:
         test()
     print(f"\n{len(tests)}/{len(tests)} passed")
