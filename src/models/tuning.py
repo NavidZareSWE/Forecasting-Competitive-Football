@@ -73,7 +73,8 @@ def _score_candidate(builder, params, X, y, folds, task_type):
                     aligned[:, j] = proba[:, classes.index(label)]
             total = aligned.sum(axis=1, keepdims=True)
             total[total == 0] = 1.0
-            scores.append(_log_loss(aligned / total, y[val_index], CLASS_ORDER))
+            scores.append(_log_loss(aligned / total,
+                          y[val_index], CLASS_ORDER))
         else:
             estimator.fit(X[train_index], y[train_index].astype(float))
             prediction = np.clip(estimator.predict(X[val_index]), *MARGIN_CLIP)
@@ -86,7 +87,7 @@ def tune_task(task, rows):
     """Search every tunable model for one task. Returns {model: best_params}."""
     df, continuous, nominal, target, task_type = task_frame(task)
     matrices = prepare_matrices(df, continuous, nominal, target, task_type,
-                                use_p1=False)
+                                resampling="none")
     X, y = matrices["X_train"], matrices["y_train"]
 
     train_mask = (df["split"] == "train").to_numpy()
