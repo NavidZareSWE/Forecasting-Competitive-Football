@@ -40,18 +40,15 @@ VIZ_DIR = SRC / "reports" / "visualizations" / "shap"
 RANDOM_STATE = 0
 N_WORST = 10
 BEESWARM_SAMPLE = 1500
-# Rows used for the global beeswarm and the mean-|SHAP| table.
 GLOBAL_SHAP_SAMPLE = int(os.environ.get("SHAP_SAMPLE", "2000"))
 ZOO_TASK = {"C": "C", "R": "R", "Lc": "L", "Lr": "L"}
 
-# Kernel and constant models have no tree structure for TreeSHAP to walk.
 TREE_MODELS = ["random_forest", "gbm", "xgboost", "lightgbm",
                "p2_hier_shrinkage"]
 
-# Adjudication thresholds, fixed before looking at the results.
-MARKET_AGREEMENT = 0.05      # model within 5pp of the market: not a model error
-LOW_PROBABILITY = 0.25       # everyone rated the realised outcome unlikely
-EXTREME_MARGIN = 3           # 3+ goal margins are dominated by finishing noise
+MARKET_AGREEMENT = 0.05
+LOW_PROBABILITY = 0.25
+EXTREME_MARGIN = 3
 
 
 # --- Model access -----------------------------------------------------------
@@ -130,7 +127,7 @@ def shap_values_for(name, estimator, X, is_classification):
         return values.reshape(X.shape[0], X.shape[1]), float(expected.ravel()[0])
 
     classes = model_class_order(name, estimator)
-    if values.ndim == 2:                       # binary fallback, unused here
+    if values.ndim == 2:
         values = np.stack([-values, values], axis=2)
     order = [classes.index(c) for c in CLASS_ORDER if c in classes]
     return values[:, :, order], expected[order]
@@ -162,14 +159,69 @@ def waterfall(values, expected, x_row, feature_names, title, output_path):
     plt.close("all")
 
 
+# --- Failure adjudication ---------------------------------------------------
+def load_market_probabilities():
+    path = PROCESSED_DIR / "market_baseline.csv"
+    if not path.exists():
+        return {}
+    market = pd.read_csv(path, encoding="utf-8")
+    columns = {"H": "p_home", "D": "p_draw", "A": "p_away"}
+    return {int(row.match_id): {c: float(getattr(row, columns[c]))
+                                for c in CLASS_ORDER}
+            for row in market.itertuples()}
+
+
+def adjudicate_classification(realised, p_realised, market_row, base_rate,
+                              state=None):
+    if market_row is not None:
+        market_p = market_row.get(realised, 0.0)
+        if abs(p_realised - market_p) <= MARKET_AGREEMENT:
+            return "market_agreement", (
+                f"model P({realised})={p_realised:.3f} within "
+                f"{MARKET_AGREEMENT} of market {market_p:.3f}")
+    if market_row is not None and market_row.get(realised, 1.0) < LOW_PROBABILITY:
+        return "low_probability", (
+            f"market also rated P({realised})={market_row[realised]:.3f} < "
+            f"{LOW_PROBABILITY}; outcome was unlikely for everyone")
+    if p_realised < LOW_PROBABILITY and base_rate.get(realised, 1.0) >= LOW_PROBABILITY:
+        return "model_error", (
+            f"model assigned P({realised})={p_realised:.3f} well below "
+            f"base rate {base_rate.get(realised, 0):.3f}")
+    if state is not None and state.get("contradicted"):
+        return "state_misleading", (
+            f"goal diff={state['goal_diff']:+.0f} pointed away from "
+            f"the eventual {realised}")
+    return "uncertain", "no single cause identified"
+
+
+def adjudicate_regression(error, y_true, typical_error, state=None):
+    if abs(float(y_true)) >= EXTREME_MARGIN:
+        return "extreme_margin", (
+            f"true margin={y_true:+.0f} goals; high-margin matches "
+            f"are dominated by finishing noise")
+    if error <= typical_error:
+        return "within_typical", (
+            f"error={error:.2f} <= median {typical_error:.2f}; "
+            f"not an unusually large failure")
+    if state is not None and state.get("contradicted"):
+        return "state_misleading", (
+            f"goal diff={state['goal_diff']:+.0f} pointed away from "
+            f"the eventual margin {y_true:+.0f}")
+    return "model_error", (
+        f"error={error:.2f} > median {typical_error:.2f} with no "
+        f"mitigating factor found")
+
+
 # --- Per-task driver --------------------------------------------------------
-def run_task(task, rows):
+def run_task(task, market, rows, worst_rows):
     print(f"\n=== SHAP: task {task} ===")
     is_classification = task in {"C", "Lc"}
     df, continuous, nominal, target, task_type = task_frame(task)
     matrices = prepare_matrices(df, continuous, nominal, target, task_type)
     names = matrices["feature_names"]
     X_test = matrices["X_test"]
+    y_test = matrices["y_test"]
+    meta = matrices["meta_test"]
 
     fitted = fit_candidates(task, matrices)
     if not fitted:
@@ -186,7 +238,8 @@ def run_task(task, rows):
                                           size=GLOBAL_SHAP_SAMPLE,
                                           replace=False))
         print(f"  [{task}] global SHAP on a {GLOBAL_SHAP_SAMPLE}-row sample "
-              f"of {X_test.shape[0]} test rows")
+              f"of {X_test.shape[0]} test rows; worst-case rows are explained "
+              f"exactly")
     else:
         global_index = np.arange(X_test.shape[0])
     X_global = X_test[global_index]
@@ -213,19 +266,108 @@ def run_task(task, rows):
         rows.append({"task": task, "model": primary, "feature": name,
                      "mean_abs_shap": round(float(value), 6)})
 
+    # --- Worst predictions ---
+    if is_classification:
+        proba = _proba_in_class_order(primary, estimator, X_test)
+        index_of = {c: i for i, c in enumerate(CLASS_ORDER)}
+        realised_index = np.array([index_of[label] for label in y_test])
+        loss = np.array([ranked_probability_score(proba[[i]], y_test[[i]])
+                         for i in range(len(y_test))])
+        p_realised = proba[np.arange(len(y_test)), realised_index]
+        base_rate = {label: float((matrices["y_train"] == label).mean())
+                     for label in CLASS_ORDER}
+    else:
+        prediction = np.clip(estimator.predict(X_test), -5, 5)
+        loss = np.abs(prediction - y_test.astype(float))
+        typical = float(np.median(loss))
+
+    order = np.argsort(-loss)[:N_WORST]
+    for rank, position in enumerate(order, start=1):
+        match_id = int(meta.loc[position, "match_id"])
+        minute = (int(meta.loc[position, "snapshot_minute"])
+                  if "snapshot_minute" in meta.columns else None)
+        state = _snapshot_state(df, match_id, minute, y_test[position],
+                                is_classification)
+        record = {"task": task, "model": primary, "rank": rank,
+                  "match_id": match_id, "snapshot_minute": minute,
+                  "loss": round(float(loss[position]), 5)}
+        row_values, row_expected = shap_values_for(
+            primary, estimator, X_test[[position]], is_classification)
+        if is_classification:
+            realised = str(y_test[position])
+            verdict, reason = adjudicate_classification(
+                realised, float(p_realised[position]),
+                market.get(match_id), base_rate[realised], state)
+            record.update({
+                "y_true": realised,
+                "p_realised": round(float(p_realised[position]), 5),
+                "p_predicted_class": CLASS_ORDER[int(proba[position].argmax())],
+                "p_max": round(float(proba[position].max()), 5),
+                "market_p_realised": (round(market[match_id][realised], 5)
+                                      if match_id in market else None)})
+            shap_row = row_values[0, :, realised_index[position]]
+            expected_row = float(row_expected[realised_index[position]])
+            title = (f"Task {task} #{rank} match {match_id}"
+                     f"{'' if minute is None else f' @ {minute}\''}"
+                     f" - SHAP for P({realised})")
+        else:
+            verdict, reason = adjudicate_regression(
+                float(loss[position]), float(y_test[position]), typical, state)
+            record.update({"y_true": float(y_test[position]),
+                           "y_pred": round(float(prediction[position]), 5)})
+            shap_row = row_values[0]
+            expected_row = row_expected
+            title = (f"Task {task} #{rank} match {match_id}"
+                     f"{'' if minute is None else f' @ {minute}\''}"
+                     f" - SHAP for predicted margin")
+        record["verdict"] = verdict
+        record["reasoning"] = reason
+        worst_rows.append(record)
+
+        waterfall(shap_row, expected_row, X_test[position], names, title,
+                  VIZ_DIR / f"worst_{task}_{rank:02d}_match{match_id}.png")
+
+    task_rows = [r for r in worst_rows if r["task"] == task]
+    verdicts = pd.Series([r["verdict"] for r in task_rows]).value_counts()
+    distinct = len({r["match_id"] for r in task_rows})
+    # On the snapshot tasks consecutive minutes of one match fail together, so
+    # the worst ten rows are not ten independent failures.
+    print(f"  [{task}] worst-{N_WORST} verdicts: {verdicts.to_dict()}  "
+          f"({distinct} distinct matches)")
     return primary, estimator, matrices, names
 
 
+def _snapshot_state(df, match_id, minute, y_true, is_classification):
+    """Did the in-play state at time t point away from the final outcome?"""
+    if minute is None or "snapshot_minute" not in df.columns:
+        return None
+    row = df[(df["match_id"] == match_id) & (df["snapshot_minute"] == minute)]
+    if row.empty or "inplay_goal_diff" not in row.columns:
+        return None
+    goal_diff = float(row["inplay_goal_diff"].iloc[0])
+    if is_classification:
+        leader = "H" if goal_diff > 0 else ("A" if goal_diff < 0 else "D")
+        contradicted = goal_diff != 0 and leader != str(y_true)
+    else:
+        contradicted = goal_diff * float(y_true) < 0
+    return {"goal_diff": goal_diff, "contradicted": bool(contradicted)}
+
+
 def main():
-    rows = []
+    market = load_market_probabilities()
+    rows, worst_rows = [], []
     for task in ["C", "R", "Lc", "Lr"]:
-        run_task(task, rows)
+        run_task(task, market, rows, worst_rows)
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     VIZ_DIR.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows).to_csv(RESULTS_DIR / "shap_importance.csv", index=False,
                               encoding="utf-8")
+    worst = pd.DataFrame(worst_rows)
+    worst.to_csv(RESULTS_DIR / "worst_predictions.csv", index=False,
+                 encoding="utf-8")
     print(f"\nWrote -> {RESULTS_DIR / 'shap_importance.csv'}")
+    print(f"Wrote -> {RESULTS_DIR / 'worst_predictions.csv'}")
     print(f"Plots -> {VIZ_DIR}")
 
 
