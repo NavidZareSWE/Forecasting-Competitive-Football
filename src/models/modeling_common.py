@@ -34,7 +34,8 @@ META_COLUMNS = {"match_id", "match_date", "split", "label_result",
 def load_prematch():
     path = FEATURE_DIR / "prematch_features.csv"
     if not path.exists():
-        raise FileNotFoundError(f"Missing {path}. Run build_prematch_features.py first.")
+        raise FileNotFoundError(
+            f"Missing {path}. Run build_prematch_features.py first.")
     return pd.read_csv(path, encoding="utf-8")
 
 
@@ -43,7 +44,8 @@ def load_inplay():
                                              "label_margin", "match_date"])
     path = FEATURE_DIR / "inplay_features.csv"
     if not path.exists():
-        raise FileNotFoundError(f"Missing {path}. Run build_inplay_features.py first.")
+        raise FileNotFoundError(
+            f"Missing {path}. Run build_inplay_features.py first.")
     inplay = pd.read_csv(path, encoding="utf-8")
     return inplay.merge(prematch, on="match_id", how="inner")
 
@@ -58,7 +60,8 @@ def task_frame(task):
 
     target = "label_result" if task in {"C", "Lc"} else "label_margin"
     task_type = "classification" if task in {"C", "Lc"} else "regression"
-    feature_cols = [c for c in df.columns if c not in META_COLUMNS or c == "snapshot_minute"]
+    feature_cols = [
+        c for c in df.columns if c not in META_COLUMNS or c == "snapshot_minute"]
     nominal_cols = [c for c in NOMINAL_COLUMNS if c in df.columns]
     continuous_cols = [c for c in feature_cols if c not in nominal_cols]
     return df, continuous_cols, nominal_cols, target, task_type
@@ -120,7 +123,8 @@ def prepare_matrices(df, continuous_cols, nominal_cols, target, task_type,
             and task_type == "classification":
         # imbalanced-learn is numeric-only: one-hot, then snap back to one category.
         n_cont = train_cont.shape[1]
-        pre_encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+        pre_encoder = OneHotEncoder(
+            handle_unknown="ignore", sparse_output=False)
         nom_encoded = (pre_encoder.fit_transform(train_nom) if nominal_cols
                        else np.empty((train_cont.shape[0], 0)))
         combined, y_train = _apply_imblearn(
@@ -145,7 +149,8 @@ def prepare_matrices(df, continuous_cols, nominal_cols, target, task_type,
     def transform(subset):
         cont = scaler.transform(imputer.transform(subset[continuous_cols]))
         if nominal_cols:
-            nom = encoder.transform(subset[nominal_cols].astype(str).to_numpy())
+            nom = encoder.transform(
+                subset[nominal_cols].astype(str).to_numpy())
         else:
             nom = np.empty((len(subset), 0))
         return np.hstack([cont, nom])
@@ -155,6 +160,10 @@ def prepare_matrices(df, continuous_cols, nominal_cols, target, task_type,
         columns = [c for c in ["match_id", "snapshot_minute", "match_date",
                                "competition_name"] if c in subset.columns]
         return subset[columns].reset_index(drop=True)
+        # SHAP and the ablation need the design-matrix column order by name.
+    encoded_names = (list(encoder.get_feature_names_out(nominal_cols))
+                     if nominal_cols else [])
+    feature_names = list(continuous_cols) + encoded_names
 
     return {
         "X_train": np.hstack([train_cont, train_nom_enc]),
@@ -165,6 +174,10 @@ def prepare_matrices(df, continuous_cols, nominal_cols, target, task_type,
         "y_test": parts["test"][target].to_numpy(),
         "meta_val": meta(parts["validation"]),
         "meta_test": meta(parts["test"]),
+        "feature_names": feature_names,
+        "transform": transform,
+        "continuous_cols": list(continuous_cols),
+        "nominal_cols": list(nominal_cols),
     }
 
 
@@ -228,7 +241,8 @@ def expected_calibration_error(proba, y_true, order=CLASS_ORDER, bins=10):
     for lo, hi in zip(edges[:-1], edges[1:]):
         mask = (confidence > lo) & (confidence <= hi)
         if mask.any():
-            ece += mask.mean() * abs(correct[mask].mean() - confidence[mask].mean())
+            ece += mask.mean() * \
+                abs(correct[mask].mean() - confidence[mask].mean())
     return float(ece)
 
 

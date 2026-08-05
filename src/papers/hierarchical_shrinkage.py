@@ -152,6 +152,14 @@ class _HSBase(BaseEstimator):
         self.cv_scores_ = dict(zip(grid, totals / self.cv_folds))
         return float(grid[int(np.argmin(totals))])
 
+    def shap_base_estimator(self):
+        base = self._base_
+        trees = getattr(base, "estimators_", [base])
+        for estimator, shrunk in zip(trees, self._shrunk_):
+            estimator.tree_.value[:, 0, :] = shrunk
+        self._materialised_ = True
+        return base
+
     def _raw_predict(self, X):
         X = np.asarray(X, dtype=np.float64)
         total = None
