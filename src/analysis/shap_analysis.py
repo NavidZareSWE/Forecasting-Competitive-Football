@@ -7,13 +7,6 @@ luck, and one full-match SHAP timeline for Model 3.
     python src/analysis/shap_analysis.py
 """
 
-from tuning import load_best_params
-from model_zoo import classifier_zoo, regressor_zoo, LabelEncodedClassifier
-from modeling_common import (CLASS_ORDER, RESULTS_DIR, prepare_matrices,
-                             task_frame, regression_metrics,
-                             ranked_probability_score)
-import shap
-import matplotlib.pyplot as plt
 from pathlib import Path
 import os
 import sys
@@ -24,12 +17,19 @@ import pandas as pd
 
 import matplotlib
 matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import shap
 
 HERE = Path(__file__).resolve().parent
 SRC = HERE.parent
 sys.path.insert(0, str(SRC / "models"))
 sys.path.insert(0, str(SRC / "papers"))
 
+from modeling_common import (CLASS_ORDER, RESULTS_DIR, prepare_matrices,
+                             task_frame, regression_metrics,
+                             ranked_probability_score)
+from model_zoo import classifier_zoo, regressor_zoo, LabelEncodedClassifier
+from tuning import load_best_params
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -40,65 +40,64 @@ VIZ_DIR = SRC / "reports" / "visualizations" / "shap"
 RANDOM_STATE = 0
 N_WORST = 10
 BEESWARM_SAMPLE = 1500
+# Rows used for the global beeswarm and the mean-|SHAP| table.
 GLOBAL_SHAP_SAMPLE = int(os.environ.get("SHAP_SAMPLE", "2000"))
 ZOO_TASK = {"C": "C", "R": "R", "Lc": "L", "Lr": "L"}
 
+# Kernel and constant models have no tree structure for TreeSHAP to walk.
 TREE_MODELS = ["random_forest", "gbm", "xgboost", "lightgbm",
                "p2_hier_shrinkage"]
 
-MARKET_AGREEMENT = 0.05
-LOW_PROBABILITY = 0.25
-EXTREME_MARGIN = 3
+# Adjudication thresholds, fixed before looking at the results.
+MARKET_AGREEMENT = 0.05      # model within 5pp of the market: not a model error
+LOW_PROBABILITY = 0.25       # everyone rated the realised outcome unlikely
+EXTREME_MARGIN = 3           # 3+ goal margins are dominated by finishing noise
 
 
 # --- Model access -----------------------------------------------------------
 def shap_ready(name, estimator):
-    """Return the TreeSHAP-walkable estimator, or None if unavailable."""
-    if name not in TREE_MODELS:
-        return None
+    """Return the estimator TreeSHAP should walk, or None if unsupported."""
     if name == "p2_hier_shrinkage":
         return estimator.shap_base_estimator()
-    return estimator
+    if isinstance(estimator, LabelEncodedClassifier):
+        return estimator.estimator_
+    if name in TREE_MODELS:
+        return estimator
+    return None
 
 
 def model_class_order(name, estimator):
-    if name == "p2_hier_shrinkage":
-        return list(estimator.classes_)
-    return list(getattr(estimator, "classes_", CLASS_ORDER))
+    if isinstance(estimator, LabelEncodedClassifier):
+        return list(estimator.encoder_.classes_)
+    return [str(c) for c in estimator.classes_]
 
 
 def fit_candidates(task, matrices):
-    """Fit every TreeSHAP-capable model on train, score on validation.
-
-    Returns {name: (estimator, val_score)} sorted by val_score ascending.
-    """
-    best_params = load_best_params().get(task, {})
+    """Fit every TreeSHAP-capable model, scored on validation only."""
+    tuned = load_best_params().get(task, {})
     is_classification = task in {"C", "Lc"}
-    zoo_key = ZOO_TASK[task]
-    zoo = (classifier_zoo(zoo_key, best_params)
-           if is_classification else regressor_zoo(zoo_key, best_params))
-
-    X_train = matrices["X_train"]
-    y_train = matrices["y_train"]
-    X_val = matrices["X_val"]
-    y_val = matrices["y_val"]
+    zoo = (classifier_zoo(RANDOM_STATE, task=ZOO_TASK[task], tuned=tuned)
+           if is_classification
+           else regressor_zoo(RANDOM_STATE, task=ZOO_TASK[task], tuned=tuned))
 
     fitted = {}
-    for name, estimator in zoo.items():
-        if name not in TREE_MODELS:
+    for name in TREE_MODELS:
+        if name not in zoo:
             continue
-        try:
-            estimator.fit(X_train, y_train)
-            if is_classification:
-                proba = _proba_in_class_order(name, estimator, X_val)
-                score = float(ranked_probability_score(proba, y_val))
-            else:
-                pred = np.clip(estimator.predict(X_val), -5, 5)
-                score = float(np.abs(pred - y_val.astype(float)).mean())
-            fitted[name] = (estimator, score)
-            print(f"  [{task}] {name}: val score {score:.5f}")
-        except Exception as exc:
-            print(f"  [{task}] {name}: skipped ({exc})")
+        estimator = zoo[name]()
+        y_train = matrices["y_train"]
+        estimator.fit(matrices["X_train"],
+                      y_train if is_classification else y_train.astype(float))
+        if is_classification:
+            proba = _proba_in_class_order(name, estimator, matrices["X_val"])
+            score = ranked_probability_score(proba, matrices["y_val"])
+        else:
+            prediction = np.clip(estimator.predict(matrices["X_val"]), -5, 5)
+            score = regression_metrics(prediction,
+                                       matrices["y_val"].astype(float))["mae"]
+        fitted[name] = (estimator, float(score))
+        print(f"  [{task}] {name:18s} validation "
+              f"{'rps' if is_classification else 'mae'}={score:.5f}")
     return fitted
 
 
@@ -127,7 +126,7 @@ def shap_values_for(name, estimator, X, is_classification):
         return values.reshape(X.shape[0], X.shape[1]), float(expected.ravel()[0])
 
     classes = model_class_order(name, estimator)
-    if values.ndim == 2:
+    if values.ndim == 2:                       # binary fallback, unused here
         values = np.stack([-values, values], axis=2)
     order = [classes.index(c) for c in CLASS_ORDER if c in classes]
     return values[:, :, order], expected[order]
@@ -173,43 +172,44 @@ def load_market_probabilities():
 
 def adjudicate_classification(realised, p_realised, market_row, base_rate,
                               state=None):
-    if market_row is not None:
-        market_p = market_row.get(realised, 0.0)
-        if abs(p_realised - market_p) <= MARKET_AGREEMENT:
-            return "market_agreement", (
-                f"model P({realised})={p_realised:.3f} within "
-                f"{MARKET_AGREEMENT} of market {market_p:.3f}")
-    if market_row is not None and market_row.get(realised, 1.0) < LOW_PROBABILITY:
-        return "low_probability", (
-            f"market also rated P({realised})={market_row[realised]:.3f} < "
-            f"{LOW_PROBABILITY}; outcome was unlikely for everyone")
-    if p_realised < LOW_PROBABILITY and base_rate.get(realised, 1.0) >= LOW_PROBABILITY:
-        return "model_error", (
-            f"model assigned P({realised})={p_realised:.3f} well below "
-            f"base rate {base_rate.get(realised, 0):.3f}")
+    """Model error, uncertain, noisy state, or reasonable-but-unlucky."""
+    market_p = market_row.get(realised) if market_row else None
     if state is not None and state.get("contradicted"):
-        return "state_misleading", (
-            f"goal diff={state['goal_diff']:+.0f} pointed away from "
-            f"the eventual {realised}")
-    return "uncertain", "no single cause identified"
+        return ("noisy observation",
+                "the in-play state at the snapshot pointed the other way; "
+                "the match turned after time t")
+    if market_p is not None and market_p - p_realised > MARKET_AGREEMENT:
+        return ("model error",
+                f"the market gave the realised outcome {market_p:.3f} against "
+                f"the model's {p_realised:.3f}; the information was available")
+    if market_p is not None and market_p < LOW_PROBABILITY:
+        return ("inherently uncertain",
+                f"the market also rated this outcome unlikely ({market_p:.3f}); "
+                "the result, not the forecast, was the outlier")
+    if p_realised >= base_rate:
+        return ("reasonable despite outcome",
+                f"the model rated the realised outcome at or above its base "
+                f"rate ({p_realised:.3f} vs {base_rate:.3f})")
+    return ("model error",
+            f"the model rated the realised outcome below its unconditional "
+            f"base rate ({p_realised:.3f} vs {base_rate:.3f})")
 
 
 def adjudicate_regression(error, y_true, typical_error, state=None):
-    if abs(float(y_true)) >= EXTREME_MARGIN:
-        return "extreme_margin", (
-            f"true margin={y_true:+.0f} goals; high-margin matches "
-            f"are dominated by finishing noise")
-    if error <= typical_error:
-        return "within_typical", (
-            f"error={error:.2f} <= median {typical_error:.2f}; "
-            f"not an unusually large failure")
     if state is not None and state.get("contradicted"):
-        return "state_misleading", (
-            f"goal diff={state['goal_diff']:+.0f} pointed away from "
-            f"the eventual margin {y_true:+.0f}")
-    return "model_error", (
-        f"error={error:.2f} > median {typical_error:.2f} with no "
-        f"mitigating factor found")
+        return ("noisy observation",
+                "the scoreline at the snapshot moved against the eventual "
+                "margin after time t")
+    if abs(y_true) >= EXTREME_MARGIN:
+        return ("inherently uncertain",
+                f"the realised margin was {y_true:+.0f}; margins of this size "
+                "are dominated by finishing variance")
+    if error > 3 * typical_error:
+        return ("model error",
+                f"absolute error {error:.2f} is more than three times the "
+                f"model's typical {typical_error:.2f} on an ordinary scoreline")
+    return ("reasonable despite outcome",
+            f"absolute error {error:.2f} against a typical {typical_error:.2f}")
 
 
 # --- Per-task driver --------------------------------------------------------
@@ -232,6 +232,12 @@ def run_task(task, market, rows, worst_rows):
     estimator = fitted[primary][0]
     print(f"  [{task}] primary explained model (validation-selected): {primary}")
 
+    # TreeSHAP is exact but its cost grows with rows, trees and features. On
+    # the widened in-play table the full test split is thousands of rows by
+    # hundreds of features, which is far more than the global plots need. The
+    # global view is computed on a fixed random sample; the worst predictions
+    # and the match timeline are computed exactly on the rows they concern, so
+    # nothing that is reported per row is approximated.
     rng = np.random.default_rng(RANDOM_STATE)
     if X_test.shape[0] > GLOBAL_SHAP_SAMPLE:
         global_index = np.sort(rng.choice(X_test.shape[0],
@@ -287,7 +293,7 @@ def run_task(task, market, rows, worst_rows):
         minute = (int(meta.loc[position, "snapshot_minute"])
                   if "snapshot_minute" in meta.columns else None)
         state = _snapshot_state(df, match_id, minute, y_test[position],
-                                is_classification)
+                               is_classification)
         record = {"task": task, "model": primary, "rank": rank,
                   "match_id": match_id, "snapshot_minute": minute,
                   "loss": round(float(loss[position]), 5)}
@@ -353,11 +359,79 @@ def _snapshot_state(df, match_id, minute, y_true, is_classification):
     return {"goal_diff": goal_diff, "contradicted": bool(contradicted)}
 
 
+# --- In-play SHAP timeline --------------------------------------------------
+def inplay_timeline(bundle, output_csv, output_png):
+    """One complete match: SHAP attributions at every snapshot minute."""
+    primary, estimator, matrices, names = bundle
+    meta = matrices["meta_test"]
+    counts = meta.groupby("match_id").size()
+    full = counts[counts == counts.max()]
+    # A deterministic, non-cherry-picked choice: the lowest id with full cover.
+    match_id = int(full.index.min())
+    mask = (meta["match_id"] == match_id).to_numpy()
+    X_match = matrices["X_test"][mask]
+    minutes = meta.loc[mask, "snapshot_minute"].to_numpy()
+    order = np.argsort(minutes)
+    X_match, minutes = X_match[order], minutes[order]
+
+    values, expected = shap_values_for(primary, estimator, X_match, True)
+    proba = _proba_in_class_order(primary, estimator, X_match)
+
+    records = []
+    for position, minute in enumerate(minutes):
+        for class_position, label in enumerate(CLASS_ORDER):
+            for feature_position, feature in enumerate(names):
+                records.append({
+                    "match_id": match_id, "model": primary,
+                    "snapshot_minute": int(minute), "class": label,
+                    "feature": feature,
+                    "shap": round(float(values[position, feature_position,
+                                               class_position]), 6),
+                    "base_value": round(float(expected[class_position]), 6),
+                    "p_class": round(float(proba[position, class_position]), 6)})
+    frame = pd.DataFrame(records)
+    frame.to_csv(output_csv, index=False, encoding="utf-8")
+
+    top = (frame[frame["class"] == "H"].groupby("feature")["shap"]
+           .apply(lambda s: s.abs().mean()).nlargest(6).index.tolist())
+    figure, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    for label in CLASS_ORDER:
+        series = frame[(frame["class"] == label)].drop_duplicates(
+            "snapshot_minute").sort_values("snapshot_minute")
+        axes[0].plot(series["snapshot_minute"], series["p_class"],
+                     marker="o", label=f"P({label})")
+    axes[0].set_ylabel("model probability (uncalibrated)")
+    axes[0].set_title(f"Match {match_id} - {primary} - probabilities and SHAP "
+                      f"attributions for P(H) by minute")
+    axes[0].legend(fontsize=8)
+    axes[0].grid(alpha=0.3)
+    for feature in top:
+        series = frame[(frame["class"] == "H") & (frame["feature"] == feature)] \
+            .sort_values("snapshot_minute")
+        axes[1].plot(series["snapshot_minute"], series["shap"], marker=".",
+                     label=feature)
+    axes[1].axhline(0.0, color="black", linewidth=0.8)
+    axes[1].set_xlabel("snapshot minute")
+    axes[1].set_ylabel("SHAP contribution to P(H)")
+    axes[1].legend(fontsize=7, ncol=2)
+    axes[1].grid(alpha=0.3)
+    figure.tight_layout()
+    output_png.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(output_png, dpi=140)
+    plt.close("all")
+    print(f"\nIn-play SHAP timeline for match {match_id} "
+          f"({len(minutes)} snapshots) -> {output_png.name}")
+    return match_id
+
+
 def main():
     market = load_market_probabilities()
     rows, worst_rows = [], []
+    bundles = {}
     for task in ["C", "R", "Lc", "Lr"]:
-        run_task(task, market, rows, worst_rows)
+        bundle = run_task(task, market, rows, worst_rows)
+        if bundle is not None:
+            bundles[task] = bundle
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     VIZ_DIR.mkdir(parents=True, exist_ok=True)
@@ -366,8 +440,17 @@ def main():
     worst = pd.DataFrame(worst_rows)
     worst.to_csv(RESULTS_DIR / "worst_predictions.csv", index=False,
                  encoding="utf-8")
+
+    if "Lc" in bundles:
+        inplay_timeline(bundles["Lc"],
+                        RESULTS_DIR / "shap_inplay_timeline.csv",
+                        VIZ_DIR / "inplay_timeline.png")
+
+    print("\nVerdict counts over all tasks:")
+    print(worst.groupby(["task", "verdict"]).size().to_string())
     print(f"\nWrote -> {RESULTS_DIR / 'shap_importance.csv'}")
     print(f"Wrote -> {RESULTS_DIR / 'worst_predictions.csv'}")
+    print(f"Wrote -> {RESULTS_DIR / 'shap_inplay_timeline.csv'}")
     print(f"Plots -> {VIZ_DIR}")
 
 
