@@ -3,7 +3,9 @@
 Two independent sources of repetition, because a single point estimate is not
 evidence:
 
-  1. Match-clustered bootstrap of the evaluation set - snapshots of one match
+  1. Seed repetition - every model refitted on the fixed splits under N_SEEDS
+     random states.
+  2. Match-clustered bootstrap of the evaluation set - snapshots of one match
      are not independent, so the bootstrap resamples matches, not rows. This
      is the ONLY test in this file that licenses a superiority claim, because
      it resamples the quantity that actually limits the conclusion: the finite
@@ -12,6 +14,12 @@ evidence:
 Holm-Bonferroni controls the family-wise error rate within each task.
 
     python src/models/significance.py
+
+N_SEEDS overrides the number of seed repetitions. `VAR=value command` is POSIX
+shell syntax and fails on cmd.exe, so set it first on Windows:
+
+    set N_SEEDS=3 && python src/models/significance.py    cmd.exe
+    N_SEEDS=3 python src/models/significance.py           bash
 """
 
 import os
@@ -26,6 +34,7 @@ from model_zoo import classifier_zoo, regressor_zoo
 from tuning import load_best_params
 
 
+N_SEEDS = int(os.environ.get("N_SEEDS", "5"))
 N_BOOTSTRAP = 2000
 BOOTSTRAP_SEED = 20260808
 ALPHA = 0.05
@@ -89,6 +98,80 @@ def holm(p_values):
     return adjusted
 
 
+# --- Seed repetition --------------------------------------------------------
+def seed_repetitions(task, rows):
+    df, continuous, nominal, target, task_type = task_frame(task)
+    tuned = load_best_params().get(task, {})
+    is_classification = task in {"C", "Lc"}
+    matrices = prepare_matrices(df, continuous, nominal, target, task_type)
+
+    for seed in range(N_SEEDS):
+        zoo = (classifier_zoo(seed, task=ZOO_TASK[task], tuned=tuned)
+               if is_classification
+               else regressor_zoo(seed, task=ZOO_TASK[task], tuned=tuned))
+        for model, factory in zoo.items():
+            estimator = factory()
+            y_train = matrices["y_train"]
+            estimator.fit(matrices["X_train"],
+                          y_train if is_classification
+                          else y_train.astype(float))
+            if is_classification:
+                proba = estimator.predict_proba(matrices["X_test"])
+                classes = [str(c) for c in estimator.classes_]
+                aligned = np.zeros((proba.shape[0], len(CLASS_ORDER)))
+                for j, label in enumerate(CLASS_ORDER):
+                    if label in classes:
+                        aligned[:, j] = proba[:, classes.index(label)]
+                totals = aligned.sum(axis=1, keepdims=True)
+                totals[totals == 0] = 1.0
+                metric = ranked_probability_score(aligned / totals,
+                                                  matrices["y_test"])
+                metric_name = "rps"
+            else:
+                prediction = np.clip(estimator.predict(matrices["X_test"]),
+                                     *MARGIN_CLIP)
+                metric = float(np.abs(prediction
+                                      - matrices["y_test"].astype(float)).mean())
+                metric_name = "mae"
+            rows.append({"task": task, "model": model, "seed": seed,
+                         "metric": metric_name, "value": round(metric, 6)})
+        print(f"  [{task}] seed {seed} done")
+
+
+def seed_tests(seed_frame, task):
+    subset = seed_frame[seed_frame["task"] == task]
+    wide = subset.pivot(index="seed", columns="model", values="value")
+    models = sorted(wide.columns)
+    records = []
+    for i, model_a in enumerate(models):
+        for model_b in models[i + 1:]:
+            a, b = wide[model_a].to_numpy(), wide[model_b].to_numpy()
+            difference = a - b
+            if np.allclose(difference, 0.0):
+                t_p, w_p = 1.0, 1.0
+            else:
+                t_p = float(stats.ttest_rel(a, b).pvalue)
+                try:
+                    w_p = float(stats.wilcoxon(a, b).pvalue)
+                except ValueError:
+                    w_p = 1.0
+            records.append({"task": task, "model_a": model_a,
+                            "model_b": model_b, "n_seeds": len(a),
+                            "mean_a": round(float(a.mean()), 6),
+                            "mean_b": round(float(b.mean()), 6),
+                            "mean_difference": round(float(difference.mean()), 6),
+                            "sd_difference": round(float(difference.std(ddof=1)), 6),
+                            "seed_t_p": round(t_p, 6),
+                            "seed_wilcoxon_p": round(w_p, 6)})
+    if records:
+        adjusted = holm([r["seed_t_p"] for r in records])
+        for record, value in zip(records, adjusted):
+            record["seed_t_p_holm"] = round(float(value), 6)
+            record["gap_exceeds_seed_noise"] = bool(value < ALPHA)
+            record["licenses_superiority_claim"] = False
+    return records
+
+
 # --- Bootstrap tests --------------------------------------------------------
 def bootstrap_tests(task):
     losses = row_losses(task)
@@ -125,16 +208,33 @@ def bootstrap_tests(task):
 
 
 def main():
-    print(f"Bootstrap resamples: {N_BOOTSTRAP}")
+    print(f"Seed repetitions: {N_SEEDS}   bootstrap resamples: {N_BOOTSTRAP}")
 
-    bootstrap_records = []
+    seed_rows = []
     for task in TASKS:
+        print(f"\n=== seed repetition: task {task} ===")
+        seed_repetitions(task, seed_rows)
+    seed_frame = pd.DataFrame(seed_rows)
+
+    seed_records, bootstrap_records = [], []
+    for task in TASKS:
+        seed_records.extend(seed_tests(seed_frame, task))
         bootstrap_records.extend(bootstrap_tests(task))
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    seed_frame.to_csv(RESULTS_DIR / "seed_repetitions.csv", index=False,
+                      encoding="utf-8")
+    seed_test_frame = pd.DataFrame(seed_records)
+    seed_test_frame.to_csv(RESULTS_DIR / "significance_seeds.csv", index=False,
+                           encoding="utf-8")
     bootstrap_frame = pd.DataFrame(bootstrap_records)
     bootstrap_frame.to_csv(RESULTS_DIR / "significance_bootstrap.csv",
                            index=False, encoding="utf-8")
+
+    summary = (seed_frame.groupby(["task", "model", "metric"])["value"]
+               .agg(["mean", "std", "min", "max"]).round(5))
+    print("\nSeed-wise test metric (mean +/- sd over seeds):")
+    print(summary.to_string())
 
     print("\nSignificant pairwise differences after Holm correction "
           "(match-clustered bootstrap):")
@@ -145,7 +245,9 @@ def main():
         print(significant[["task", "model_a", "model_b", "mean_difference",
                            "ci_low", "ci_high", "bootstrap_p_holm",
                            "verdict"]].to_string(index=False))
-    print(f"\nWrote -> {RESULTS_DIR / 'significance_bootstrap.csv'}")
+    print(f"\nWrote -> {RESULTS_DIR / 'seed_repetitions.csv'}")
+    print(f"Wrote -> {RESULTS_DIR / 'significance_seeds.csv'}")
+    print(f"Wrote -> {RESULTS_DIR / 'significance_bootstrap.csv'}")
 
 
 if __name__ == "__main__":
