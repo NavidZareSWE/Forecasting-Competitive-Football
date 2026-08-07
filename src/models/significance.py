@@ -4,7 +4,12 @@ Two independent sources of repetition, because a single point estimate is not
 evidence:
 
   1. Seed repetition - every model refitted on the fixed splits under N_SEEDS
-     random states.
+     random states. This measures STABILITY, not superiority: the only thing
+     varying is the random state, so a deterministic model has zero spread and
+     a paired t-test over seeds divides by ~0 and reports p ~ 0 for any gap,
+     however small it is relative to match-level noise. These columns are
+     therefore reported as stability diagnostics and are never used to claim
+     that one model beats another.
   2. Match-clustered bootstrap of the evaluation set - snapshots of one match
      are not independent, so the bootstrap resamples matches, not rows. This
      is the ONLY test in this file that licenses a superiority claim, because
@@ -167,6 +172,7 @@ def seed_tests(seed_frame, task):
         adjusted = holm([r["seed_t_p"] for r in records])
         for record, value in zip(records, adjusted):
             record["seed_t_p_holm"] = round(float(value), 6)
+            # Deliberately not called "significant": see the module docstring.
             record["gap_exceeds_seed_noise"] = bool(value < ALPHA)
             record["licenses_superiority_claim"] = False
     return records
@@ -236,6 +242,8 @@ def main():
     print("\nSeed-wise test metric (mean +/- sd over seeds):")
     print(summary.to_string())
 
+    print("\nSeed repetition measures stability only. Superiority claims come "
+          "from the bootstrap below.")
     print("\nSignificant pairwise differences after Holm correction "
           "(match-clustered bootstrap):")
     significant = bootstrap_frame[bootstrap_frame["significant"]]
