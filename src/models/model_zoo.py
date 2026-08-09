@@ -23,6 +23,21 @@ from hierarchical_shrinkage import (HSForestClassifier, HSForestRegressor,
 EXACT_KERNEL_MAX_TRAIN = 8000
 
 
+class ClampedNystroem(Nystroem):
+    """Nystroem that never asks for more landmarks than it has samples.
+
+    The search grid offers up to 1000 components, but a cross-validation fold
+    can hold fewer rows than that. Plain Nystroem warns "n_components >
+    n_samples" and silently reduces the count, so those candidates were being
+    scored under a configuration different from the one recorded. Clamping
+    makes the recorded configuration the one actually used.
+    """
+
+    def fit(self, X, y=None):
+        self.n_components = min(self.n_components, X.shape[0])
+        return super().fit(X, y)
+
+
 class SubsampledKernelRidge(RegressorMixin, BaseEstimator):
     # Exact RBF kernel ridge on a reproducible subset; records rows used.
     def __init__(self, alpha=1.0, kernel="rbf", gamma=None,
@@ -178,8 +193,9 @@ def _regressor_builders():
             alpha=p.get("alpha", 1.0), kernel="rbf", gamma=p.get("gamma", None),
             max_train_rows=EXACT_KERNEL_MAX_TRAIN, random_state=rs),
         "kernel_ridge_nystroem": lambda rs, **p: make_pipeline(
-            Nystroem(kernel="rbf", gamma=p.get("gamma", None),
-                     n_components=p.get("n_components", 500), random_state=rs),
+            ClampedNystroem(kernel="rbf", gamma=p.get("gamma", None),
+                            n_components=p.get("n_components", 500),
+                            random_state=rs),
             Ridge(alpha=p.get("alpha", 1.0))),
         "p2_hier_shrinkage": lambda rs, **p: HSForestRegressor(
             lam=p.get("lam", 25.0),
