@@ -299,3 +299,18 @@ Additionally: odds are used **either** as the market baseline **or** as a declar
 - StatsBomb / Hudl StatsBomb. *StatsBomb Open Data.* https://github.com/statsbomb/open-data
 - Football-Data.co.uk. *Historical Football Results and Betting Odds Data.* https://www.football-data.co.uk
 - Full course specification and TA clarifications: [`docs/course-brief/`](./docs/course-brief)
+
+## Building the report
+
+The report exists in two formats built from one source. `src/report/report_content.py`
+holds all prose and reads every number from the result CSVs in `src/reports/`.
+
+```bash
+python src/report/build_report.py   # writes final_report.pdf + report_content.json
+node   src/report/render_docx.js    # writes final_report.docx from that JSON
+```
+
+`build_report.py` runs as part of `src/pipeline/run_all.py`; the DOCX step is
+run separately because it needs Node. If a result CSV is missing, the report
+prints an explicit marker naming the script that produces it rather than
+omitting the section or inserting a placeholder number.
