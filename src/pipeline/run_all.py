@@ -38,8 +38,9 @@ STEPS = [
 
     # --- Phase 5: the two feature pipelines ---
     ("Leakage tests (time-t cut)", FEATURE_DIR, "test_inplay_cut.py"),
+    ("Pre-match feature tests (hand-computed)", FEATURE_DIR,
+     "test_prematch_features.py"),
     ("Pre-match features", FEATURE_DIR, "build_prematch_features.py"),
-    ("In-play snapshot features", FEATURE_DIR, "build_inplay_features.py"),
 
     # --- Phase 6: modeling ---
     ("Hyperparameter search (equal budget, CV inside train)",
@@ -83,7 +84,8 @@ if __name__ == "__main__":
             print(f"\n===== SKIPPED: {name} (SKIP_TUNING set) =====")
             continue
         run_step(name, directory, script)
-    print(f"\nFull pipeline complete in {time.time() - pipeline_started:.1f}s.")
+    print(
+        f"\nFull pipeline complete in {time.time() - pipeline_started:.1f}s.")
     print("Relational store  -> src/reports/processed/")
     print("Feature tables    -> src/reports/features/")
     print("Model results     -> src/reports/*.csv, best_params.json")
