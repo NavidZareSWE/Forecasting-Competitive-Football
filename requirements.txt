@@ -1,13 +1,48 @@
-# Python 3.13.7. xgboost and lightgbm need OpenMP on macOS, and model_zoo.py
-# drops them silently if the import fails: brew install libomp
-numpy==2.3.2
-pandas==2.3.2
-scipy==1.16.3
-scikit-learn==1.6.1
-xgboost==3.3.0
-lightgbm==4.6.0
-imbalanced-learn==0.14.2
-shap==0.52.0
-statsbombpy==1.21.0
-plotly==6.9.0
-psutil==7.0.0
+# Install the current release of everything:
+#
+#     pip install -r requirements.txt
+#
+# Versions are lower bounds, not pins. The floors are the oldest release that
+# provides an API this project actually calls; anything newer is expected to
+# work and the latest is preferred. Pinning exact versions was breaking installs
+# on Python 3.14, where older pandas has no prebuilt wheel and pip falls back to
+# compiling from source.
+#
+# Reproducibility is handled separately: run_pipeline.py records the exact
+# resolved versions into console-outputs/00_environment.txt and writes
+# requirements.lock.txt, and Appendix B of the report prints the lock file when
+# it exists. That gives an exact record of what produced a given set of results
+# without forcing anyone to install those versions.
+#
+# Python 3.12 or newer. xgboost and lightgbm need OpenMP on macOS
+# (brew install libomp); model_zoo.py drops them silently if the import fails.
+
+# --- Core numerical stack ---
+numpy>=1.26
+pandas>=2.0
+scipy>=1.11
+
+# --- Models ---
+scikit-learn>=1.4      # OneHotEncoder(sparse_output=), HistGradientBoosting
+xgboost>=2.0
+lightgbm>=4.7           # 4.6 floods logs with sklearn 1.8 UserWarnings
+imbalanced-learn>=0.12
+
+# --- Phase 8: SHAP figures ---
+shap>=0.45             # shap.Explanation and shap.plots.waterfall
+matplotlib>=3.8
+pillow>=10.0
+
+# --- Plots written as interactive HTML ---
+plotly>=5.18
+
+# --- Peak-memory measurement in the compute profile ---
+psutil>=5.9
+
+# --- Phase 10: the report PDF ---
+reportlab>=4.0
+
+# --- Phase 11 (optional bonus): the FastAPI service and latency benchmark ---
+fastapi>=0.110
+uvicorn>=0.29
+httpx>=0.27            # required by fastapi.testclient, used by latency.py

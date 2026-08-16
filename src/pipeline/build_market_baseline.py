@@ -7,7 +7,21 @@ import pandas as pd
 # --- Configuration ---
 HERE = Path(__file__).resolve().parent
 PROJECT = HERE.parent
-FOOTBALL_DATA_DIR = Path(os.environ.get("FOOTBALL_DATA", PROJECT / "data" / "Football_Data"))
+def _resolve_folder(path):
+    # Windows is case-insensitive, so a folder named FOOTBALL_DATA satisfies a
+    # lookup for Football_Data there but not on Linux or macOS.
+    path = Path(path)
+    if path.exists():
+        return path
+    if path.parent.is_dir():
+        for candidate in path.parent.iterdir():
+            if candidate.is_dir() and candidate.name.lower() == path.name.lower():
+                return candidate
+    return path
+
+
+FOOTBALL_DATA_DIR = _resolve_folder(
+    os.environ.get("FOOTBALL_DATA", PROJECT / "data" / "Football_Data"))
 PROCESSED_DIR = PROJECT / "reports" / "processed"
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
