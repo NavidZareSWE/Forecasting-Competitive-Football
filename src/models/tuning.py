@@ -6,6 +6,7 @@ Writes tuning_results.csv (every candidate) and best_params.json (selections).
 from pathlib import Path
 import itertools
 import json
+import os
 import time
 import zlib
 
@@ -73,8 +74,7 @@ def _score_candidate(builder, params, X, y, folds, task_type):
                     aligned[:, j] = proba[:, classes.index(label)]
             total = aligned.sum(axis=1, keepdims=True)
             total[total == 0] = 1.0
-            scores.append(_log_loss(aligned / total,
-                          y[val_index], CLASS_ORDER))
+            scores.append(_log_loss(aligned / total, y[val_index], CLASS_ORDER))
         else:
             estimator.fit(X[train_index], y[train_index].astype(float))
             prediction = np.clip(estimator.predict(X[val_index]), *MARGIN_CLIP)
@@ -149,17 +149,49 @@ def tune_task(task, rows):
     return best
 
 
-def main():
-    rows = []
-    best = {}
-    for task in ["C", "R", "Lc", "Lr"]:
-        print(f"\n=== tuning {task} ===")
-        best[task] = tune_task(task, rows)
-
+def _save(rows, best):
+    """Persist after every task, so a crash never discards finished work."""
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows).to_csv(TUNING_CSV, index=False, encoding="utf-8")
     BEST_PARAMS_JSON.write_text(json.dumps(best, indent=2, sort_keys=True),
                                 encoding="utf-8")
+
+
+def main():
+    # The search runs for hours, and writing only at the end meant a machine
+    # that slept or a killed process threw away everything. Completed tasks are
+    # now reloaded and skipped, and results are flushed after each task.
+    tasks = [t for t in os.environ.get("TUNE_TASKS", "C,R,Lc,Lr").split(",")
+             if t.strip()]
+    resume = os.environ.get("TUNE_RESUME", "1") != "0"
+
+    rows = []
+    best = {}
+    if resume and BEST_PARAMS_JSON.exists():
+        try:
+            best = json.loads(BEST_PARAMS_JSON.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            best = {}
+        if TUNING_CSV.exists():
+            try:
+                rows = pd.read_csv(TUNING_CSV,
+                                   encoding="utf-8").to_dict("records")
+            except (OSError, ValueError):
+                rows = []
+        done = [t for t in tasks if best.get(t)]
+        if done:
+            print(f"Resuming: tasks {done} already searched, skipping them. "
+                  f"Set TUNE_RESUME=0 to search everything again.")
+
+    for task in tasks:
+        if resume and best.get(task):
+            continue
+        print(f"\n=== tuning {task} ===")
+        best[task] = tune_task(task, rows)
+        _save(rows, best)
+        print(f"  saved progress after task {task}")
+
+    _save(rows, best)
 
     # Equal-budget is graded, so it is asserted rather than claimed in prose.
     audit = pd.DataFrame(rows)
