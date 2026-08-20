@@ -4,6 +4,8 @@ Writes model_results.csv and predictions_<task>.csv; the latter feed
 market_comparison.py, inplay_curves.py and the diagnostic plots.
 """
 
+import os
+
 import pandas as pd
 
 from modeling_common import task_frame, RESULTS_DIR
@@ -97,17 +99,45 @@ def write_predictions(frame, task):
 
 
 def main():
+    # TASKS lets a killed or interrupted sweep resume without repeating the
+    # tasks that already completed. Results for tasks not selected are carried
+    # over from the existing file rather than dropped, so the output always
+    # describes the full sweep.
+    selected = [t for t in os.environ.get("TASKS", "C,Lc,R,Lr").split(",")
+                if t.strip()]
+    unknown = [t for t in selected if t not in TASK_LABELS]
+    assert not unknown, f"unknown task(s) {unknown}; expected {list(TASK_LABELS)}"
+    if selected != ["C", "Lc", "R", "Lr"]:
+        print(f"Running a subset of tasks: {selected}")
+
     all_rows = []
-    for task in ["C", "Lc"]:
+    for task in [t for t in ["C", "Lc"] if t in selected]:
         print(f"\n=== {TASK_LABELS[task]} ===")
         rows, predictions = run_classification_task(task)
         all_rows.extend(rows)
         write_predictions(predictions, task)
-    for task in ["R", "Lr"]:
+    for task in [t for t in ["R", "Lr"] if t in selected]:
         print(f"\n=== {TASK_LABELS[task]} ===")
         rows, predictions = run_regression_task(task)
         all_rows.extend(rows)
         write_predictions(predictions, task)
+
+    existing_path = RESULTS_DIR / "model_results.csv"
+    if existing_path.exists() and len(selected) < len(TASK_LABELS):
+        previous = pd.read_csv(existing_path, encoding="utf-8")
+        carried = previous[~previous["task"].isin(selected)]
+        if len(carried):
+            carried = carried.copy()
+            carried["carried_from_previous_run"] = True
+            print(f"WARNING: carrying forward {len(carried)} rows for tasks "
+                  f"{sorted(set(carried['task']))} from a previous run. Those "
+                  f"rows were produced by whatever feature tables existed then "
+                  f"and are NOT comparable with the tasks just run if the "
+                  f"features have changed since. Re-run without TASKS before "
+                  f"reporting any cross-task comparison.")
+            all_rows = carried.to_dict("records") + all_rows
+    for row in all_rows:
+        row.setdefault("carried_from_previous_run", False)
 
     write_results(all_rows, "model_results.csv")
 
