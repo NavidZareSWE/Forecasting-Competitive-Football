@@ -1,4 +1,7 @@
-"""Pre-match half of the sweep: Model 1 (Task C) and Model 2 (Task R)."""
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from run_models import (TASK_LABELS, run_classification_task,
                         run_regression_task, write_predictions, write_results)

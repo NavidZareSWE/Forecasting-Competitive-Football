@@ -1,16 +1,5 @@
-"""Phase 10: the report content, as a renderer-independent block list.
-
-One source of prose. build_report.py renders it to PDF and render_docx.js
-renders the same blocks to DOCX, so the two documents can never drift.
-
-Every number is read from a result CSV at build time. Nothing is hard-coded.
-When a result file is absent the report says so explicitly and names the script
-that produces it, rather than leaving a gap the reader has to guess about.
-
-Each result follows the same seven-step analysis: what we expected, what we
-observed, why, the effect of P1, the effect of P2, what it means, and what we
-conclude.
-"""
+# Report content as a renderer-independent block list. Every number is read
+# from a result CSV at build time; nothing is hard-coded.
 
 from pathlib import Path
 import subprocess
@@ -117,7 +106,6 @@ def read(name, directory=RESULTS_DIR):
 
 
 def tuned_state():
-    """Whether the sweep ran with searched hyperparameters or with defaults."""
     results = read("model_results.csv")
     if results is None or "tuned" not in results.columns:
         return None

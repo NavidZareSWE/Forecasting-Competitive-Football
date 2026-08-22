@@ -1,11 +1,4 @@
-"""Run commands and capture everything they print into console-outputs/.
-
-Each step writes its own log file, stdout and stderr interleaved in the order
-they were produced, so a traceback appears where it actually happened. A
-summary file records the exit code and duration of every step, and the whole
-folder is zipped at the end so it can be shared as one file.
-
-Used by run_pipeline.py. Can also be run directly on an arbitrary command:
+"""Used by run_pipeline.py. Can also be run directly on an arbitrary command:
 
     python capture_console.py "python src/models/tuning.py"
 """
@@ -22,13 +15,9 @@ import zipfile
 PROJECT = Path(__file__).resolve().parent
 OUTPUT_DIR = PROJECT / "console-outputs"
 SUMMARY_NAME = "_summary.txt"
-# Live output of the step currently running, so progress is
-# visible from another terminal while a long step is in flight.
-RUNNING_NAME = "_running.txt"
+LIVE_STEP_LOG_NAME = "_running.txt"
 ARCHIVE_NAME = "console-outputs.zip"
 
-# Anything longer than this is almost certainly a hung process rather than a
-# slow one. Tuning on a wide feature table is genuinely slow, so it is high.
 DEFAULT_TIMEOUT_SECONDS = 6 * 60 * 60
 
 
@@ -36,13 +25,6 @@ PREVIOUS_DIR = PROJECT / "console-outputs-previous"
 
 
 def prepare_output_dir(fresh=True):
-    """Start a clean log folder, keeping the last one.
-
-    A resumed run only re-runs the stages it was asked for, so deleting the
-    folder outright would throw away the logs of everything before it. The
-    tuning log alone represents four hours of compute and is the only record of
-    how best_params.json was chosen, so it is moved aside rather than removed.
-    """
     if fresh and OUTPUT_DIR.exists():
         if PREVIOUS_DIR.exists():
             shutil.rmtree(PREVIOUS_DIR)
@@ -58,16 +40,6 @@ def _log_path(name):
 
 def run_step(name, command, timeout=DEFAULT_TIMEOUT_SECONDS, echo=True,
              env=None):
-    """Run one command, tee its output to the console and to a log file.
-
-    `env` is a mapping of extra variables merged over the current environment
-    and passed to the child. It exists because `VAR=value command` is POSIX
-    shell syntax: cmd.exe reads `VAR=value` as the name of the program to run
-    and fails with "is not recognized as an internal or external command".
-    Passing the variables through the environment works on every platform, and
-    the child processes a step spawns (joblib workers, for instance) inherit
-    them too.
-    """
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     log_path = _log_path(name)
     started_at = datetime.now()
@@ -88,15 +60,11 @@ def run_step(name, command, timeout=DEFAULT_TIMEOUT_SECONDS, echo=True,
 
     lines = [header]
     timed_out = False
-    # Written as the step runs, not after it: a step that takes an hour used to
-    # leave no log at all until it finished, which made a long run
-    # indistinguishable from a hung one. This file is truncated and replaced by
-    # the step's own log when the step ends.
-    running_path = OUTPUT_DIR / RUNNING_NAME
+    live_log_path = OUTPUT_DIR / LIVE_STEP_LOG_NAME
     try:
-        running = running_path.open("w", encoding="utf-8", errors="replace")
+        live_log = live_log_path.open("w", encoding="utf-8", errors="replace")
     except OSError:
-        running = None
+        live_log = None
     try:
         process = subprocess.Popen(
             command, shell=True, cwd=str(PROJECT), env=child_env,
@@ -107,9 +75,9 @@ def run_step(name, command, timeout=DEFAULT_TIMEOUT_SECONDS, echo=True,
             lines.append(line)
             if echo:
                 print(line, end="", flush=True)
-            if running is not None:
-                running.write(line)
-                running.flush()
+            if live_log is not None:
+                live_log.write(line)
+                live_log.flush()
             if time.perf_counter() > deadline:
                 process.kill()
                 timed_out = True
@@ -133,15 +101,14 @@ def run_step(name, command, timeout=DEFAULT_TIMEOUT_SECONDS, echo=True,
     if echo:
         print(footer, end="", flush=True)
 
-    if running is not None:
-        running.close()
+    if live_log is not None:
+        live_log.close()
     body = "".join(lines)
     warning_count = sum(1 for line in lines if "Warning:" in line)
     log_path.write_text(body, encoding="utf-8")
-    # The heartbeat belongs to whichever step is running now, so clear it.
-    if running_path.exists():
+    if live_log_path.exists():
         try:
-            running_path.unlink()
+            live_log_path.unlink()
         except OSError:
             pass
     return {"name": name, "command": command, "exit_code": exit_code,
@@ -187,7 +154,6 @@ def write_summary(results, extra_notes=None):
 
 
 def collect_result_files(patterns):
-    """Copy small result files next to the logs so one zip has everything."""
     collected = OUTPUT_DIR / "results"
     collected.mkdir(parents=True, exist_ok=True)
     copied = 0
@@ -195,7 +161,6 @@ def collect_result_files(patterns):
         for path in sorted(PROJECT.glob(pattern)):
             if not path.is_file():
                 continue
-            # Skip anything large; the point is a shareable archive.
             if path.stat().st_size > 25 * 1024 * 1024:
                 continue
             destination = collected / path.name

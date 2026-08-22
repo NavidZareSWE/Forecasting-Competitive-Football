@@ -21,7 +21,6 @@ _LEAF = -1
 
 
 def _node_means(tree, is_classifier):
-    # sklearn has changed whether tree_.value holds counts or fractions.
     values = np.asarray(tree.value, dtype=float)[:, 0, :]
     if is_classifier:
         totals = values.sum(axis=1, keepdims=True)
@@ -31,7 +30,6 @@ def _node_means(tree, is_classifier):
 
 
 def _shrink_tree(tree, lam, is_classifier):
-    """HS value of every node, as a top-down recursion off the parent."""
     left = tree.children_left
     right = tree.children_right
     counts = np.asarray(tree.weighted_n_node_samples, dtype=float)
@@ -45,7 +43,6 @@ def _shrink_tree(tree, lam, is_classifier):
         parent = stack.pop()
         if left[parent] == _LEAF:
             continue
-        # Damping uses the parent's count, not the child's.
         weight = 1.0 / (1.0 + lam / counts[parent])
         for child in (left[parent], right[parent]):
             shrunk[child] = shrunk[parent] + (mu[child] - mu[parent]) * weight
@@ -54,7 +51,6 @@ def _shrink_tree(tree, lam, is_classifier):
 
 
 def _leaf_indices(tree, X):
-    # Level-wise over the batch; a per-row loop costs minutes on 28k x 300 trees.
     left = tree.children_left
     right = tree.children_right
     feature = tree.feature
@@ -72,7 +68,6 @@ def _leaf_indices(tree, X):
 
 
 class _HSBase(BaseEstimator):
-    """Applies HS to every tree of the base estimator, then averages."""
 
     def __init__(self, lam=25.0, n_estimators=300, max_depth=None,
                  max_leaf_nodes=None, cv_lambdas=None, cv_folds=3,
@@ -120,7 +115,6 @@ class _HSBase(BaseEstimator):
         return self
 
     def _select_lambda(self, X, y):
-        # Training rows only; the validation split is reserved for calibration.
         grid = list(self.cv_lambdas)
         if len(grid) == 1:
             return float(grid[0])
@@ -143,7 +137,6 @@ class _HSBase(BaseEstimator):
             probe._trees_ = [t.tree_ for t in trees]
             probe._base_ = base
             for position, lam in enumerate(grid):
-                # One fit per fold, re-shrunk per lambda: shrinkage is O(nodes).
                 probe._shrunk_ = [_shrink_tree(t.tree_, lam,
                                                self._is_classifier)
                                   for t in trees]
@@ -179,7 +172,6 @@ class HSForestClassifier(ClassifierMixin, _HSBase):
             random_state=self.random_state)
 
     def predict_proba(self, X):
-        # Already convex per Appendix A; the clip absorbs floating-point dust.
         proba = np.clip(self._raw_predict(X), 0.0, 1.0)
         return proba / proba.sum(axis=1, keepdims=True)
 
@@ -187,7 +179,6 @@ class HSForestClassifier(ClassifierMixin, _HSBase):
         return self.classes_[self.predict_proba(X).argmax(axis=1)]
 
     def _score(self, X, y):
-        # Log-loss: lambda selected on probability quality, not arg-max accuracy.
         proba = np.clip(self.predict_proba(X), 1e-15, 1.0)
         index = {label: i for i, label in enumerate(self.classes_)}
         rows = np.arange(len(y))

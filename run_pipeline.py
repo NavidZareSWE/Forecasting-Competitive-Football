@@ -1,26 +1,6 @@
-"""Run the whole remaining pipeline and capture every console output.
+"""Run from the repository root with:
 
     python run_pipeline.py
-
-Everything printed by every step is written to console-outputs/, one log per
-step, plus a summary and a zip you can share.
-
-By default this runs EVERYTHING from the raw data forward. Stages, in order:
-
-  1. tests        Paper and leakage tests on fixtures. No data needed. If these
-                  fail, nothing after them is trustworthy, so the run stops.
-  2. data         StatsBomb JSON -> match, label, lineup and event stores;
-                  cleaning; chronological splits; odds tagging and de-vig;
-                  competition audit. Downloads ~1500 match files the first
-                  time and caches them under data/statsbomb_open_data/.
-  3. features     Per-team event aggregates, then the pre-match and in-play
-                  feature tables.
-  4. tuning       Hyperparameter search. Writes best_params.json.
-  5. models       Model sweep + the six-arm imbalance study.
-  6. experiments  Market, curves, scaling, compute, conversion, significance,
-                  ablation, SHAP.
-  7. viz          Reliability diagrams and store visualisations.
-  8. report       PDF, then DOCX if node is available.
 
 Useful flags:
     --only STAGE      run one stage: tests, data, features, tuning, models,
@@ -31,9 +11,6 @@ Useful flags:
     --seeds N         seed repetitions in significance.py (default 3)
     --continue        keep going after a failing step instead of stopping
     --list            print the plan and exit without running anything
-
-Nothing here touches the test split except the final evaluation inside
-run_models.py, which is the one place that is allowed to.
 """
 
 from datetime import datetime
@@ -44,6 +21,8 @@ import os
 import shutil
 import subprocess
 import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from capture_console import (ARCHIVE_NAME, OUTPUT_DIR, collect_result_files,
                              make_archive, prepare_output_dir, run_step,
@@ -67,12 +46,6 @@ STAGE_ORDER = ["tests", "data", "features", "tuning", "models",
 
 
 def resolve_folder(path):
-    """Return `path`, or a sibling whose name matches case-insensitively.
-
-    Windows filesystems are case-insensitive, so a folder named FOOTBALL_DATA
-    satisfies a lookup for Football_Data there but not on Linux or macOS. This
-    keeps the same layout working on every platform.
-    """
     path = Path(path)
     if path.exists():
         return path
@@ -84,7 +57,6 @@ def resolve_folder(path):
     return path
 
 
-# Files worth shipping back with the logs. Kept small on purpose.
 RESULT_PATTERNS = [
     "src/reports/*.csv",
     "src/reports/best_params.json",
@@ -138,7 +110,6 @@ def script(path):
 
 
 def preflight(stages):
-    """Fail early and clearly rather than three stages in."""
     problems, warnings = [], []
     for module in ["pandas", "numpy", "sklearn", "scipy", "matplotlib",
                    "shap", "imblearn", "reportlab"]:
@@ -186,7 +157,6 @@ def preflight(stages):
 
 
 def record_environment():
-    """Write the exact resolved versions, so unpinned installs stay traceable."""
     import platform
 
     lines = [f"python  {platform.python_version()} ({platform.python_implementation()})",
@@ -246,7 +216,6 @@ def selected_stages(arguments):
 
 
 def build_plan(arguments, stages):
-    """(stage, name, command) for every step this run should execute."""
     plan = []
 
     if "tests" in stages:

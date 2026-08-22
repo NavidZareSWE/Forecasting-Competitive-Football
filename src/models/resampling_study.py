@@ -1,10 +1,14 @@
-"""Imbalance study on Task C: vanilla, smote, borderline_smote, adasyn,
-class_weight and P1 (G-SMOTENC) on identical splits. Pre-match table only.
+"""Run from the repository root with:
 
     python src/models/resampling_study.py
 """
 
+from pathlib import Path
+import sys
+
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from modeling_common import task_frame, RESULTS_DIR
 from model_zoo import classifier_zoo
@@ -15,7 +19,6 @@ from tuning import load_best_params
 
 TASK = "C"
 
-# class_weight reweights the loss instead of inventing rows.
 ARMS = [("vanilla", "none", None),
         ("smote", "smote", None),
         ("borderline_smote", "borderline_smote", None),
@@ -23,7 +26,6 @@ ARMS = [("vanilla", "none", None),
         ("class_weight", "none", "balanced"),
         ("p1_gsmotenc", "p1", None)]
 
-# Models accepting class_weight, so every arm runs on the same learners.
 STUDY_MODELS = ["random_forest", "gbm", "kernel_svm", "lightgbm"]
 
 
@@ -33,7 +35,8 @@ def main():
     tuned = load_best_params().get(TASK, {})
 
     counts = pd.Series(df[df["split"] == "train"][target]).value_counts()
-    print(f"Training class balance: {counts.to_dict()}  "
+    class_balance = {str(label): int(count) for label, count in counts.items()}
+    print(f"Training class balance: {class_balance}  "
           f"(draw share {counts.get('D', 0) / counts.sum():.3f})")
 
     rows = []

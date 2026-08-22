@@ -1,20 +1,21 @@
-"""Brief section 1: can the Task R margin be turned into useful H/D/A
-probabilities, and does it beat the Task C classifier that was trained for the
-job?
-
-Two links, both fitted on the validation split only and scored once on test:
-
-  ordinal   P(A) = Phi((-theta - m)/sigma),  P(H) = 1 - Phi((theta - m)/sigma)
+"""  ordinal   P(A) = Phi((-theta - m)/sigma),  P(H) = 1 - Phi((theta - m)/sigma)
   logistic  multinomial logistic regression on [m, m^2]
+
+Run from the repository root with:
 
     python src/models/margin_to_probability.py
 """
+
+from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 from scipy.stats import norm
 from sklearn.linear_model import LogisticRegression
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from modeling_common import (CLASS_ORDER, RESULTS_DIR, classification_metrics,
                              floor_probabilities, prepare_matrices, task_frame)
@@ -58,7 +59,6 @@ def fit_ordinal(margin, y_true):
 
 # --- Task assembly ----------------------------------------------------------
 def margin_predictions(task="R"):
-    """Refit the best Task R regressor and predict on validation and test."""
     df, continuous, nominal, target, task_type = task_frame(task)
     matrices = prepare_matrices(df, continuous, nominal, target, task_type)
     tuned = load_best_params().get(task, {})
@@ -84,7 +84,6 @@ def margin_predictions(task="R"):
 
 
 def classifier_reference(matrices_c):
-    """Task C classifier chosen on validation, for the head-to-head."""
     tuned = load_best_params().get("C", {})
     best_name, best_rps, best_proba = None, np.inf, None
     for name, factory in classifier_zoo(RANDOM_STATE, task="C",
@@ -121,7 +120,6 @@ def main():
     df_c, continuous, nominal, target, task_type = task_frame("C")
     matrices_c = prepare_matrices(df_c, continuous, nominal, target, task_type)
 
-    # Task C and Task R share the pre-match table, so the rows already align.
     assert (matrices_c["meta_test"]["match_id"].to_numpy()
             == matrices_r["meta_test"]["match_id"].to_numpy()).all(), \
         "Task C and Task R test rows are not in the same order"

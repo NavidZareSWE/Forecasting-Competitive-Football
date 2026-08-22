@@ -39,7 +39,6 @@ def build_audit(root: pathlib.Path) -> pd.DataFrame:
         rows.append(dict(
             cid=cid, sid=sid, comp=cs["competition_name"], season=cs["season_name"],
             n_matches=n, n_teams=len(teams), top_team=top_team,
-            # 1.0 => every match has this club
             top_team_share=round(top_cnt / n, 3),
             date_min=min(dates), date_max=max(dates),
             pct_360=round(n360 / n, 3),
@@ -59,7 +58,6 @@ CONFEDERATIONS = {"International", "Europe", "Africa",
 ODDS_SOURCE_COUNTRIES = {"Spain", "England", "Italy", "France", "Germany"}
 SINGLE_CLUB_THRESHOLD = 0.5
 
-# Colour + ordering for every decision category
 DECISIONS = {
     "Included - full league (2015/2016)":       "#2fbf8f",
     "Excluded - single-club / finals":          "#e5645e",
@@ -72,15 +70,10 @@ DECISIONS = {
 def categorise(row) -> str:
 
     if row["top_team_share"] >= SINGLE_CLUB_THRESHOLD:
-        # every (or almost every) match involves one club -> longitudinal
-        # single-club release, or a one-off final. Opponent-side form
-        # features would be undefined for ~19 of 20 teams.
         return "Excluded - single-club / finals"
     if row["gender"] == "female":
         return "Excluded - women's (no odds source)"
     if row["country"] in CONFEDERATIONS:
-        # tournaments: World Cups, Euros, continental cups -> not joinable
-        # to Football-Data.co.uk, so cannot enter the test set.
         return "Excluded - tournament (no odds source)"
     if row["country"] in ODDS_SOURCE_COUNTRIES:
         return "Included - full league (2015/2016)"
@@ -109,11 +102,9 @@ def fig_release_map(df: pd.DataFrame) -> go.Figure:
         "matches: %{y}<br>teams: %{customdata[3]}<br>"
         "top team: %{customdata[2]} (share %{x})<extra></extra>"
     ))
-    # the decision gate
     fig.add_vline(x=SINGLE_CLUB_THRESHOLD, line_dash="dash", line_color="#888",
                   annotation_text="selection gate  (share \u2265 0.5 \u2192 single-club)",
                   annotation_position="top")
-    # regime labels
     fig.add_annotation(x=0.10, y=380, ax=0, ay=-46, text="the four usable<br>full leagues",
                        showarrow=True, arrowhead=2, font=dict(color="#1f7a5a", size=12))
     fig.add_annotation(x=1.0, y=36, ax=0, ay=-40, text="single-club<br>biographies",
@@ -137,9 +128,6 @@ def fig_share_strip(df: pd.DataFrame) -> go.Figure:
         custom_data=["comp", "season"],
         category_orders={"decision": list(DECISIONS)},
     )
-    # px.strip builds hidden go.Box traces; their jitter is scaled to box
-    # WIDTH, which px leaves as None, so update_traces(jitter=...) alone does
-    # nothing (plotly.py issue #4563). Setting an explicit width restores it.
     fig.update_traces(width=0.8, jitter=1.0, pointpos=0,
                       marker=dict(size=9, opacity=0.7),
                       hovertemplate="<b>%{customdata[0]} %{customdata[1]}</b><br>share %{x}<extra></extra>")
@@ -156,9 +144,6 @@ def fig_share_strip(df: pd.DataFrame) -> go.Figure:
 
 
 def fig_360(df: pd.DataFrame) -> go.Figure:
-    """FINDING 2: none of the four included leagues carry 360 data. The 360
-    that exists in the repo lives entirely in competitions we exclude, so the
-    'impute missing 360' angle does not apply to our training corpus."""
     inc = df[df["decision"].str.startswith("Included")].copy()
     rich = df[df["pct_360"] > 0].copy()
     show = pd.concat([inc, rich]).drop_duplicates(subset=["cid", "sid"])
@@ -184,8 +169,6 @@ def fig_360(df: pd.DataFrame) -> go.Figure:
 
 
 def fig_decision_totals(df: pd.DataFrame) -> go.Figure:
-    """FINDING 3: the selection rule and its cost, in matches. Shows how many
-    matches each exclusion reason removes, and how many survive."""
     g = (df.groupby("decision")
            .agg(seasons=("cid", "size"), matches=("n_matches", "sum"))
            .reindex(list(DECISIONS)).dropna().reset_index())
@@ -208,9 +191,6 @@ def fig_decision_totals(df: pd.DataFrame) -> go.Figure:
 
 
 def fig_included_detail(df: pd.DataFrame) -> go.Figure:
-    """The four survivors, side by side: match count and home/draw/away is not
-    known here (needs labels), so we show size + team count + 360 = 0 as the
-    at-a-glance profile of the training corpus."""
     inc = df[df["decision"].str.startswith(
         "Included")].copy().sort_values("n_matches")
     inc["label"] = inc["comp"] + " " + inc["season"].astype(str)
@@ -250,9 +230,6 @@ def write_report(df: pd.DataFrame, out: pathlib.Path) -> None:
         fig_included_detail(df),
     ]
 
-    # First figure embeds the full plotly.js source (include_plotlyjs=True ->
-    # ~3 MB, fully self-contained, works offline). The rest reference the same
-    # embedded copy (=False) so the library is included exactly once.
     blocks = []
     for i, fig in enumerate(figs):
         blocks.append(fig.to_html(
@@ -313,7 +290,6 @@ def main() -> None:
     df = build_audit(ROOT)
     df["decision"] = df.apply(categorise, axis=1)
 
-    # self-check: the rule must select exactly the four 2015/16 leagues
     got = set(map(tuple, df.loc[df["decision"].str.startswith("Included"),
                                 ["cid", "sid"]].values.tolist()))
     expected = {(11, 27), (2, 27), (12, 27), (7, 27)}

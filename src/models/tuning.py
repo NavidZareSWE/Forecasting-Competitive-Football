@@ -1,18 +1,24 @@
-"""Random hyperparameter search, equal budget per model, CV inside train rows only.
+"""Run from the repository root with:
 
-Writes tuning_results.csv (every candidate) and best_params.json (selections).
+    python src/models/tuning.py
+
+    set TUNE_TASKS=C && python src/models/tuning.py    cmd.exe
+    TUNE_TASKS=C python src/models/tuning.py           bash
 """
 
 from pathlib import Path
 import itertools
 import json
 import os
+import sys
 import time
 import zlib
 
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import GroupKFold, KFold, StratifiedKFold
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from modeling_common import (task_frame, prepare_matrices, RESULTS_DIR,
                              CLASS_ORDER)
@@ -32,7 +38,6 @@ BEST_PARAMS_JSON = RESULTS_DIR / "best_params.json"
 
 
 def sample_candidates(space, n_candidates, seed):
-    """Deduplicated random sample from a discrete grid, or the whole grid."""
     keys = sorted(space)
     full = [dict(zip(keys, values))
             for values in itertools.product(*(space[k] for k in keys))]
@@ -84,7 +89,6 @@ def _score_candidate(builder, params, X, y, folds, task_type):
 
 
 def tune_task(task, rows):
-    """Search every tunable model for one task. Returns {model: best_params}."""
     df, continuous, nominal, target, task_type = task_frame(task)
     matrices = prepare_matrices(df, continuous, nominal, target, task_type,
                                 resampling="none")
@@ -98,7 +102,6 @@ def tune_task(task, rows):
     if X.shape[0] > SUBSAMPLE_ABOVE:
         rng = np.random.default_rng(RANDOM_STATE)
         if groups is not None:
-            # Whole matches, so none is half in and half out of the tuning set.
             matches = np.unique(groups)
             keep_share = SUBSAMPLE_ABOVE / X.shape[0]
             n_keep = min(len(matches),
@@ -125,7 +128,6 @@ def tune_task(task, rows):
             continue
         if support_key not in TASK_SUPPORT.get(name, set()):
             continue
-        # crc32, not hash(): Python randomises string hashing per process.
         seed = zlib.crc32(f"{name}|{task}".encode("utf-8"))
         candidates = sample_candidates(space, N_CANDIDATES, seed)
         started = time.perf_counter()
@@ -149,8 +151,7 @@ def tune_task(task, rows):
     return best
 
 
-def _save(rows, best):
-    """Persist after every task, so a crash never discards finished work."""
+def save_progress(rows, best):
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows).to_csv(TUNING_CSV, index=False, encoding="utf-8")
     BEST_PARAMS_JSON.write_text(json.dumps(best, indent=2, sort_keys=True),
@@ -158,9 +159,6 @@ def _save(rows, best):
 
 
 def main():
-    # The search runs for hours, and writing only at the end meant a machine
-    # that slept or a killed process threw away everything. Completed tasks are
-    # now reloaded and skipped, and results are flushed after each task.
     tasks = [t for t in os.environ.get("TUNE_TASKS", "C,R,Lc,Lr").split(",")
              if t.strip()]
     resume = os.environ.get("TUNE_RESUME", "1") != "0"
@@ -188,17 +186,17 @@ def main():
             continue
         print(f"\n=== tuning {task} ===")
         best[task] = tune_task(task, rows)
-        _save(rows, best)
+        save_progress(rows, best)
         print(f"  saved progress after task {task}")
 
-    _save(rows, best)
+    save_progress(rows, best)
 
-    # Equal-budget is graded, so it is asserted rather than claimed in prose.
     audit = pd.DataFrame(rows)
     for task, group in audit.groupby("task"):
         counts = group.groupby("model").size()
+        budget = {str(model): int(count) for model, count in counts.items()}
         assert counts.nunique() == 1, \
-            f"unequal tuning budget on task {task}: {counts.to_dict()}"
+            f"unequal tuning budget on task {task}: {budget}"
 
     print(f"\nWrote {len(rows)} candidate evaluations -> {TUNING_CSV}")
     print(f"Wrote selected configurations -> {BEST_PARAMS_JSON}")

@@ -1,4 +1,8 @@
-from g_smotenc import GSMOTENC, _geometric_continuous, _sigma_med, JointOneHot
+"""Run from the repository root with:
+
+    python src/papers/test_g_smotenc.py
+"""
+
 from collections import Counter
 from pathlib import Path
 import sys
@@ -7,6 +11,8 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+
+from g_smotenc import GSMOTENC, _geometric_continuous, _sigma_med, JointOneHot
 
 
 def _toy_dataset(seed=0):
@@ -74,9 +80,6 @@ def test_reproducible_with_random_state():
 
 
 def test_deformation_one_collapses_to_segment():
-    # Algorithm 3: with deformation_factor = 1 the perpendicular component is
-    # removed, so the continuous sample must lie on the line through x_c along
-    # (x_nn - x_c). Verified on a controlled 2-D pair.
     rng = np.random.default_rng(0)
     x_c = np.array([0.0, 0.0])
     x_nn = np.array([2.0, 0.0])

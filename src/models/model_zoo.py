@@ -24,14 +24,6 @@ EXACT_KERNEL_MAX_TRAIN = 8000
 
 
 class ClampedNystroem(Nystroem):
-    """Nystroem that never asks for more landmarks than it has samples.
-
-    The search grid offers up to 1000 components, but a cross-validation fold
-    can hold fewer rows than that. Plain Nystroem warns "n_components >
-    n_samples" and silently reduces the count, so those candidates were being
-    scored under a configuration different from the one recorded. Clamping
-    makes the recorded configuration the one actually used.
-    """
 
     def fit(self, X, y=None):
         self.n_components = min(self.n_components, X.shape[0])
@@ -39,7 +31,6 @@ class ClampedNystroem(Nystroem):
 
 
 class SubsampledKernelRidge(RegressorMixin, BaseEstimator):
-    # Exact RBF kernel ridge on a reproducible subset; records rows used.
     def __init__(self, alpha=1.0, kernel="rbf", gamma=None,
                  max_train_rows=None, random_state=None):
         self.alpha = alpha
@@ -71,7 +62,6 @@ class SubsampledKernelRidge(RegressorMixin, BaseEstimator):
 
 
 class LabelEncodedClassifier(ClassifierMixin, BaseEstimator):
-    # XGBClassifier takes integer labels only.
     def __init__(self, estimator=None):
         self.estimator = estimator
 
@@ -101,7 +91,6 @@ HAS_XGBOOST = _has("xgboost")
 HAS_LIGHTGBM = _has("lightgbm")
 
 
-# Kernel methods are pre-match only; an exact Gram on 28k snapshot rows is infeasible.
 TASK_SUPPORT = {
     "dummy": {"C", "R", "L"},
     "kernel_svm": {"C"},
@@ -227,7 +216,6 @@ def _regressor_builders():
     return builders
 
 
-# Equal candidate count per model (tuning.py); `dummy` has nothing to tune.
 CLASSIFIER_SPACES = {
     "random_forest": {"n_estimators": [200, 300, 500],
                       "max_depth": [None, 8, 14, 20],
@@ -252,7 +240,6 @@ CLASSIFIER_SPACES = {
                  "subsample": [0.6, 0.8, 1.0],
                  "colsample_bytree": [0.6, 0.8, 1.0],
                  "reg_lambda": [0.0, 1.0, 5.0]},
-    # lam comes from the paper's inner CV; an outer grid would inflate its budget.
     "p2_hier_shrinkage": {"n_estimators": [200, 300, 500],
                           "max_depth": [None, 8, 14, 20]},
 }
@@ -293,7 +280,6 @@ REGRESSOR_SPACES = {
 
 
 def _zoo(builders, random_state, task, tuned):
-    # task is C / R / L, or None for everything; tuned comes from tuning.py.
     tuned = tuned or {}
     zoo = {}
     for name, builder in builders.items():

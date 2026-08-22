@@ -1,15 +1,17 @@
-"""Task L metrics by match minute against the frozen pre-match reference, plus
-per-game-phase calibration.
+"""Run from the repository root with:
 
     python src/models/inplay_curves.py
 """
 
 from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from modeling_common import (CLASS_ORDER, RESULTS_DIR, classification_metrics,
                              expected_calibration_error, regression_metrics)
@@ -17,14 +19,13 @@ from modeling_common import (CLASS_ORDER, RESULTS_DIR, classification_metrics,
 
 VIZ_DIR = Path(__file__).resolve().parent.parent / "reports" / "visualizations"
 
-# Minute 90 is the final regulation snapshot and belongs with 75-90.
 PHASE_EDGES = [(0, 15), (15, 30), (30, 45), (45, 60), (60, 75), (75, 91)]
 PHASE_LABELS = ["0-15", "15-30", "30-45", "45-60", "60-75", "75-90"]
 
 PROBABILITY_COLUMNS = [f"p_{c}" for c in CLASS_ORDER]
 
 
-def _read(name):
+def _read_predictions(name):
     path = RESULTS_DIR / f"predictions_{name}.csv"
     if not path.exists():
         raise FileNotFoundError(f"Missing {path}. Run run_models.py first.")
@@ -39,7 +40,6 @@ def phase_of(minute):
 
 
 def freeze_prematch(inplay, prematch, columns):
-    """Broadcast each match's pre-match prediction across all its snapshots."""
     reference = prematch[["match_id", *columns]].drop_duplicates("match_id")
     merged = inplay[["match_id", "snapshot_minute", "y_true"]].merge(
         reference, on="match_id", how="inner")
@@ -49,8 +49,8 @@ def freeze_prematch(inplay, prematch, columns):
 
 
 def classification_curves(rows):
-    inplay = _read("Lc")
-    prematch = _read("C")
+    inplay = _read_predictions("Lc")
+    prematch = _read_predictions("C")
     shared_models = sorted(set(inplay["model"]) & set(prematch["model"]))
 
     for model in sorted(inplay["model"].unique()):
@@ -79,8 +79,8 @@ def classification_curves(rows):
 
 
 def regression_curves(rows):
-    inplay = _read("Lr")
-    prematch = _read("R")
+    inplay = _read_predictions("Lr")
+    prematch = _read_predictions("R")
     shared_models = sorted(set(inplay["model"]) & set(prematch["model"]))
 
     for model in sorted(inplay["model"].unique()):
@@ -107,7 +107,7 @@ def regression_curves(rows):
 
 
 def calibration_by_phase():
-    inplay = _read("Lc")
+    inplay = _read_predictions("Lc")
     inplay = inplay.assign(phase=inplay["snapshot_minute"].map(phase_of))
     rows = []
     for (model, phase), group in inplay.groupby(["model", "phase"]):
@@ -187,7 +187,6 @@ def main():
                   encoding="utf-8")
     plot(curves, phases, VIZ_DIR / "inplay_curves.html")
 
-    # Flat by construction; any slope means the reference leaked match progress.
     frozen = curves[(curves["series"] == "frozen pre-match")
                     & (curves["task"] == "Lc")]
     for model, group in frozen.groupby("model"):

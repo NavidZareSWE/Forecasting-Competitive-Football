@@ -1,7 +1,4 @@
-"""End-to-end run: raw JSON -> relational store -> features -> models -> analysis.
-
-A hard dependency chain; each stage reads the previous stage's CSV. Stages are
-subprocesses because src/ has no package structure.
+"""Run from the repository root with:
 
     python src/pipeline/run_all.py                  # everything
     SKIP_TUNING=1 python src/pipeline/run_all.py    # reuse best_params.json
@@ -13,17 +10,15 @@ import sys
 import time
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent          # src/pipeline
-SRC = HERE.parent                               # src
+HERE = Path(__file__).resolve().parent
+SRC = HERE.parent
 VIZ_DIR = SRC / "viz"
 FEATURE_DIR = SRC / "features"
 MODEL_DIR = SRC / "models"
 PAPER_DIR = SRC / "papers"
 
-# The search is the longest stage and best_params.json is stable across reruns.
 SKIP_TUNING = os.environ.get("SKIP_TUNING", "") not in {"", "0"}
 
-# (step name, directory the script lives in, script filename)
 STEPS = [
     # --- Phases 1-4: raw JSON to the relational store ---
     ("Relational store (matches, labels, lineups, events, cleaning, splits)",

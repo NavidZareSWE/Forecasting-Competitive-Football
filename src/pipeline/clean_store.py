@@ -1,11 +1,13 @@
 from pathlib import Path
+import sys
 
 import pandas as pd
 
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+
 from build_event_store import load_events
 
-
-HERE = Path(__file__).resolve().parent
 PROJECT = HERE.parent
 PROCESSED_DIR = PROJECT / "reports" / "processed"
 

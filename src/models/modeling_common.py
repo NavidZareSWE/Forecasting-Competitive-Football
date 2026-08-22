@@ -67,7 +67,6 @@ def task_frame(task):
     return df, continuous_cols, nominal_cols, target, task_type
 
 
-# Brief 7.1 arms. class_weight is an estimator argument, not a resampler.
 RESAMPLERS = ("none", "p1", "smote", "borderline_smote", "adasyn")
 
 
@@ -91,7 +90,6 @@ def prepare_matrices(df, continuous_cols, nominal_cols, target, task_type,
     if resampling not in RESAMPLERS:
         raise ValueError(f"Unknown resampling arm {resampling!r}; "
                          f"expected one of {RESAMPLERS}")
-    # Brief 7.2: never oversample the snapshot table across matches.
     if resampling != "none" and "snapshot_minute" in df.columns:
         raise ValueError(
             f"Resampling arm {resampling!r} requested on the in-play snapshot "
@@ -112,7 +110,6 @@ def prepare_matrices(df, continuous_cols, nominal_cols, target, task_type,
         if nominal_cols else np.empty((len(parts["train"]), 0), dtype=object)
     y_train = parts["train"][target].to_numpy()
 
-    # Train rows only; validation and test are never resampled.
     if resampling == "p1" and task_type == "classification":
         n_cont = train_cont.shape[1]
         mixed = np.hstack([train_cont.astype(object), train_nom])
@@ -121,7 +118,6 @@ def prepare_matrices(df, continuous_cols, nominal_cols, target, task_type,
         train_nom = mixed[:, n_cont:]
     elif resampling in {"smote", "borderline_smote", "adasyn"} \
             and task_type == "classification":
-        # imbalanced-learn is numeric-only: one-hot, then snap back to one category.
         n_cont = train_cont.shape[1]
         pre_encoder = OneHotEncoder(
             handle_unknown="ignore", sparse_output=False)
@@ -156,11 +152,10 @@ def prepare_matrices(df, continuous_cols, nominal_cols, target, task_type,
         return np.hstack([cont, nom])
 
     def meta(subset):
-        # Row identity travels with the matrices so downstream analyses can join back.
         columns = [c for c in ["match_id", "snapshot_minute", "match_date",
                                "competition_name"] if c in subset.columns]
         return subset[columns].reset_index(drop=True)
-        # SHAP and the ablation need the design-matrix column order by name.
+
     encoded_names = (list(encoder.get_feature_names_out(nominal_cols))
                      if nominal_cols else [])
     feature_names = list(continuous_cols) + encoded_names
@@ -182,18 +177,17 @@ def prepare_matrices(df, continuous_cols, nominal_cols, target, task_type,
 
 
 def fit_with_cost(estimator, X, y):
-    # RSS sampled from a thread: a kernel fit peaks inside one BLAS call.
     process = psutil.Process()
     baseline = process.memory_info().rss
     peak = baseline
     stop = threading.Event()
 
-    def sample():
+    def poll_peak_memory():
         nonlocal peak
         while not stop.wait(0.01):
             peak = max(peak, process.memory_info().rss)
 
-    sampler = threading.Thread(target=sample, daemon=True)
+    sampler = threading.Thread(target=poll_peak_memory, daemon=True)
     sampler.start()
     start = time.perf_counter()
     try:
@@ -256,7 +250,6 @@ def classification_metrics(proba, y_true, order=CLASS_ORDER):
 
 
 def per_class_metrics(proba, y_true, order=CLASS_ORDER):
-    # Aggregates hide the draw class, which is the one every resampling arm moves.
     predicted = np.array([order[i] for i in proba.argmax(axis=1)])
     y_true = np.asarray(y_true)
     scores = {}
@@ -289,7 +282,6 @@ def regression_metrics(y_pred, y_true):
     return {"mae": mae, "rmse": rmse, "corr": corr}
 
 
-# Isotonic on ~340 validation rows emits exact zeros; floor them before log-loss.
 PROBABILITY_FLOOR = 0.005
 
 

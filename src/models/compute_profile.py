@@ -1,18 +1,17 @@
-"""Phase 7: compute and memory comparison across the model zoo.
-
-Fit time, peak resident memory during the fit, inference latency on the full
-test matrix, and serialised model size, measured on the same machine in one
-process so the numbers are comparable. The kernel scaling exponents from
-kernel_scaling.py are folded in where they exist.
+"""Run from the repository root with:
 
     python src/models/compute_profile.py
 """
 
+from pathlib import Path
 import pickle
+import sys
 import time
 
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from modeling_common import (RESULTS_DIR, fit_with_cost, prepare_matrices,
                              task_frame)
@@ -35,7 +34,7 @@ def model_size_mb(estimator):
 
 def predict_seconds(estimator, X, is_classification):
     call = estimator.predict_proba if is_classification else estimator.predict
-    call(X[:1])                                     # warm up lazy allocations
+    call(X[:1])
     timings = []
     for _ in range(PREDICT_REPEATS):
         started = time.perf_counter()

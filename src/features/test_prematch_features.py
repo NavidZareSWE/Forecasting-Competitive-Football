@@ -1,13 +1,15 @@
-"""Tests for the pre-match feature builder (Phase 5A).
-
-Every expected value below is computed by hand from the fixture, not from the
-code under test.
+"""Run from the repository root with:
 
     python src/features/test_prematch_features.py
 """
 
+from pathlib import Path
+import sys
+
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from build_prematch_features import (ROLLING_WINDOW, add_rolling_form_features,
                                      build_prematch_features,
@@ -15,8 +17,6 @@ from build_prematch_features import (ROLLING_WINDOW, add_rolling_form_features,
 
 
 # --- Fixture ----------------------------------------------------------------
-# Team 1 plays six matches; team 2 is the opponent every time, so the fixture
-# also exercises the home/away pivot. Scores chosen so no two windows coincide.
 FIXTURE_SCORES = [(3, 0), (1, 1), (0, 2), (2, 2), (4, 1), (0, 0), (1, 0)]
 FIXTURE_XG = [(2.5, 0.4), (1.1, 1.3), (0.6, 1.9), (1.8, 2.1), (3.2, 0.9),
               (0.7, 0.8), (1.4, 0.5)]
@@ -67,7 +67,6 @@ def test_points_and_win_follow_the_scoreline():
     matches, events_index = make_fixture()
     team_match = build_team_match_long_table(matches, events_index)
     rows = home_rows(team_match)
-    # win, draw, loss, draw, win, draw, win.
     assert rows["points"].tolist() == [3, 1, 0, 1, 3, 1, 3], \
         "points do not follow the scoreline"
     assert rows["win"].tolist() == [1, 0, 0, 0, 1, 0, 1], \
@@ -98,7 +97,6 @@ def test_rolling_form_is_the_hand_computed_prior_mean():
     rows = home_rows(team_match)
     goals_for = [s[0] for s in FIXTURE_SCORES]
 
-    # Prior-only mean over at most ROLLING_WINDOW previous matches.
     expected = []
     for position in range(len(goals_for)):
         window = goals_for[max(0, position - ROLLING_WINDOW):position]
@@ -109,7 +107,6 @@ def test_rolling_form_is_the_hand_computed_prior_mean():
         "the first entry must be missing"
     assert np.allclose(observed[1:], expected[1:]), \
         f"rolling form mismatch: {observed} != {expected}"
-    # Spelled out for the fourth match: mean of 3, 1, 0.
     assert abs(observed[3] - (3 + 1 + 0) / 3) < 1e-12, \
         "the fourth match must average exactly the first three"
     print(f"ok  rolling form equals the hand-computed prior mean "
@@ -122,7 +119,6 @@ def test_window_never_exceeds_its_length():
         build_team_match_long_table(matches, events_index))
     rows = home_rows(team_match)
     goals_for = [s[0] for s in FIXTURE_SCORES]
-    # The seventh match must ignore the first: the window holds five matches.
     expected = float(np.mean(goals_for[1:6]))
     assert abs(rows["form_gf"].iloc[6] - expected) < 1e-12, \
         "the rolling window did not drop the oldest match"
@@ -170,7 +166,6 @@ def test_pivot_produces_one_row_per_match_with_consistent_differences():
 
 
 def test_no_feature_column_uses_the_current_match():
-    """The graded barrier: perturbing a match's own result must not move it."""
     matches, events_index = make_fixture()
     baseline = build_prematch_features(add_rolling_form_features(
         build_team_match_long_table(matches, events_index)))

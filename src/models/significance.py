@@ -1,22 +1,4 @@
-"""Phase 7: statistical tests across repeated experiments.
-
-Two independent sources of repetition, because a single point estimate is not
-evidence:
-
-  1. Seed repetition - every model refitted on the fixed splits under N_SEEDS
-     random states. This measures STABILITY, not superiority: the only thing
-     varying is the random state, so a deterministic model has zero spread and
-     a paired t-test over seeds divides by ~0 and reports p ~ 0 for any gap,
-     however small it is relative to match-level noise. These columns are
-     therefore reported as stability diagnostics and are never used to claim
-     that one model beats another.
-  2. Match-clustered bootstrap of the evaluation set - snapshots of one match
-     are not independent, so the bootstrap resamples matches, not rows. This
-     is the ONLY test in this file that licenses a superiority claim, because
-     it resamples the quantity that actually limits the conclusion: the finite
-     set of 344 test matches.
-
-Holm-Bonferroni controls the family-wise error rate within each task.
+"""Run from the repository root with:
 
     python src/models/significance.py
 
@@ -27,11 +9,15 @@ shell syntax and fails on cmd.exe, so set it first on Windows:
     N_SEEDS=3 python src/models/significance.py           bash
 """
 
+from pathlib import Path
 import os
+import sys
 
 import numpy as np
 import pandas as pd
 from scipy import stats
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from modeling_common import (CLASS_ORDER, RESULTS_DIR, prepare_matrices,
                              task_frame, ranked_probability_score)
@@ -50,7 +36,6 @@ TASKS = ["C", "R", "Lc", "Lr"]
 
 # --- Per-row losses ---------------------------------------------------------
 def row_losses(task):
-    """Per-row loss from the sweep's stored test predictions, by model."""
     path = RESULTS_DIR / f"predictions_{task}.csv"
     if not path.exists():
         raise FileNotFoundError(f"Missing {path}. Run run_models.py first.")
@@ -72,7 +57,6 @@ def row_losses(task):
 
 
 def clustered_bootstrap(loss_a, loss_b, n_bootstrap=N_BOOTSTRAP):
-    """Resample matches, not rows: snapshots within a match are dependent."""
     frame = pd.DataFrame({"match_id": loss_a.index,
                           "a": loss_a.to_numpy(), "b": loss_b.to_numpy()})
     per_match = frame.groupby("match_id")[["a", "b"]].mean()
@@ -82,7 +66,6 @@ def clustered_bootstrap(loss_a, loss_b, n_bootstrap=N_BOOTSTRAP):
     rng = np.random.default_rng(BOOTSTRAP_SEED)
     n = len(difference)
     draws = difference[rng.integers(0, n, size=(n_bootstrap, n))].mean(axis=1)
-    # Two-sided p-value from the bootstrap distribution centred on zero.
     centred = draws - observed
     p_value = float((np.abs(centred) >= abs(observed)).mean())
     low, high = np.percentile(draws, [2.5, 97.5])
@@ -90,7 +73,6 @@ def clustered_bootstrap(loss_a, loss_b, n_bootstrap=N_BOOTSTRAP):
 
 
 def holm(p_values):
-    """Holm-Bonferroni adjusted p-values, order preserved."""
     p_values = np.asarray(p_values, dtype=float)
     order = np.argsort(p_values)
     m = len(p_values)
@@ -172,7 +154,6 @@ def seed_tests(seed_frame, task):
         adjusted = holm([r["seed_t_p"] for r in records])
         for record, value in zip(records, adjusted):
             record["seed_t_p_holm"] = round(float(value), 6)
-            # Deliberately not called "significant": see the module docstring.
             record["gap_exceeds_seed_noise"] = bool(value < ALPHA)
             record["licenses_superiority_claim"] = False
     return records

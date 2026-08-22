@@ -16,8 +16,6 @@ ON_TARGET_OUTCOMES = {"Goal", "Saved", "Saved To Post"}
 
 
 def effective_minute(events_sorted):
-    # Leakage invariant: accumulate only raises, so eff[i] <= t implies minute[i] <= t.
-    # Side effect: period 2 restarts at 45', so its opening events wait until t=50.
     return np.maximum.accumulate(events_sorted["minute"].to_numpy())
 
 
@@ -60,8 +58,6 @@ def snapshot_state(prefix, home_team_id, away_team_id, snapshot_minute,
     home_red = int((dismissals["team_id"] == home_team_id).sum())
     away_red = int((dismissals["team_id"] == away_team_id).sum())
 
-    # Windowed on effective minute; the raw column is wrong for exactly the rows
-    # the repair exists for.
     recent = prefix[prefix_effective_minutes >=
                     snapshot_minute - RECENT_WINDOW_MINUTES]
     recent_shots = recent[recent["type"] == "Shot"]
@@ -87,19 +83,17 @@ def snapshot_state(prefix, home_team_id, away_team_id, snapshot_minute,
 
 
 def build_match_snapshots(events, home_team_id, away_team_id):
-    # No-op on clean data (index is already globally chronological); keeps
-    # periods separated if an index is corrupted. Test fixtures carry no period.
     sort_keys = ["period", "index"] if "period" in events.columns else ["index"]
     events_sorted = events.sort_values(
         sort_keys, kind="stable").reset_index(drop=True)
-    eff = effective_minute(events_sorted)
+    effective_minutes = effective_minute(events_sorted)
     rows = []
     for minute in SNAPSHOT_MINUTES:
-        prefix_len = prefix_length_at(eff, minute)
-        assert_prefix(eff, prefix_len, minute)
+        prefix_len = prefix_length_at(effective_minutes, minute)
+        assert_prefix(effective_minutes, prefix_len, minute)
         prefix = events_sorted.iloc[:prefix_len]
         rows.append(snapshot_state(prefix, home_team_id, away_team_id, minute,
-                                   eff[:prefix_len]))
+                                   effective_minutes[:prefix_len]))
     return pd.DataFrame(rows)
 
 

@@ -1,15 +1,7 @@
-"""Is the pipeline still working, or is it stuck?
-
-Run this in a SECOND terminal while run_pipeline.py keeps going. It only reads,
-never writes, so it cannot disturb the run.
+"""Run in a SECOND terminal while run_pipeline.py keeps going; read-only.
 
     python check_progress.py            # sample twice, 30s apart
     python check_progress.py --wait 90  # longer gap for slow stages
-
-It reports what has been produced so far, then samples again after a pause and
-tells you whether anything changed. Growth means it is working. No growth for a
-few minutes on a stage that should be producing files means it is worth
-investigating.
 """
 
 from datetime import datetime
@@ -25,8 +17,6 @@ REPORTS = SRC / "reports"
 STATSBOMB = SRC / "data" / "statsbomb_open_data" / "data"
 LOGS = PROJECT / "console-outputs"
 
-# What each stage produces, in the order the pipeline produces it. Used to say
-# which stage the run has most likely reached.
 MILESTONES = [
     ("data: match store", PROCESSED / "match_store.csv"),
     ("data: label store", PROCESSED / "model_targets.csv"),
@@ -62,8 +52,7 @@ def age(path):
     return f"{seconds / 3600:.1f} h ago"
 
 
-def sample():
-    """A cheap snapshot: counts and total bytes of everything that grows."""
+def growth_snapshot():
     snapshot = {}
     events = STATSBOMB / "events"
     files = list(events.glob("*.json")) if events.is_dir() else []
@@ -132,7 +121,6 @@ def report_state():
 
 
 def current_step():
-    """The step in flight, from the log the runner streams as it goes."""
     running = LOGS / "_running.txt"
     if not running.exists():
         return None, None
@@ -146,7 +134,6 @@ def current_step():
 
 
 def watch(interval):
-    """One compact line per tick, each compared with the tick before it."""
     print(f"Watching every {interval}s. Ctrl-C to stop.\n")
     print(f"{'time':<10}{'step':<34}{'done':>5}{'sb files':>10}"
           f"{'change since last tick':>26}")
@@ -154,7 +141,7 @@ def watch(interval):
     previous = None
     try:
         while True:
-            snapshot = sample()
+            snapshot = growth_snapshot()
             name, last = current_step()
             done = sum(1 for _, path in MILESTONES if path.exists())
             events = snapshot["statsbomb_events"][0]
@@ -204,9 +191,9 @@ def main():
 
     print(f"\nSampling again in {arguments.wait}s to see if anything "
           f"changes...")
-    before = sample()
+    before = growth_snapshot()
     time.sleep(arguments.wait)
-    after = sample()
+    after = growth_snapshot()
 
     print()
     moved = False

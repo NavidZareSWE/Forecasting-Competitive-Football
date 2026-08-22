@@ -1,10 +1,15 @@
-"""Tests for the P2 reimplementation (Hierarchical Shrinkage, ICML 2022).
+"""Run from the repository root with:
 
     python src/papers/test_hierarchical_shrinkage.py
 """
 
+from pathlib import Path
+import sys
+
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from hierarchical_shrinkage import (HSForestClassifier, HSForestRegressor,
                                     HSTreeClassifier, HSTreeRegressor,
@@ -50,7 +55,6 @@ def test_large_lambda_collapses_to_the_root_mean():
 
 
 def test_shrinkage_matches_the_paper_equation_on_every_path():
-    # Checked against a literal per-path transcription of the paper equation.
     X, y = make_regression_data(n=200, seed=3)
     tree = DecisionTreeRegressor(max_depth=5, random_state=0).fit(X, y).tree_
     lam = 12.5
@@ -79,7 +83,6 @@ def test_shrinkage_matches_the_paper_equation_on_every_path():
 
 
 def test_classifier_output_is_a_valid_probability_vector():
-    # Appendix A predicts no clipping is needed at any lam.
     X, y = make_classification_data()
     tree = DecisionTreeClassifier(max_depth=8, random_state=0).fit(X, y).tree_
     for lam in LAMBDA_GRID:
@@ -99,7 +102,6 @@ def test_own_leaf_descent_matches_sklearn_apply():
 
 
 def test_shrinkage_is_monotone_towards_the_root():
-    # Increasing lam must move every leaf monotonically closer to the root mean.
     X, y = make_regression_data()
     tree = DecisionTreeRegressor(max_depth=8, random_state=0).fit(X, y).tree_
     root = _node_means(tree, is_classifier=False)[0, 0]

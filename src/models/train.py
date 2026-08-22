@@ -1,5 +1,10 @@
+from pathlib import Path
+import sys
+
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from modeling_common import (
     prepare_matrices, classification_metrics, per_class_metrics,
@@ -12,13 +17,11 @@ MARGIN_CLIP = (-5, 5)
 
 
 def evaluate_classification(model_name, factory, data, resampling="none"):
-    """Fit, calibrate, score. Returns (metrics_row, per-row test predictions)."""
     matrices = prepare_matrices(*data, resampling=resampling)
     estimator = factory()
     train_seconds, peak_mb = fit_with_cost(
         estimator, matrices["X_train"], matrices["y_train"])
 
-    # Floored like the calibrated output, so before/after differ by the calibrator.
     raw = floor_probabilities(
         _proba_in_order(estimator, matrices["X_test"], CLASS_ORDER))
     before = classification_metrics(raw, matrices["y_test"])
@@ -53,7 +56,6 @@ def evaluate_classification(model_name, factory, data, resampling="none"):
 
 
 def evaluate_regression(model_name, factory, data, resampling="none"):
-    # Resampling is a classification study (brief 7.1).
     matrices = prepare_matrices(*data, resampling="none")
     estimator = factory()
     train_seconds, peak_mb = fit_with_cost(
@@ -72,11 +74,9 @@ def evaluate_regression(model_name, factory, data, resampling="none"):
         "mae": round(metrics["mae"], 5), "rmse": round(metrics["rmse"], 5),
         "corr": round(metrics["corr"], 5),
     }
-    # The exact kernel subsamples; the compute table has to say so.
     if hasattr(estimator, "n_train_used_"):
         row["n_train"] = int(estimator.n_train_used_)
         row["subsampled"] = bool(estimator.subsampled_)
-    # Which lambda the paper method's inner CV chose.
     if hasattr(estimator, "lam_"):
         row["hs_lambda"] = float(estimator.lam_)
 

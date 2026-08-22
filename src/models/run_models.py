@@ -1,12 +1,15 @@
-"""Main sweep: every model on every task, with the tuned configurations.
+"""Run from the repository root with:
 
-Writes model_results.csv and predictions_<task>.csv; the latter feed
-market_comparison.py, inplay_curves.py and the diagnostic plots.
+    python src/models/run_models.py
 """
 
+from pathlib import Path
 import os
+import sys
 
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from modeling_common import task_frame, RESULTS_DIR
 from model_zoo import classifier_zoo, regressor_zoo
@@ -23,7 +26,6 @@ TASK_LABELS = {
 
 ZOO_TASK = {"C": "C", "R": "R", "Lc": "L", "Lr": "L"}
 
-# Pre-match table only; the six-arm comparison lives in resampling_study.py.
 P1_ELIGIBLE_TASKS = {"C"}
 
 
@@ -99,10 +101,6 @@ def write_predictions(frame, task):
 
 
 def main():
-    # TASKS lets a killed or interrupted sweep resume without repeating the
-    # tasks that already completed. Results for tasks not selected are carried
-    # over from the existing file rather than dropped, so the output always
-    # describes the full sweep.
     selected = [t for t in os.environ.get("TASKS", "C,Lc,R,Lr").split(",")
                 if t.strip()]
     unknown = [t for t in selected if t not in TASK_LABELS]

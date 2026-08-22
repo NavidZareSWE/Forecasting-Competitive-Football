@@ -9,7 +9,6 @@ class JointOneHot:
         self.categories_ = {}
 
     def fit(self, x_all):
-        # Categories are learned on the COMBINED minority + majority rows so the
         for j in self.categorical_features:
             column = x_all[:, j]
             self.categories_[j] = sorted({v for v in column})

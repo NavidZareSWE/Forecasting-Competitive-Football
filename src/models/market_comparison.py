@@ -1,13 +1,15 @@
-"""Task C models re-scored against the de-vigged market on the identical
-odds-tagged test subset, with the tagging coverage rate.
+"""Run from the repository root with:
 
     python src/models/market_comparison.py
 """
 
 from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from modeling_common import (CLASS_ORDER, RESULTS_DIR, classification_metrics,
                              per_class_metrics)
@@ -16,7 +18,6 @@ from modeling_common import (CLASS_ORDER, RESULTS_DIR, classification_metrics,
 PROJECT = Path(__file__).resolve().parent.parent
 PROCESSED_DIR = PROJECT / "reports" / "processed"
 
-# H/D/A and home/draw/away are the same three columns.
 MARKET_COLUMNS = {"H": "p_home", "D": "p_draw", "A": "p_away"}
 
 
@@ -34,7 +35,6 @@ def load_market():
     market = pd.read_csv(path, encoding="utf-8")
     probabilities = market[[MARKET_COLUMNS[c] for c in CLASS_ORDER]].to_numpy()
 
-    # De-vigging contract re-asserted at the point of use.
     assert np.all(market["overround"] > 1.0), \
         "market rows with overround <= 1 found; de-vigging is not meaningful"
     assert np.allclose(probabilities.sum(axis=1), 1.0, atol=1e-9), \

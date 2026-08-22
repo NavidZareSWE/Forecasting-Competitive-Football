@@ -20,17 +20,15 @@ def _events(rows):
 
 
 def _match(home=1, away=2):
-    # index-ordered events; note the corrupted minute=0 at index 5 (a real
-    # StatsBomb artifact) sitting between minute-10 and minute-20 events.
     rows = [
         [0, 0, "Pass", 1, False, None, np.nan, None],
-        [1, 5, "Shot", 1, True, "Goal", 0.4, None],       # home goal at 5'
-        [2, 8, "Shot", 2, False, "Saved", 0.1, None],     # away SOT at 8'
-        [3, 10, "Foul Committed", 2, False, None, np.nan, "Red Card"],  # away red 10'
+        [1, 5, "Shot", 1, True, "Goal", 0.4, None],
+        [2, 8, "Shot", 2, False, "Saved", 0.1, None],
+        [3, 10, "Foul Committed", 2, False, None, np.nan, "Red Card"],
         [4, 10, "Pass", 1, False, None, np.nan, None],
-        [5, 0, "Pass", 2, False, None, np.nan, None],     # corrupted minute
-        [6, 20, "Shot", 1, True, "Goal", 0.6, None],      # home goal at 20'
-        [7, 40, "Own Goal For", 2, False, None, np.nan, None],  # away benefits 40'
+        [5, 0, "Pass", 2, False, None, np.nan, None],
+        [6, 20, "Shot", 1, True, "Goal", 0.6, None],
+        [7, 40, "Own Goal For", 2, False, None, np.nan, None],
     ]
     return _events(rows), home, away
 
@@ -44,7 +42,6 @@ def test_effective_minute_is_monotonic():
 def test_corrupted_minute_not_pulled_early():
     events, _, _ = _match()
     eff = effective_minute(events.sort_values("index"))
-    # the corrupted 0 at index 5 must take the running max (10), not 0
     assert eff[5] == 10, "corrupted minute was not repaired by the running max"
 
 
@@ -70,21 +67,16 @@ def test_no_future_event_leaks_into_snapshot():
 def test_score_matches_prefix_only():
     events, home, away = _match()
     snaps = build_match_snapshots(events, home, away).set_index("snapshot_minute")
-    # at 5': only the home goal has occurred
     assert snaps.loc[5, "inplay_home_goals"] == 1
     assert snaps.loc[5, "inplay_away_goals"] == 0
-    # at 15': home 1, away 0 still (second home goal is at 20')
     assert snaps.loc[15, "inplay_goal_diff"] == 1
-    # at 20': home 2
     assert snaps.loc[20, "inplay_home_goals"] == 2
-    # at 40': away own-goal-for credited
     assert snaps.loc[40, "inplay_away_goals"] == 1
 
 
 def test_man_advantage_sign():
     events, home, away = _match()
     snaps = build_match_snapshots(events, home, away).set_index("snapshot_minute")
-    # away team sent off at 10' -> home has +1 man advantage from 10' onward
     assert snaps.loc[5, "inplay_man_advantage"] == 0
     assert snaps.loc[10, "inplay_man_advantage"] == 1
     assert snaps.loc[90, "inplay_man_advantage"] == 1

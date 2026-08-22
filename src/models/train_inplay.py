@@ -1,4 +1,7 @@
-"""In-play half of the sweep: Model 3, both labels, on the snapshot table."""
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from run_models import (TASK_LABELS, run_classification_task,
                         run_regression_task, write_predictions, write_results)
