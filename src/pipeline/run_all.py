@@ -56,6 +56,8 @@ STEPS = [
     ("In-play curves (metric vs minute, frozen reference, per-phase ECE)",
      MODEL_DIR, "inplay_curves.py"),
     ("Kernel scaling (O(n^2) demonstrated)", MODEL_DIR, "kernel_scaling.py"),
+    ("Ablation (feature groups + snapshot frequency, validation only)",
+     MODEL_DIR, "ablation.py"),
 
     # --- Visualisations ---
     ("Reliability diagrams", VIZ_DIR, "plot_calibration.py"),
