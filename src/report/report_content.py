@@ -326,44 +326,57 @@ def section_features(blocks):
         and is joined to the frozen pre-match vector when the model matrices
         are assembled."""))
     blocks.append(para("""
-        <b>One definition per quantity.</b> Both tables are built from a single
-        module that computes per-team quantities from a frame of events. The
-        pre-match builder passes a whole match and rolls the result into prior
-        form; the in-play builder passes the prefix of events up to minute t.
-        Because both go through the same function, the in-play value of a
-        quantity and the rolling form of that same quantity are guaranteed to
-        mean the same thing. Writing them separately would have allowed the two
-        definitions to drift apart silently, which is the kind of defect that
-        produces a model that works in training and fails in production."""))
+        <b>One raw store, two tested builders.</b> Both tables are computed
+        from the same cleaned event store, and the quantities they share -
+        shots, shots on target, pressures, corners, expected goals - are
+        defined by the same event predicates (an event of type Shot, a pass of
+        type Corner, and so on) against the same columns. The pre-match
+        builder aggregates a finished match into per-team totals and rolls
+        them into prior form; the in-play builder computes the same predicates
+        over the asserted prefix of events up to minute t. Each builder
+        carries its own hand-computed test suite, including the two graded
+        barrier tests: perturbing a match's own result or events moves none of
+        its pre-match features, and no event after minute t reaches the
+        snapshot at t."""))
     blocks.append(para("""
-        <b>What the quantities cover.</b> Beyond goals and expected goals, each
-        team's frame yields shot volume and shot location, passing volume split
-        by pitch third and the share of passing done in the attacking third,
-        carries and touches by third, average action position as a measure of
-        territory, pressures applied and the share applied high up the pitch,
-        events played under pressure, defensive actions and where they happen,
-        fouls committed and won, turnovers, possession measured by chain
-        ownership, and set-piece counts split into corners, free kicks and
-        throw-ins. Each is recorded for the team and for the opponents it
-        faced, so a team's defensive record is described as well as its
-        attacking one."""))
+        <b>What the pre-match quantities cover</b> (brief 2.2 and pipeline
+        stage 5A). Beyond rolling goals, expected goals, points and wins, each
+        team-match is summarised by shot volume and shots on target, pressures
+        applied, passing volume split by the pitch third it originates from
+        and its overall completion rate, carries that end in the final third,
+        set-piece counts split into corners, free kicks and throw-ins,
+        defensive actions (clearances, blocks, interceptions, ball recoveries,
+        duels and fouls committed), and possession share. All of these become
+        prior form through the same shift-then-roll as the goal columns. Two
+        further families need no rolling: head-to-head, the expanding mean of
+        result and margin over strictly earlier meetings of the specific pair,
+        and schedule, rest days and prior appearances. Every quantity appears
+        three times per match - home value, away value, and their difference -
+        for 71 model columns in total."""))
     blocks.append(para("""
-        <b>Possession is measured by chain, not by event count.</b> A raw event
-        share would credit a team for its own pressures and clearances, which
-        happen when it does not have the ball. Instead each possession chain is
-        attributed to the team that performed most of the on-ball work in it,
-        and possession share is the fraction of chains owned. The two teams'
-        shares sum to exactly one by construction, which the test suite
-        checks."""))
+        <b>Possession is measured by pass share.</b> Possession share is the
+        team's fraction of the match's attempted passes. Passes are on-ball
+        actions by definition, so the share does not credit a team for its
+        pressures or clearances, which happen when it does not have the ball;
+        StatsBomb's possession-chain ids are retained in the store, but chain
+        attribution was left out of the feature set to keep the quantity
+        hand-checkable. The two teams' shares sum to exactly one by
+        construction, which the test suite verifies on a hand-counted
+        fixture."""))
     blocks.append(para("""
-        <b>Three views of every in-play quantity.</b> Each is recorded as a
-        match total, as a difference over the recent ten-minute window, and as
-        a per-minute rate. The recent window is what makes momentum visible: a
-        team can be behind on the match totals while dominating the last ten
-        minutes, and only the windowed view expresses that. The per-minute rate
-        makes an early snapshot comparable with a late one, since a raw count
-        at minute 10 and the same count at minute 85 mean very different
-        things."""))
+        <b>The in-play state at minute t</b> (brief 5B). The snapshot carries
+        the score, the man-advantage from dismissals, and match-so-far
+        differences in shots, shots on target, expected goals, pressures,
+        corners, fouls and cards; a recent ten-minute window with the same
+        shot, pressure, corner and expected-goal differences plus per-minute
+        shot and event rates per side; and two momentum indicators - the
+        recent-window expected-goal difference minus the preceding window's,
+        and each side's share of recent events. The recent window is what
+        makes momentum visible: a team can be behind on the match totals while
+        dominating the last ten minutes, and only the windowed view expresses
+        that. The per-minute rates make an early snapshot comparable with a
+        late one, since a raw count at minute 10 and the same count at minute
+        85 mean very different things."""))
     blocks.append(para("""
         Leakage is the single largest risk in this project, because the label
         is derivable from the same event stream that the features come from. If
@@ -1468,11 +1481,12 @@ def section_ablation(blocks):
         matches and no correction was applied, so individually they are not
         strong evidence. The pattern is more informative than any single
         number: one group matters and the rest are interchangeable.
-        <b>Limitation.</b> This is also a statement about how narrow the
-        feature table is. With twenty-two model columns the groups are small
-        and highly correlated, so the ablation has limited power to separate
-        them. A wider feature set would make this analysis more
-        informative."""))
+        <b>Limitation.</b> Even at seventy-one model columns the groups
+        overlap in information - shots, expected goals and possession all
+        describe the same attacking dominance - so removing one group leaves
+        much of its signal reachable through the others, and the ablation has
+        limited power to separate them. That overlap, not the width of the
+        table, is what keeps the individual differences small."""))
 
     frequency = ablation[ablation["axis"] == "snapshot_frequency"]
     if not frequency.empty:
@@ -1500,11 +1514,14 @@ def section_ablation(blocks):
         blocks.append(para("""
             <b>What we expected.</b> Some loss from coarser training, since
             fewer examples usually means a worse model. <b>What we observed.</b>
-            Almost none between the finest and the middle grid, with a small
-            loss only at the coarsest. <b>Why.</b> The additional rows in the
-            finest grid are nearly duplicates of their neighbours. They increase
-            the row count without adding much independent information, so the
-            effective sample size grows far more slowly than the row count.
+            No loss at all between the finest and the middle grid - the middle
+            grid is in fact marginally better on both in-play tasks, with the
+            coarsest grid giving part of that back. <b>Why.</b> The additional
+            rows in the finest grid are nearly duplicates of their neighbours.
+            They increase the row count without adding much independent
+            information, so the effective sample size grows far more slowly
+            than the row count, and the near-duplicates can even act as noise
+            the middle grid avoids.
             This is the same dependence that forces grouped cross-validation
             and the clustered bootstrap elsewhere in this report, appearing
             here as a training-set effect. <b>Conclusion.</b> A coarser

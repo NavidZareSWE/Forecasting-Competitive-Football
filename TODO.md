@@ -1,112 +1,98 @@
-# TODO — gap list against the course brief
+# TODO — remaining work
 
-Derived from `docs/course-brief/Final_Project_Machine_Learning.pdf`, the `forME/`
-audit, and a code review of the six-PR stack in `docs/md2_delivery_plan.md`.
+Verified 2026-08-24 against the working tree, `git log`, and
+`docs/course-brief/Final_Project_Machine_Learning.pdf`. Updated the same day
+after the feature-depth / ablation / service work landed and the full
+pipeline re-ran end to end on the widened tables.
 
 Grading weights, for prioritisation:
 
 | Component | Weight | Status |
 |---|---|---|
-| Data integration & feature pipelines | 30% | done, features still thin |
-| Paper reimplementations (P1 + P2) | 20% | P1 done, P2 done pending TA sign-off |
-| Three models & comparative analysis | 20% | done |
-| Written report | 15% | stops at §3 of 13 |
-| Defences (2 mid + final) | 15% | MD2 ready, final blocked on SHAP |
+| Data integration & feature pipelines | 30% | done — 71 pre-match / 26 in-play model columns, brief §2.2/5A/5B covered |
+| Paper reimplementations (P1 + P2) | 20% | done; P2 pending TA sign-off |
+| Three models & comparative analysis | 20% | done, incl. ablation + P1 comparison |
+| Written report | 15% | §1–§11 + App A/B built (PDF + DOCX), zero "Result not available" markers |
+| Defences (2 mid + final) | 15% | MD2 pack ready; final-defence SHAP + live service/dashboard all runnable |
 
 ---
 
-## P0 — blocking
+## P0 — process, not code
 
-- [ ] **P2 TA sign-off.** Hierarchical Shrinkage (ICML 2022, CORE A\*) is selected,
-      reimplemented and derived, but the brief requires sign-off *before*
-      implementation. Present at Mid Defence 2; FIGS is the declared fallback.
-      Evidence: `docs/p2_paper_selection.md`, `docs/appendix_a_hierarchical_shrinkage.md`.
+- [ ] **P2 TA sign-off** for Hierarchical Shrinkage at Mid Defence 2. FIGS is the
+      declared fallback. Only remaining blocker anywhere.
 
-## P1 — mandatory brief requirements not implemented
+## P1 — remaining polish
 
-### SHAP (brief §7.3, §9, final defence)
-- [ ] No SHAP code anywhere. Required: global beeswarm per model/task, local
-      force/waterfall plots for the worst predictions, and an in-play SHAP timeline
-      across one full match. This is the final-defence centrepiece.
-- [ ] 10-worst-prediction post-mortem per task, explained with SHAP.
+- [ ] Rehearse the final-defence live case: `python src/service/app.py`, open
+      `http://127.0.0.1:8100/`, replay a TA-selected held-out match, narrate the
+      SHAP panel. `replay_driver.py` is the terminal fallback.
+- [ ] Optional: regenerate `console-outputs.zip` after any further re-run so the
+      shipped logs match the shipped numbers.
 
-### Model 2 → Model 1 (brief §1)
-- [ ] Required analysis of whether the regressed margin can be converted into useful
-      H/D/A probabilities. Not attempted.
+## P3 — housekeeping (unchanged)
 
-## P2 — feature pipeline depth (30% component)
-
-- [ ] Pre-match features are thin: rolling `gf/ga/xgf/xga/points/win` + `rest_days` +
-      `played_prior`. Brief §2.2 and flowchart 5A additionally name pressure
-      intensity, passing volume and completion by zone, carries into the final third,
-      set-piece counts, possession share, defensive actions, head-to-head, and venue.
-- [ ] In-play features carry only recent xG as a rate. Brief 5B asks for event
-      *counts and rates* in the recent window plus momentum indicators.
-- [ ] Document the early-season form caveat: `min_periods=1` means a team's second
-      match carries a one-match "rolling" average.
-
-## P3 — report and documentation (15% component)
-
-- [ ] `REPORT.md` stops at §3. The brief §8 structure needs §1-§9 plus Appendix A
-      (P2 hand derivation, already written) and Appendix B (reproducibility:
-      requirements, seeds, git log).
-- [ ] `REPORT.md` §3 contradicts the code on event ordering — it claims
-      `(period, timestamp, index)`; `build_inplay_features.py` sorts by
-      `(period, index)` deliberately, because ~26 events carry corrupted `00:00:00`
-      timestamps. The code is right; fix the prose.
-- [ ] Consolidated leakage document — the graded proof. Four barriers hold
-      (chronological splits, `.shift(1)` before `.rolling(5)`, the effective-minute
-      prefix cut with two-sided assertions, train-only transform fitting); the
-      summary in `docs/mid_defence_2.md` needs to move into the report.
-- [ ] Competition selection justification from `src/audit/competition_audit.py` needs
-      to land in report §2.
-- [ ] `README.md` is stale — references `Extras/` and `src/scripts/`, neither of which
-      exists, and marks completed work as pending.
-- [ ] P1 fidelity table (implementation vs paper) and the honest "did the synthetic
-      data actually help" result — `resampling_study.csv` now has the numbers.
-
-## P4 — housekeeping
-
-- [ ] `config.py` is populated with correct paths and has **zero importers**; every
-      script re-derives its own `PROJECT`. Wire it in or delete it.
-- [ ] `origin/feat/match-featrues` and `origin/feat/model-zoo-classifiers-regressors`
-      end in deletion commits that would remove `g_smotenc.py` and both feature
-      builders. Their content is already in `main`. Delete the remote branches so
-      nobody merges a tip.
-- [ ] `.gitignore` no longer contains `test*.py`; both test files are tracked. Do not
-      let it come back.
-- [ ] Decide whether `forME/` and the generated `src/reports/` artefacts belong in
-      the repo — see `docs/md2_delivery_plan.md`.
-- [ ] `prepare_matrices` re-fits the imputer, scaler and sampler once per model.
-      Correct, but on the snapshot table it is the dominant cost.
-
-## P5 — bonus (§11, optional credit)
-
-- [ ] FastAPI service wrapping Model 3 (plus Models 1-2 for the pre-kickoff state),
-      under 200 ms end to end, reusing the training feature code rather than
-      reimplementing it. Report p50 / p95 / p99 under repeated calls.
-- [ ] Live dashboard replaying a held-out match: outcome probabilities over match
-      time, expected final margin, goal/card markers, top SHAP attributions.
+- [ ] **Two orchestrators.** Root `run_pipeline.py` (preflight, resume,
+      env-snapshot, logging) is the superset and ran the full chain;
+      `src/pipeline/run_all.py` now includes ablation but still misses
+      `build_inplay_features`, `competition_audit`, `compute_profile`,
+      `margin_to_probability`, `significance`, `shap_analysis`, `build_report`.
+      Bless one as canonical (or make `run_all.py` delegate).
+- [ ] `config.py` is populated and correct but still has **zero importers**.
+      Wire it in or delete it.
+- [ ] Delete stale remote branches whose tips end in deletion commits —
+      `origin/feat/match-featrues`, `origin/feat/model-zoo-classifiers-regressors`
+      (content already in `main`); prune the other merged branches too.
+- [ ] Decide whether `forME/` and generated `src/reports/` artefacts stay in
+      the repo.
+- [ ] `CLAUDE.md` "Current state" section is stale (predates SHAP, the report
+      generator, `run_pipeline.py`, the service, and the widened features).
+- [ ] `REPORT.md` at the repo root still stops at §3; superseded by the
+      generated `src/reports/final_report.pdf`. Either delete it or leave a
+      pointer to the generated report.
 
 ---
 
-## Done and verified
+## Done and verified (2026-08-24 session)
 
-- Phases 1-4 relational store, labels, cleaning, temporal splits, market baseline.
-- Odds join on pre-match identity only, bijective alias map, 99.9% coverage.
-- G-SMOTENC (P1) from scratch — `python src/papers/test_g_smotenc.py` → 8/8.
-- Hierarchical Shrinkage (P2) from scratch, with the Appendix A derivation —
-  `python src/papers/test_hierarchical_shrinkage.py` → 8/8.
-- In-play time-t cut with two-sided prefix assertions —
-  `python src/features/test_inplay_cut.py` → 7/7.
-- Task-aware model zoo, training harness, calibration, four task runners.
-- Equal-budget random search with grouped CV — 288 evaluations, assert passes.
-- Market comparison on the odds-tagged test subset — coverage 0.9971, 0 of 7
-  models beat the de-vigged market.
-- Task L metric-vs-minute curves against a frozen pre-match reference, and
-  per-phase calibration.
-- Six-arm imbalance study with per-class metrics.
-- Kernel scaling exponents measured and asserted.
-- Reliability diagrams before and after calibration.
-- `run_all.py` runs the whole chain, Phase 1 through the analyses.
-- `libomp` installed; xgboost and lightgbm both load, zoo returns the full set.
+- **Feature depth (brief §2.2 / 5A / 5B).** `load_events` extended with
+  `pass_outcome`, `pass_type`, `end_x`, `end_y`; `clean_events.csv`
+  regenerated. Pre-match: 22 → 71 model columns (shots, SOT, pressures,
+  possession share by pass share, passing volume by pitch third + completion,
+  carries into the final third, corners/free kicks/throw-ins, defensive
+  actions, head-to-head expanding means) — all via the same
+  shift-then-roll; `test_prematch_features.py` 12/12 incl. extended barrier
+  (perturbing a match's own result *or events* moves nothing). In-play:
+  12 → 26 columns (prefix + recent-window counts, per-minute rates, xG
+  momentum, recent event share); `test_inplay_cut.py` 11/11, prefix
+  assertions cover every new feature.
+- **Full re-tune + sweep on the widened tables.** `TUNE_RESUME=0
+  run_pipeline.py --from tuning`: 16/17 steps green first pass (DOCX needed
+  `npm install docx`), tuning 41 min, all analyses regenerated. Market still
+  unbeaten (RPS 0.197 market vs 0.221 best model) — the honest-failure
+  narrative holds.
+- **Ablation** — `src/models/ablation.py`: feature-group axis (partition
+  asserted, 6 groups pre-match / 9 in-play), snapshot-frequency axis
+  (training thinned to every 5/15/45, validation at full density), plus
+  `p1_comparison.csv` (P1 raises draw recall on all six learners, RPS
+  slightly worse on all six). All validation-only. Wired into both
+  orchestrators; report §8 renders from it.
+- **Bonus service (brief §11)** — `src/service/app.py`: FastAPI, models +
+  calibrators + TreeSHAP explainer fitted once at startup, test-split-only
+  serving, `/predict`, `/replay/{id}`, `/matches`, `/health`, dashboard at
+  `/`. `measure_latency.py`: in-process p50/p95/p99 (predict p99 = 67 ms,
+  budget 200), parity assert vs the sweep's stored predictions — passes.
+  `dashboard.html` (probability lines, expected margin, goal/card markers,
+  top-SHAP bars, self-paced replay) + `replay_driver.py`.
+- **Report** — `p1_comparison.csv` + `competition_audit.csv` gaps filled
+  (competitions.json + 76 match files fetched to the cache), §3 prose
+  rewritten to describe the implemented feature set exactly, §8 column-count
+  and snapshot-frequency prose corrected to the measured result. PDF + DOCX
+  rebuilt: zero "Result not available" markers.
+- **Bug fix** — `run_pipeline.py` preflight `needs_store` set-in-set
+  `TypeError`.
+- Everything from before: relational store, odds join (0.9971), G-SMOTENC
+  8/8, Hierarchical Shrinkage 8/8, model zoo, equal-budget search, market
+  comparison, in-play curves, six-arm imbalance study, kernel scaling,
+  reliability diagrams, SHAP suite, margin→probability, significance,
+  compute profile.
