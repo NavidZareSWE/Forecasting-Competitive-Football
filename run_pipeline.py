@@ -171,8 +171,8 @@ def preflight(stages):
                 f"No cached StatsBomb events in {_relative(STATSBOMB_DIR)}. "
                 f"The data stage will download about 1500 match files on this "
                 f"first run and cache them there for later runs.")
-    needs_store = ({{"features", "tuning", "models", "experiments", "viz",
-                    "report"}} & set(stages)) and "data" not in stages
+    needs_store = ({"features", "tuning", "models", "experiments", "viz",
+                    "report"} & set(stages)) and "data" not in stages
     if needs_store:
         required = {"clean_events.csv": "the event store",
                     "match_store.csv": "the match store",
