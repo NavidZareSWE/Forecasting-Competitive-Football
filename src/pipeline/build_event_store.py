@@ -71,6 +71,10 @@ def load_events(match_id: int) -> pd.DataFrame:
         bad_behaviour = event.get("bad_behaviour") or {}
         card = (foul.get("card") or bad_behaviour.get("card") or {}).get("name")
         shot_outcome = (shot.get("outcome") or {}).get("name")
+        pass_detail = event.get("pass") or {}
+        carry = event.get("carry") or {}
+        end_location = (pass_detail.get("end_location")
+                        or carry.get("end_location") or [None, None])
         rows.append({
             "match_id": match_id,
             "event_id": event["id"],
@@ -94,6 +98,11 @@ def load_events(match_id: int) -> pd.DataFrame:
             "shot_xg": shot.get("statsbomb_xg"),
             "is_goal": shot_outcome == "Goal",
             "card": card,
+            # A pass with no outcome object is complete in StatsBomb's schema.
+            "pass_outcome": (pass_detail.get("outcome") or {}).get("name"),
+            "pass_type": (pass_detail.get("type") or {}).get("name"),
+            "end_x": end_location[0],
+            "end_y": end_location[1],
         })
 
     events_table = pd.DataFrame(rows).sort_values(

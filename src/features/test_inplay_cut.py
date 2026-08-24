@@ -96,6 +96,73 @@ def test_all_snapshot_minutes_present():
     assert list(snaps["snapshot_minute"]) == SNAPSHOT_MINUTES, "missing scheduled snapshot"
 
 
+def test_prefix_counters_match_hand_count():
+    events, home, away = _match()
+    snaps = build_match_snapshots(events, home, away).set_index("snapshot_minute")
+    # away's foul at 10' carries the red card: foul and card diffs go to -1
+    # from 10' onward and never earlier.
+    assert snaps.loc[5, "inplay_foul_diff"] == 0
+    assert snaps.loc[10, "inplay_foul_diff"] == -1
+    assert snaps.loc[90, "inplay_card_diff"] == -1
+    # no pressures or corners in the fixture: the optional-column path must
+    # produce zeros, not crash.
+    assert (snaps["inplay_pressure_diff"] == 0).all()
+    assert (snaps["inplay_corner_diff"] == 0).all()
+
+
+def test_recent_window_counts_and_momentum():
+    events, home, away = _match()
+    snaps = build_match_snapshots(events, home, away).set_index("snapshot_minute")
+    # at 25': recent window (15, 25] holds only the 20' home shot (xG 0.6);
+    # the previous window [5, 15) holds the 5' home shot (0.4) and the 8'
+    # away shot (0.1), so momentum = 0.6 - (0.4 - 0.1) = 0.3.
+    assert abs(snaps.loc[25, "inplay_recent_xg_diff"] - 0.6) < 1e-9
+    assert abs(snaps.loc[25, "inplay_momentum_xg_diff"] - 0.3) < 1e-9
+    assert snaps.loc[25, "inplay_recent_shot_diff"] == 1
+    # one home event in a 10-minute window -> 0.1 events per minute, all home.
+    assert abs(snaps.loc[25, "inplay_recent_event_rate_home"] - 0.1) < 1e-9
+    assert snaps.loc[25, "inplay_recent_event_rate_away"] == 0.0
+    assert snaps.loc[25, "inplay_recent_event_share_home"] == 1.0
+    # an empty window reports the neutral share, not a division error.
+    assert snaps.loc[60, "inplay_recent_event_share_home"] == 0.5
+
+
+def test_corner_counts_use_pass_type():
+    rows = pd.DataFrame({
+        "index": [0, 1, 2],
+        "minute": [3, 30, 50],
+        "type": ["Pass", "Pass", "Pass"],
+        "team_id": [1, 1, 2],
+        "is_goal": [False, False, False],
+        "shot_outcome": [None, None, None],
+        "shot_xg": [np.nan, np.nan, np.nan],
+        "card": [None, None, None],
+        "pass_type": ["Corner", None, "Corner"],
+    })
+    snaps = build_match_snapshots(rows, 1, 2).set_index("snapshot_minute")
+    assert snaps.loc[0, "inplay_corner_diff"] == 0
+    assert snaps.loc[5, "inplay_corner_diff"] == 1
+    assert snaps.loc[50, "inplay_corner_diff"] == 0   # 1 home - 1 away
+    # the recent window sees the 50' corner at 50' but not at 70'.
+    assert snaps.loc[50, "inplay_recent_corner_diff"] == -1
+    assert snaps.loc[70, "inplay_recent_corner_diff"] == 0
+
+
+def test_new_features_are_prefix_only():
+    events, home, away = _match()
+    baseline = build_match_snapshots(events, home, away)
+    tampered = events.copy()
+    # rewrite the 40' event into a late flurry of fouls, cards and shots
+    tampered.loc[tampered["index"] == 7,
+                 ["type", "card", "minute"]] = ["Foul Committed", "Red Card", 80]
+    after = build_match_snapshots(tampered, home, away)
+    # the tampered event sits after 35' in both versions, so every snapshot
+    # at or before 35' must be identical in every feature column.
+    early_before = baseline[baseline["snapshot_minute"] <= 35].reset_index(drop=True)
+    early_after = after[after["snapshot_minute"] <= 35].reset_index(drop=True)
+    pd.testing.assert_frame_equal(early_before, early_after)
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed = 0
