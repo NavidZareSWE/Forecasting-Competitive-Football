@@ -31,7 +31,6 @@ def build_label_store(match_store):
         "match_id", "competition_id", "competition_name", "season_id",
         "match_date", "kick_off", "home_team", "away_team",
     ]].copy()
-    # These are targets only. Feature builders must not read them as predictors.
     labels["label_result"] = expected_result
     labels["label_margin"] = expected_margin
 

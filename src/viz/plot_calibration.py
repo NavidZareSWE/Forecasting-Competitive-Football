@@ -1,6 +1,4 @@
-"""Reliability diagrams for every probabilistic classifier, raw and calibrated.
-
-Binning is reimplemented here because cross-directory imports do not resolve.
+"""Run from the repository root with:
 
     python src/viz/plot_calibration.py
 """
@@ -22,7 +20,6 @@ N_BINS = 10
 
 
 def reliability_table(proba, y_true, bins=N_BINS):
-    """Top-label reliability: bin by max predicted probability."""
     confidence = proba.max(axis=1)
     predicted = np.array([CLASS_ORDER[i] for i in proba.argmax(axis=1)])
     correct = (predicted == np.asarray(y_true)).astype(float)
@@ -40,7 +37,7 @@ def reliability_table(proba, y_true, bins=N_BINS):
     return pd.DataFrame(rows)
 
 
-def _read(task):
+def _read_predictions(task):
     path = RESULTS_DIR / f"predictions_{task}.csv"
     if not path.exists():
         raise FileNotFoundError(f"Missing {path}. Run run_models.py first.")
@@ -48,7 +45,7 @@ def _read(task):
 
 
 def collect(task, rows):
-    predictions = _read(task)
+    predictions = _read_predictions(task)
     for model, group in predictions.groupby("model"):
         y_true = group["y_true"].to_numpy()
         for stage, prefix in [("raw", "raw_"), ("calibrated", "p_")]:

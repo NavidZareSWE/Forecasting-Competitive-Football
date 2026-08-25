@@ -33,8 +33,6 @@ def build_match_splits(targets):
     table["match_date"] = pd.to_datetime(table["match_date"], errors="coerce")
     assert table["match_date"].notna().all(), "Every match needs a valid match_date!"
 
-    # A whole date is assigned to one split. This prevents same-day fixtures
-    # from crossing a temporal boundary when kick-off times are incomplete.
     dates = pd.DataFrame({"match_date": sorted(table["match_date"].unique())})
     n_train, n_validation = date_split_sizes(len(dates))
     dates["split"] = "test"

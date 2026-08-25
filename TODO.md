@@ -1,98 +1,96 @@
-# TODO — remaining work
+# TODO — gap list against the course brief
 
-Verified 2026-08-24 against the working tree, `git log`, and
-`docs/course-brief/Final_Project_Machine_Learning.pdf`. Updated the same day
-after the feature-depth / ablation / service work landed and the full
-pipeline re-ran end to end on the widened tables.
-
-Grading weights, for prioritisation:
+Derived from `docs/course-brief/Final_Project_Machine_Learning.pdf` and a code
+review of the current `main`.
 
 | Component | Weight | Status |
 |---|---|---|
-| Data integration & feature pipelines | 30% | done — 71 pre-match / 26 in-play model columns, brief §2.2/5A/5B covered |
-| Paper reimplementations (P1 + P2) | 20% | done; P2 pending TA sign-off |
-| Three models & comparative analysis | 20% | done, incl. ablation + P1 comparison |
-| Written report | 15% | §1–§11 + App A/B built (PDF + DOCX), zero "Result not available" markers |
-| Defences (2 mid + final) | 15% | MD2 pack ready; final-defence SHAP + live service/dashboard all runnable |
+| Data integration & feature pipelines | 30% | done; feature set still thin (see P2) |
+| Paper reimplementations (P1 + P2) | 20% | both done and tested; P2 needs TA sign-off |
+| Three models & comparative analysis | 20% | done |
+| Written report | 15% | builds from measured results; regenerate after tuning |
+| Defences (2 mid + final) | 15% | SHAP timeline works; final defence ready once tuned |
 
 ---
 
-## P0 — process, not code
+## P0 — blocking
 
-- [ ] **P2 TA sign-off** for Hierarchical Shrinkage at Mid Defence 2. FIGS is the
-      declared fallback. Only remaining blocker anywhere.
+- [ ] **Re-run the pipeline on a multi-core machine.** `tuning.py` was crashing
+      on a stale keyword and has now been fixed, but `best_params.json` has
+      never been produced. Every number currently in `model_results.csv`,
+      `market_comparison.csv` and `resampling_study.csv` was produced with
+      `tuned=False`, i.e. library defaults. Order:
+      `python src/models/tuning.py` then `python src/pipeline/run_all.py`.
+      Delete `best_params.json` first if the feature space changed.
+- [ ] **P2 TA sign-off.** Hierarchical Shrinkage is selected, reimplemented,
+      derived and tested, but the brief requires sign-off *before*
+      implementation. FIGS remains the declared fallback.
 
-## P1 — remaining polish
+## P1 — findings that need a decision, not code
 
-- [ ] Rehearse the final-defence live case: `python src/service/app.py`, open
-      `http://127.0.0.1:8100/`, replay a TA-selected held-out match, narrate the
-      SHAP panel. `replay_driver.py` is the terminal fallback.
-- [ ] Optional: regenerate `console-outputs.zip` after any further re-run so the
-      shipped logs match the shipped numbers.
+- [ ] **The pre-match models are not distinguishable from the prior baseline.**
+      The match-clustered bootstrap returns 0 of 21 significant pairs on Task C
+      after Holm correction, including dummy versus the best learner. The
+      in-play tasks are strongly significant (11 of 15 on Lc, 7 of 15 on Lr).
+      Decide whether to present this as the headline honest result or to widen
+      the feature set first.
+- [ ] **Denser snapshots buy almost nothing.** Training on 10 snapshots per
+      match scores the same as 19 on a fixed validation set (0.13394 vs
+      0.13401); 7 is slightly worse. The extra rows are highly correlated.
+- [ ] **P1 does what it claims, but not to RPS.** G-SMOTENC more than doubles
+      draw recall (0.205 -> 0.449 random forest, 0.295 -> 0.410 xgboost) and
+      gives the best draw F1 of all six arms, while moving RPS marginally the
+      wrong way on one learner and the right way on the other. Report both.
 
-## P3 — housekeeping (unchanged)
+## P2 — feature pipeline depth (30% component)
 
-- [ ] **Two orchestrators.** Root `run_pipeline.py` (preflight, resume,
-      env-snapshot, logging) is the superset and ran the full chain;
-      `src/pipeline/run_all.py` now includes ablation but still misses
-      `build_inplay_features`, `competition_audit`, `compute_profile`,
-      `margin_to_probability`, `significance`, `shap_analysis`, `build_report`.
-      Bless one as canonical (or make `run_all.py` delegate).
-- [ ] `config.py` is populated and correct but still has **zero importers**.
+- [ ] Pre-match features remain the thin set: rolling `gf/ga/xgf/xga/points/win`
+      plus `rest_days` and `played_prior`, 22 model columns. The brief also
+      names pressure intensity, passing volume and completion by zone, carries
+      into the final third, set-piece counts, possession share, defensive
+      actions, head-to-head and venue. The ablation shows only `form_xg`
+      carries signal, which is partly a statement about how narrow the set is.
+- [ ] In-play features carry 11 model columns. The brief asks for event counts
+      and rates in the recent window plus momentum indicators.
+- [ ] Note: `build_team_match_aggregates.py` is referenced by the console
+      capture harness but does not exist in the repository or its git history.
+
+## P3 — report and documentation
+
+- [x] `REPORT.md` §1/§2 event-ordering contradiction corrected against the code.
+- [ ] Fold the remaining `REPORT.md` prose into `src/report/build_report.py`, or
+      retire `REPORT.md` in favour of the generated PDF.
+- [ ] `README.md` is stale in places.
+
+## P4 — housekeeping
+
+- [ ] `config.py` still has zero importers; every script re-derives `PROJECT`.
       Wire it in or delete it.
-- [ ] Delete stale remote branches whose tips end in deletion commits —
-      `origin/feat/match-featrues`, `origin/feat/model-zoo-classifiers-regressors`
-      (content already in `main`); prune the other merged branches too.
-- [ ] Decide whether `forME/` and generated `src/reports/` artefacts stay in
-      the repo.
-- [ ] `CLAUDE.md` "Current state" section is stale (predates SHAP, the report
-      generator, `run_pipeline.py`, the service, and the widened features).
-- [ ] `REPORT.md` at the repo root still stops at §3; superseded by the
-      generated `src/reports/final_report.pdf`. Either delete it or leave a
-      pointer to the generated report.
+- [ ] Delete the remote branches ending in deletion commits.
+- [ ] Decide whether generated `src/reports/` artefacts belong in the repo.
+
+## P5 — bonus (§11)
+
+- [x] FastAPI service reusing the training feature code, with p50/p95/p99.
+- [ ] Live dashboard. Frontend not chosen; Vite + React or Next.js.
 
 ---
 
-## Done and verified (2026-08-24 session)
+## Done and verified in this pass
 
-- **Feature depth (brief §2.2 / 5A / 5B).** `load_events` extended with
-  `pass_outcome`, `pass_type`, `end_x`, `end_y`; `clean_events.csv`
-  regenerated. Pre-match: 22 → 71 model columns (shots, SOT, pressures,
-  possession share by pass share, passing volume by pitch third + completion,
-  carries into the final third, corners/free kicks/throw-ins, defensive
-  actions, head-to-head expanding means) — all via the same
-  shift-then-roll; `test_prematch_features.py` 12/12 incl. extended barrier
-  (perturbing a match's own result *or events* moves nothing). In-play:
-  12 → 26 columns (prefix + recent-window counts, per-minute rates, xG
-  momentum, recent event share); `test_inplay_cut.py` 11/11, prefix
-  assertions cover every new feature.
-- **Full re-tune + sweep on the widened tables.** `TUNE_RESUME=0
-  run_pipeline.py --from tuning`: 16/17 steps green first pass (DOCX needed
-  `npm install docx`), tuning 41 min, all analyses regenerated. Market still
-  unbeaten (RPS 0.197 market vs 0.221 best model) — the honest-failure
-  narrative holds.
-- **Ablation** — `src/models/ablation.py`: feature-group axis (partition
-  asserted, 6 groups pre-match / 9 in-play), snapshot-frequency axis
-  (training thinned to every 5/15/45, validation at full density), plus
-  `p1_comparison.csv` (P1 raises draw recall on all six learners, RPS
-  slightly worse on all six). All validation-only. Wired into both
-  orchestrators; report §8 renders from it.
-- **Bonus service (brief §11)** — `src/service/app.py`: FastAPI, models +
-  calibrators + TreeSHAP explainer fitted once at startup, test-split-only
-  serving, `/predict`, `/replay/{id}`, `/matches`, `/health`, dashboard at
-  `/`. `measure_latency.py`: in-process p50/p95/p99 (predict p99 = 67 ms,
-  budget 200), parity assert vs the sweep's stored predictions — passes.
-  `dashboard.html` (probability lines, expected margin, goal/card markers,
-  top-SHAP bars, self-paced replay) + `replay_driver.py`.
-- **Report** — `p1_comparison.csv` + `competition_audit.csv` gaps filled
-  (competitions.json + 76 match files fetched to the cache), §3 prose
-  rewritten to describe the implemented feature set exactly, §8 column-count
-  and snapshot-frequency prose corrected to the measured result. PDF + DOCX
-  rebuilt: zero "Result not available" markers.
-- **Bug fix** — `run_pipeline.py` preflight `needs_store` set-in-set
-  `TypeError`.
-- Everything from before: relational store, odds join (0.9971), G-SMOTENC
-  8/8, Hierarchical Shrinkage 8/8, model zoo, equal-budget search, market
-  comparison, in-play curves, six-arm imbalance study, kernel scaling,
-  reliability diagrams, SHAP suite, margin→probability, significance,
-  compute profile.
+- `tuning.py` stale-keyword crash fixed at source.
+- `prepare_matrices` returns `feature_names`, the fitted `transform` and the
+  column lists, so SHAP, the ablation and the API stop duplicating assembly.
+- `HSForest.shap_base_estimator()` writes shrunk values into `tree_.value`;
+  verified to reproduce the model to 1.1e-16, TreeSHAP additive to 1.4e-15.
+- `test_prematch_features.py` 9/9, `test_hierarchical_shrinkage.py` 9/9.
+- SHAP beeswarms, worst-prediction waterfalls and the full-match in-play SHAP
+  timeline all render; the timeline attributes both probability jumps in match
+  265944 to `inplay_goal_diff`.
+- Margin-to-probability: ordinal link RPS 0.21484 against the direct classifier
+  0.21440, with materially better ECE (0.054 vs 0.072).
+- Match-clustered bootstrap, seed repetition, compute profile, all four
+  ablation axes and the report build all execute.
+- Two methodology defects caught during validation and fixed: the seed-wise
+  t-test was masquerading as a significance test, and the snapshot-frequency
+  ablation was scoring each arm on a different evaluation set.

@@ -67,14 +67,14 @@ def load_events(match_id: int) -> pd.DataFrame:
         team = event.get("team") or {}
         player = event.get("player") or {}
         shot = event.get("shot") or {}
+        pass_detail = event.get("pass") or {}
+        carry = event.get("carry") or {}
+        pass_end = pass_detail.get("end_location") or [None, None]
+        carry_end = (carry.get("end_location") or [None, None])
         foul = event.get("foul_committed") or {}
         bad_behaviour = event.get("bad_behaviour") or {}
         card = (foul.get("card") or bad_behaviour.get("card") or {}).get("name")
         shot_outcome = (shot.get("outcome") or {}).get("name")
-        pass_detail = event.get("pass") or {}
-        carry = event.get("carry") or {}
-        end_location = (pass_detail.get("end_location")
-                        or carry.get("end_location") or [None, None])
         rows.append({
             "match_id": match_id,
             "event_id": event["id"],
@@ -94,15 +94,16 @@ def load_events(match_id: int) -> pd.DataFrame:
             "play_pattern": (event.get("play_pattern") or {}).get("name"),
             "under_pressure": bool(event.get("under_pressure", False)),
             "duration": event.get("duration"),
+            "pass_outcome": (pass_detail.get("outcome") or {}).get("name"),
+            "pass_end_x": pass_end[0],
+            "pass_end_y": pass_end[1],
+            "pass_height": (pass_detail.get("height") or {}).get("name"),
+            "carry_end_x": carry_end[0],
+            "carry_end_y": carry_end[1],
             "shot_outcome": shot_outcome,
             "shot_xg": shot.get("statsbomb_xg"),
             "is_goal": shot_outcome == "Goal",
             "card": card,
-            # A pass with no outcome object is complete in StatsBomb's schema.
-            "pass_outcome": (pass_detail.get("outcome") or {}).get("name"),
-            "pass_type": (pass_detail.get("type") or {}).get("name"),
-            "end_x": end_location[0],
-            "end_y": end_location[1],
         })
 
     events_table = pd.DataFrame(rows).sort_values(

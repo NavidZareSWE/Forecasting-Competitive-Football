@@ -1,7 +1,4 @@
-"""End-to-end run: raw JSON -> relational store -> features -> models -> analysis.
-
-A hard dependency chain; each stage reads the previous stage's CSV. Stages are
-subprocesses because src/ has no package structure.
+"""Run from the repository root with:
 
     python src/pipeline/run_all.py                  # everything
     SKIP_TUNING=1 python src/pipeline/run_all.py    # reuse best_params.json
@@ -19,11 +16,11 @@ VIZ_DIR = SRC / "viz"
 FEATURE_DIR = SRC / "features"
 MODEL_DIR = SRC / "models"
 PAPER_DIR = SRC / "papers"
+ANALYSIS_DIR = SRC / "analysis"
+REPORT_DIR = SRC / "report"
 
-# The search is the longest stage and best_params.json is stable across reruns.
 SKIP_TUNING = os.environ.get("SKIP_TUNING", "") not in {"", "0"}
 
-# (step name, directory the script lives in, script filename)
 STEPS = [
     # --- Phases 1-4: raw JSON to the relational store ---
     ("Relational store (matches, labels, lineups, events, cleaning, splits)",
@@ -41,6 +38,7 @@ STEPS = [
     ("Pre-match feature tests (hand-computed)", FEATURE_DIR,
      "test_prematch_features.py"),
     ("Pre-match features", FEATURE_DIR, "build_prematch_features.py"),
+    ("In-play snapshot features", FEATURE_DIR, "build_inplay_features.py"),
 
     # --- Phase 6: modeling ---
     ("Hyperparameter search (equal budget, CV inside train)",
@@ -56,7 +54,18 @@ STEPS = [
     ("In-play curves (metric vs minute, frozen reference, per-phase ECE)",
      MODEL_DIR, "inplay_curves.py"),
     ("Kernel scaling (O(n^2) demonstrated)", MODEL_DIR, "kernel_scaling.py"),
-    ("Ablation (feature groups + snapshot frequency, validation only)",
+    ("Compute and memory comparison", MODEL_DIR, "compute_profile.py"),
+    ("Margin-to-probability conversion (Model 2 -> Model 1)",
+     MODEL_DIR, "margin_to_probability.py"),
+    ("Statistical testing across repeated experiments",
+     MODEL_DIR, "significance.py"),
+
+    # --- Phase 8: error analysis and SHAP ---
+    ("SHAP and worst-prediction post-mortem", ANALYSIS_DIR,
+     "shap_analysis.py"),
+
+    # --- Phase 9: ablation, scored on validation only ---
+    ("Ablation (feature groups, snapshot frequency, balancing, P1)",
      MODEL_DIR, "ablation.py"),
 
     # --- Visualisations ---
@@ -64,6 +73,9 @@ STEPS = [
     ("Visualize relational store", VIZ_DIR, "visualize_store.py"),
     ("Visualize market baseline", VIZ_DIR, "visualize_market_baseline.py"),
     ("Visualize raw match outcomes", VIZ_DIR, "viz_raw_matches.py"),
+
+    # --- Phase 10: the report, built from the measured results ---
+    ("Final report PDF and content export", REPORT_DIR, "build_report.py"),
 ]
 
 
@@ -86,9 +98,11 @@ if __name__ == "__main__":
             print(f"\n===== SKIPPED: {name} (SKIP_TUNING set) =====")
             continue
         run_step(name, directory, script)
-    print(
-        f"\nFull pipeline complete in {time.time() - pipeline_started:.1f}s.")
+    print(f"\nFull pipeline complete in {time.time() - pipeline_started:.1f}s.")
     print("Relational store  -> src/reports/processed/")
     print("Feature tables    -> src/reports/features/")
     print("Model results     -> src/reports/*.csv, best_params.json")
+    print("SHAP artefacts    -> src/reports/visualizations/shap/")
+    print("Final report      -> src/reports/final_report.pdf "
+          "and final_report.docx")
     print("Visualizations    -> src/reports/visualizations/")

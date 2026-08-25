@@ -1,26 +1,6 @@
-"""Run the whole remaining pipeline and capture every console output.
+"""Run from the repository root with:
 
     python run_pipeline.py
-
-Everything printed by every step is written to console-outputs/, one log per
-step, plus a summary and a zip you can share.
-
-By default this runs EVERYTHING from the raw data forward. Stages, in order:
-
-  1. tests        Paper and leakage tests on fixtures. No data needed. If these
-                  fail, nothing after them is trustworthy, so the run stops.
-  2. data         StatsBomb JSON -> match, label, lineup and event stores;
-                  cleaning; chronological splits; odds tagging and de-vig;
-                  competition audit. Downloads ~1500 match files the first
-                  time and caches them under data/statsbomb_open_data/.
-  3. features     Per-team event aggregates, then the pre-match and in-play
-                  feature tables.
-  4. tuning       Hyperparameter search. Writes best_params.json.
-  5. models       Model sweep + the six-arm imbalance study.
-  6. experiments  Market, curves, scaling, compute, conversion, significance,
-                  ablation, SHAP.
-  7. viz          Reliability diagrams and store visualisations.
-  8. report       PDF, then DOCX if node is available.
 
 Useful flags:
     --only STAGE      run one stage: tests, data, features, tuning, models,
@@ -31,9 +11,6 @@ Useful flags:
     --seeds N         seed repetitions in significance.py (default 3)
     --continue        keep going after a failing step instead of stopping
     --list            print the plan and exit without running anything
-
-Nothing here touches the test split except the final evaluation inside
-run_models.py, which is the one place that is allowed to.
 """
 
 from datetime import datetime
@@ -44,6 +21,8 @@ import os
 import shutil
 import subprocess
 import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from capture_console import (ARCHIVE_NAME, OUTPUT_DIR, collect_result_files,
                              make_archive, prepare_output_dir, run_step,
@@ -65,14 +44,21 @@ STATSBOMB_DIR = Path(os.environ.get("STATSBOMB_LOCAL",
 STAGE_ORDER = ["tests", "data", "features", "tuning", "models",
                "experiments", "viz", "report"]
 
+SUPPRESSED_SKLEARN_PARALLEL_WARNING = ("ignore:`sklearn.utils.parallel.delayed` should be used "
+                  "with:UserWarning")
+
+
+def base_environment():
+    existing = os.environ.get("PYTHONWARNINGS", "").strip()
+    if not existing:
+        return {"PYTHONWARNINGS": SUPPRESSED_SKLEARN_PARALLEL_WARNING}
+    if SUPPRESSED_SKLEARN_PARALLEL_WARNING in existing:
+        return {}
+    return {"PYTHONWARNINGS":
+            f"{SUPPRESSED_SKLEARN_PARALLEL_WARNING},{existing}"}
+
 
 def resolve_folder(path):
-    """Return `path`, or a sibling whose name matches case-insensitively.
-
-    Windows filesystems are case-insensitive, so a folder named FOOTBALL_DATA
-    satisfies a lookup for Football_Data there but not on Linux or macOS. This
-    keeps the same layout working on every platform.
-    """
     path = Path(path)
     if path.exists():
         return path
@@ -84,13 +70,13 @@ def resolve_folder(path):
     return path
 
 
-# Files worth shipping back with the logs. Kept small on purpose.
 RESULT_PATTERNS = [
     "src/reports/*.csv",
     "src/reports/best_params.json",
 ]
 
 TEST_STEPS = [
+    ("01_test_event_aggregates", "src/features/test_event_aggregates.py"),
     ("02_test_prematch_features", "src/features/test_prematch_features.py"),
     ("03_test_inplay_cut", "src/features/test_inplay_cut.py"),
     ("04_test_g_smotenc", "src/papers/test_g_smotenc.py"),
@@ -105,6 +91,8 @@ DATA_STEPS = [
 ]
 
 FEATURE_STEPS = [
+    ("10_build_team_match_aggregates",
+     "src/features/build_team_match_aggregates.py"),
     ("11_build_prematch_features", "src/features/build_prematch_features.py"),
     ("12_build_inplay_features", "src/features/build_inplay_features.py"),
 ]
@@ -138,7 +126,6 @@ def script(path):
 
 
 def preflight(stages):
-    """Fail early and clearly rather than three stages in."""
     problems, warnings = [], []
     for module in ["pandas", "numpy", "sklearn", "scipy", "matplotlib",
                    "shap", "imblearn", "reportlab"]:
@@ -186,7 +173,6 @@ def preflight(stages):
 
 
 def record_environment():
-    """Write the exact resolved versions, so unpinned installs stay traceable."""
     import platform
 
     lines = [f"python  {platform.python_version()} ({platform.python_implementation()})",
@@ -246,57 +232,58 @@ def selected_stages(arguments):
 
 
 def build_plan(arguments, stages):
-    """(stage, name, command) for every step this run should execute."""
     plan = []
 
     if "tests" in stages:
         for name, path in TEST_STEPS:
-            plan.append(("tests", name, script(path)))
+            plan.append(("tests", name, script(path), {}))
 
     if "data" in stages:
         for name, path in DATA_STEPS:
-            plan.append(("data", name, script(path)))
+            plan.append(("data", name, script(path), {}))
 
     if "features" in stages:
         for name, path in FEATURE_STEPS:
-            plan.append(("features", name, script(path)))
+            plan.append(("features", name, script(path), {}))
 
     if "tuning" in stages:
         if arguments.skip_tuning and BEST_PARAMS.exists():
             print(f"Skipping tuning; reusing {BEST_PARAMS.name}")
         else:
             plan.append(("tuning", "20_tuning",
-                         script("src/models/tuning.py")))
+                         script("src/models/tuning.py"), {}))
 
     if "models" in stages:
         for name, path in MODEL_STEPS:
-            command = script(path)
+            step_env = {}
             if name.endswith("run_models") and arguments.tasks:
-                command = f"TASKS={arguments.tasks} {command}"
-            plan.append(("models", name, command))
+                step_env["TASKS"] = arguments.tasks
+            plan.append(("models", name, script(path), step_env))
 
     if "experiments" in stages:
         for name, path in EXPERIMENT_STEPS:
-            command = script(path)
+            step_env = {}
             if name.endswith("significance"):
-                command = f"N_SEEDS={arguments.seeds} {command}"
-            plan.append(("experiments", name, command))
+                step_env["N_SEEDS"] = arguments.seeds
+            plan.append(("experiments", name, script(path), step_env))
 
     if "viz" in stages:
         for name, path in VIZ_STEPS:
-            plan.append(("viz", name, script(path)))
+            plan.append(("viz", name, script(path), {}))
 
     if "report" in stages:
         plan.append(("report", "40_build_report",
-                     script("src/report/build_report.py")))
+                     script("src/report/build_report.py"), {}))
         if shutil.which("node"):
             plan.append(("report", "41_render_docx",
-                         "node src/report/render_docx.js"))
+                         "node src/report/render_docx.js", {}))
         else:
             print("node not found; skipping the DOCX build. "
                   "The PDF is unaffected.")
 
-    return plan
+    shared = base_environment()
+    return [(stage, name, command, {**shared, **step_env})
+            for stage, name, command, step_env in plan]
 
 
 def main():
@@ -329,8 +316,13 @@ def main():
 
     if arguments.list:
         print(f"Stages: {', '.join(stages)}\n")
-        for position, (stage, name, command) in enumerate(plan, start=1):
-            print(f"{position:>3}. [{stage:<11}] {name:<32} {command}")
+        for position, (stage, name, command, step_env) in enumerate(plan,
+                                                                    start=1):
+            shown = " ".join(f"{key}={value}"
+                             for key, value in sorted(step_env.items())
+                             if key != "PYTHONWARNINGS")
+            print(f"{position:>3}. [{stage:<11}] {name:<32} "
+                  f"{shown + ' ' if shown else ''}{command}")
         return 0
 
     problems, warnings = preflight(stages)
@@ -349,10 +341,10 @@ def main():
           f"{OUTPUT_DIR.relative_to(PROJECT)}/\n")
 
     results, notes = [], []
-    for position, (stage, name, command) in enumerate(plan, start=1):
+    for position, (stage, name, command, step_env) in enumerate(plan, start=1):
         print(f"\n{'=' * 70}\n[{position}/{len(plan)}] {stage}: {name}\n"
               f"{'=' * 70}")
-        result = run_step(name, command)
+        result = run_step(name, command, env=step_env)
         result["stage"] = stage
         results.append(result)
 
@@ -377,8 +369,7 @@ def main():
 
     copied = collect_result_files(RESULT_PATTERNS)
     notes.insert(0, f"Stages run: {', '.join(stages)}")
-    notes.append(
-        f"Copied {copied} result files into console-outputs/results/.")
+    notes.append(f"Copied {copied} result files into console-outputs/results/.")
     if not BEST_PARAMS.exists():
         notes.append("best_params.json was NOT produced, so the models ran on "
                      "library defaults. The report says so on its front page.")

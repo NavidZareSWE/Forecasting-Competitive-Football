@@ -1,10 +1,10 @@
-"""Kernel scaling: exact Gram methods versus Nystroem on nested subsamples of the
-in-play training matrix, with a power law t = a * n^b fitted on the logs.
+"""Run from the repository root with:
 
     python src/models/kernel_scaling.py
 """
 
 from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
@@ -15,6 +15,8 @@ from sklearn.linear_model import Ridge
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.pipeline import make_pipeline
 from sklearn.svm import SVR
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from modeling_common import RESULTS_DIR, fit_with_cost, prepare_matrices, task_frame
 
@@ -41,7 +43,6 @@ def methods():
 
 
 def fit_power_law(sizes, seconds):
-    # log t = log a + b log n; b is the empirical exponent.
     sizes = np.asarray(sizes, dtype=float)
     seconds = np.asarray(seconds, dtype=float)
     usable = seconds > 0
@@ -70,8 +71,9 @@ def main():
     rows = []
     for name, factory in methods().items():
         for n in sizes:
-            index = np.sort(order[:n])          # nested subsamples
-            seconds, peak_mb = fit_with_cost(factory(), X[index], y[index])
+            nested_subsample = np.sort(order[:n])
+            seconds, peak_mb = fit_with_cost(factory(), X[nested_subsample],
+                                             y[nested_subsample])
             gram_mb = (n * n * 8) / 1024 ** 2
             rows.append({"method": name, "n_train": n,
                          "fit_seconds": round(seconds, 4),
@@ -100,7 +102,6 @@ def main():
                                        "theoretical_exponent", "theory"]],
                             on="method", how="left")
 
-    # The deliverable: exact kernels super-linear, Nystroem strictly better.
     exact_exponents = fit_frame[fit_frame["method"].str.contains("exact")]
     nystroem = fit_frame[fit_frame["method"] == "kernel_ridge_nystroem"]
     assert (exact_exponents["empirical_exponent"] > 1.2).all(), \

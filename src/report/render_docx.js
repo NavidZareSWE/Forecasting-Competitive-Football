@@ -1,8 +1,4 @@
-// Phase 10: render the same report content model to DOCX.
-//
-// Reads src/reports/report_build/report_content.json, which build_report.py
-// writes from report_content.py. The PDF and the DOCX therefore carry
-// identical prose and identical numbers by construction.
+// Run from the repository root with:
 //
 //   node src/report/render_docx.js
 
@@ -20,14 +16,12 @@ const CONTENT_JSON = path.join(RESULTS_DIR, "report_build",
                                "report_content.json");
 const OUTPUT_DOCX = path.join(RESULTS_DIR, "final_report.docx");
 
-// A4 is 11906 DXA wide; 2 cm margins leave 9638 for content.
 const CONTENT_WIDTH_DXA = 9638;
 const CONTENT_WIDTH_CM = 17.0;
 const EMU_PER_CM = 360000;
 const SERIF = "Times New Roman";
 
 // --- Inline markup ----------------------------------------------------------
-// The content model uses only <b> and <code>, so a small splitter is enough.
 function runs(text, base = {}) {
   const pieces = text.split(/(<b>|<\/b>|<code>|<\/code>)/);
   const out = [];

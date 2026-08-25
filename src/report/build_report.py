@@ -1,13 +1,13 @@
-"""Phase 10: render the report content to PDF, and export it for the DOCX build.
-
-All prose and every number live in report_content.py. This file only draws.
+"""Run from the repository root with:
 
     python src/report/build_report.py
 """
 
+from pathlib import Path
 import html
 import json
 import re
+import sys
 
 import matplotlib
 matplotlib.use("Agg")
@@ -21,6 +21,8 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import (Image, KeepTogether, PageBreak, Paragraph,
                                 SimpleDocTemplate, Spacer, Table, TableStyle)
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from report_content import BUILD_DIR, RESULTS_DIR, build_blocks
 

@@ -7,9 +7,7 @@ import pandas as pd
 # --- Configuration ---
 HERE = Path(__file__).resolve().parent
 PROJECT = HERE.parent
-def _resolve_folder(path):
-    # Windows is case-insensitive, so a folder named FOOTBALL_DATA satisfies a
-    # lookup for Football_Data there but not on Linux or macOS.
+def resolve_case_insensitive_folder(path):
     path = Path(path)
     if path.exists():
         return path
@@ -20,7 +18,7 @@ def _resolve_folder(path):
     return path
 
 
-FOOTBALL_DATA_DIR = _resolve_folder(
+FOOTBALL_DATA_DIR = resolve_case_insensitive_folder(
     os.environ.get("FOOTBALL_DATA", PROJECT / "data" / "Football_Data"))
 PROCESSED_DIR = PROJECT / "reports" / "processed"
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
@@ -29,9 +27,6 @@ DIV_TO_LEAGUE = {"SP1": "La Liga", "E0": "Premier League", "I1": "Serie A", "F1"
 DATE_FORMATS = {"E0": "%d/%m/%Y"}
 DEFAULT_DATE_FORMAT = "%d/%m/%y"
 
-# "Ath" is an ambiguous abbreviation (Athletic vs Atletico) and "Madrid" collides
-# with Real Madrid, so no string metric resolves it. Target given as an ASCII
-# normalized name and looked up against the accent-stripped StatsBomb names.
 MANUAL_OVERRIDES = {"Ath Madrid": "atletico madrid"}
 
 

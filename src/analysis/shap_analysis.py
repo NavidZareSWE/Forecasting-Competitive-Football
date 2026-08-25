@@ -1,8 +1,4 @@
-"""Phase 8: TreeSHAP explanations and the worst-prediction post-mortem.
-
-Produces, per task, a global beeswarm, the ten worst test predictions with a
-local waterfall each, an adjudication of every failure as model error or bad
-luck, and one full-match SHAP timeline for Model 3.
+"""Run from the repository root with:
 
     python src/analysis/shap_analysis.py
 """
@@ -40,28 +36,24 @@ VIZ_DIR = SRC / "reports" / "visualizations" / "shap"
 RANDOM_STATE = 0
 N_WORST = 10
 BEESWARM_SAMPLE = 1500
-# Rows used for the global beeswarm and the mean-|SHAP| table.
 GLOBAL_SHAP_SAMPLE = int(os.environ.get("SHAP_SAMPLE", "2000"))
 ZOO_TASK = {"C": "C", "R": "R", "Lc": "L", "Lr": "L"}
 
-# Kernel and constant models have no tree structure for TreeSHAP to walk.
-TREE_MODELS = ["random_forest", "gbm", "xgboost", "lightgbm",
-               "p2_hier_shrinkage"]
+TREESHAP_CAPABLE_MODELS = ["random_forest", "gbm", "xgboost", "lightgbm",
+                           "p2_hier_shrinkage"]
 
-# Adjudication thresholds, fixed before looking at the results.
-MARKET_AGREEMENT = 0.05      # model within 5pp of the market: not a model error
-LOW_PROBABILITY = 0.25       # everyone rated the realised outcome unlikely
-EXTREME_MARGIN = 3           # 3+ goal margins are dominated by finishing noise
+MARKET_AGREEMENT_TOLERANCE = 0.05
+LOW_MARKET_PROBABILITY = 0.25
+EXTREME_GOAL_MARGIN = 3
 
 
 # --- Model access -----------------------------------------------------------
-def shap_ready(name, estimator):
-    """Return the estimator TreeSHAP should walk, or None if unsupported."""
+def treeshap_estimator(name, estimator):
     if name == "p2_hier_shrinkage":
         return estimator.shap_base_estimator()
     if isinstance(estimator, LabelEncodedClassifier):
         return estimator.estimator_
-    if name in TREE_MODELS:
+    if name in TREESHAP_CAPABLE_MODELS:
         return estimator
     return None
 
@@ -73,7 +65,6 @@ def model_class_order(name, estimator):
 
 
 def fit_candidates(task, matrices):
-    """Fit every TreeSHAP-capable model, scored on validation only."""
     tuned = load_best_params().get(task, {})
     is_classification = task in {"C", "Lc"}
     zoo = (classifier_zoo(RANDOM_STATE, task=ZOO_TASK[task], tuned=tuned)
@@ -81,7 +72,7 @@ def fit_candidates(task, matrices):
            else regressor_zoo(RANDOM_STATE, task=ZOO_TASK[task], tuned=tuned))
 
     fitted = {}
-    for name in TREE_MODELS:
+    for name in TREESHAP_CAPABLE_MODELS:
         if name not in zoo:
             continue
         estimator = zoo[name]()
@@ -115,8 +106,7 @@ def _proba_in_class_order(name, estimator, X):
 
 # --- SHAP values ------------------------------------------------------------
 def shap_values_for(name, estimator, X, is_classification):
-    """(values, expected_value). Classification values are (n, f, 3) in H/D/A."""
-    walkable = shap_ready(name, estimator)
+    walkable = treeshap_estimator(name, estimator)
     if walkable is None:
         return None, None
     explainer = shap.TreeExplainer(walkable)
@@ -126,7 +116,7 @@ def shap_values_for(name, estimator, X, is_classification):
         return values.reshape(X.shape[0], X.shape[1]), float(expected.ravel()[0])
 
     classes = model_class_order(name, estimator)
-    if values.ndim == 2:                       # binary fallback, unused here
+    if values.ndim == 2:
         values = np.stack([-values, values], axis=2)
     order = [classes.index(c) for c in CLASS_ORDER if c in classes]
     return values[:, :, order], expected[order]
@@ -172,17 +162,16 @@ def load_market_probabilities():
 
 def adjudicate_classification(realised, p_realised, market_row, base_rate,
                               state=None):
-    """Model error, uncertain, noisy state, or reasonable-but-unlucky."""
     market_p = market_row.get(realised) if market_row else None
     if state is not None and state.get("contradicted"):
         return ("noisy observation",
                 "the in-play state at the snapshot pointed the other way; "
                 "the match turned after time t")
-    if market_p is not None and market_p - p_realised > MARKET_AGREEMENT:
+    if market_p is not None and market_p - p_realised > MARKET_AGREEMENT_TOLERANCE:
         return ("model error",
                 f"the market gave the realised outcome {market_p:.3f} against "
                 f"the model's {p_realised:.3f}; the information was available")
-    if market_p is not None and market_p < LOW_PROBABILITY:
+    if market_p is not None and market_p < LOW_MARKET_PROBABILITY:
         return ("inherently uncertain",
                 f"the market also rated this outcome unlikely ({market_p:.3f}); "
                 "the result, not the forecast, was the outlier")
@@ -200,7 +189,7 @@ def adjudicate_regression(error, y_true, typical_error, state=None):
         return ("noisy observation",
                 "the scoreline at the snapshot moved against the eventual "
                 "margin after time t")
-    if abs(y_true) >= EXTREME_MARGIN:
+    if abs(y_true) >= EXTREME_GOAL_MARGIN:
         return ("inherently uncertain",
                 f"the realised margin was {y_true:+.0f}; margins of this size "
                 "are dominated by finishing variance")
@@ -232,12 +221,6 @@ def run_task(task, market, rows, worst_rows):
     estimator = fitted[primary][0]
     print(f"  [{task}] primary explained model (validation-selected): {primary}")
 
-    # TreeSHAP is exact but its cost grows with rows, trees and features. On
-    # the widened in-play table the full test split is thousands of rows by
-    # hundreds of features, which is far more than the global plots need. The
-    # global view is computed on a fixed random sample; the worst predictions
-    # and the match timeline are computed exactly on the rows they concern, so
-    # nothing that is reported per row is approximated.
     rng = np.random.default_rng(RANDOM_STATE)
     if X_test.shape[0] > GLOBAL_SHAP_SAMPLE:
         global_index = np.sort(rng.choice(X_test.shape[0],
@@ -336,15 +319,13 @@ def run_task(task, market, rows, worst_rows):
     task_rows = [r for r in worst_rows if r["task"] == task]
     verdicts = pd.Series([r["verdict"] for r in task_rows]).value_counts()
     distinct = len({r["match_id"] for r in task_rows})
-    # On the snapshot tasks consecutive minutes of one match fail together, so
-    # the worst ten rows are not ten independent failures.
-    print(f"  [{task}] worst-{N_WORST} verdicts: {verdicts.to_dict()}  "
+    verdict_counts = {str(v): int(n) for v, n in verdicts.items()}
+    print(f"  [{task}] worst-{N_WORST} verdicts: {verdict_counts}  "
           f"({distinct} distinct matches)")
     return primary, estimator, matrices, names
 
 
 def _snapshot_state(df, match_id, minute, y_true, is_classification):
-    """Did the in-play state at time t point away from the final outcome?"""
     if minute is None or "snapshot_minute" not in df.columns:
         return None
     row = df[(df["match_id"] == match_id) & (df["snapshot_minute"] == minute)]
@@ -361,12 +342,10 @@ def _snapshot_state(df, match_id, minute, y_true, is_classification):
 
 # --- In-play SHAP timeline --------------------------------------------------
 def inplay_timeline(bundle, output_csv, output_png):
-    """One complete match: SHAP attributions at every snapshot minute."""
     primary, estimator, matrices, names = bundle
     meta = matrices["meta_test"]
     counts = meta.groupby("match_id").size()
     full = counts[counts == counts.max()]
-    # A deterministic, non-cherry-picked choice: the lowest id with full cover.
     match_id = int(full.index.min())
     mask = (meta["match_id"] == match_id).to_numpy()
     X_match = matrices["X_test"][mask]

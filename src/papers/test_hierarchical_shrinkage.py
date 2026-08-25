@@ -1,10 +1,15 @@
-"""Tests for the P2 reimplementation (Hierarchical Shrinkage, ICML 2022).
+"""Run from the repository root with:
 
     python src/papers/test_hierarchical_shrinkage.py
 """
 
+from pathlib import Path
+import sys
+
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from hierarchical_shrinkage import (HSForestClassifier, HSForestRegressor,
                                     HSTreeClassifier, HSTreeRegressor,
@@ -50,7 +55,6 @@ def test_large_lambda_collapses_to_the_root_mean():
 
 
 def test_shrinkage_matches_the_paper_equation_on_every_path():
-    # Checked against a literal per-path transcription of the paper equation.
     X, y = make_regression_data(n=200, seed=3)
     tree = DecisionTreeRegressor(max_depth=5, random_state=0).fit(X, y).tree_
     lam = 12.5
@@ -71,15 +75,13 @@ def test_shrinkage_matches_the_paper_equation_on_every_path():
         literal = mu[path[0]].copy()
         for depth in range(1, len(path)):
             ancestor = path[depth - 1]
-            literal += (mu[path[depth]] - mu[ancestor]) / \
-                (1 + lam / counts[ancestor])
+            literal += (mu[path[depth]] - mu[ancestor]) / (1 + lam / counts[ancestor])
         assert np.allclose(fast[node], literal), \
             f"node {node} disagrees with the paper equation"
     print("ok  recursion equals the paper's telescoping sum on every path")
 
 
 def test_classifier_output_is_a_valid_probability_vector():
-    # Appendix A predicts no clipping is needed at any lam.
     X, y = make_classification_data()
     tree = DecisionTreeClassifier(max_depth=8, random_state=0).fit(X, y).tree_
     for lam in LAMBDA_GRID:
@@ -99,7 +101,6 @@ def test_own_leaf_descent_matches_sklearn_apply():
 
 
 def test_shrinkage_is_monotone_towards_the_root():
-    # Increasing lam must move every leaf monotonically closer to the root mean.
     X, y = make_regression_data()
     tree = DecisionTreeRegressor(max_depth=8, random_state=0).fit(X, y).tree_
     root = _node_means(tree, is_classifier=False)[0, 0]
@@ -116,20 +117,16 @@ def test_shrinkage_is_monotone_towards_the_root():
 
 def test_forest_variants_fit_predict_and_beat_a_constant():
     X, y = make_classification_data(n=600, seed=5)
-    clf = HSForestClassifier(lam=25.0, n_estimators=40,
-                             random_state=0).fit(X, y)
+    clf = HSForestClassifier(lam=25.0, n_estimators=40, random_state=0).fit(X, y)
     proba = clf.predict_proba(X)
     assert proba.shape == (600, 3)
     assert np.allclose(proba.sum(axis=1), 1.0)
-    assert (clf.predict(X) == y).mean(
-    ) > 0.8, "forest classifier underfits badly"
+    assert (clf.predict(X) == y).mean() > 0.8, "forest classifier underfits badly"
 
     Xr, yr = make_regression_data(n=600, seed=6)
-    reg = HSForestRegressor(lam=25.0, n_estimators=40,
-                            random_state=0).fit(Xr, yr)
+    reg = HSForestRegressor(lam=25.0, n_estimators=40, random_state=0).fit(Xr, yr)
     mae = np.abs(reg.predict(Xr) - yr).mean()
-    assert mae < np.abs(
-        yr - yr.mean()).mean(), "forest regressor worse than the mean"
+    assert mae < np.abs(yr - yr.mean()).mean(), "forest regressor worse than the mean"
     print("ok  forest classifier and regressor fit, predict and beat a constant")
 
 
@@ -141,8 +138,7 @@ def test_cv_selects_a_lambda_from_the_grid_without_touching_validation():
     assert set(clf.cv_scores_) == set(LAMBDA_GRID), "grid not fully scored"
     best = min(clf.cv_scores_, key=clf.cv_scores_.get)
     assert clf.lam_ == best, "selected lambda is not the CV minimiser"
-    print(
-        f"ok  CV selected lambda={clf.lam_} from the grid on training rows only")
+    print(f"ok  CV selected lambda={clf.lam_} from the grid on training rows only")
 
 
 def test_shap_base_estimator_reproduces_the_shrunk_predictions():
