@@ -151,6 +151,13 @@ class ServiceState:
             int(r.match_id): i
             for i, r in enumerate(self.models["C"].frame.itertuples())}
         self.minutes = sorted(inplay.frame["snapshot_minute"].unique().tolist())
+        store = pd.read_csv(SRC / "reports" / "processed" / "match_store.csv",
+                            encoding="utf-8")
+        self.match_meta = {
+            int(r.match_id): {"home_team": str(r.home_team),
+                              "away_team": str(r.away_team),
+                              "kick_off": str(r.kick_off)}
+            for r in store.itertuples()}
         for task, model in self.models.items():
             print(f"  serving {task}: {model.model_name}"
                   + (f" ({model.calibration})" if model.is_classification
@@ -198,6 +205,7 @@ def matches():
     return [{"match_id": int(r.match_id),
              "competition": str(r.competition_name),
              "date": str(r.match_date),
+             **state.match_meta.get(int(r.match_id), {}),
              "final_result": str(r.label_result),
              "final_margin": float(r.label_margin)}
             for r in frame.itertuples()]
@@ -215,14 +223,27 @@ def _snapshot_payload(match_id, minute):
     row = inplay_c.frame.iloc[index[0]]
     return {
         "match_id": match_id, "minute": minute, "state": "in_play",
+        **state.match_meta.get(match_id, {}),
         "models": {"outcome": inplay_c.model_name,
-                   "margin": inplay_r.model_name},
+                   "margin": inplay_r.model_name,
+                   "calibration": inplay_c.calibration},
         "probabilities": {c: round(float(p), 4)
                           for c, p in zip(CLASS_ORDER, probs)},
         "expected_margin": round(float(inplay_r.margin(index)[0]), 3),
         "score": {"home": int(row["inplay_home_goals"]),
                   "away": int(row["inplay_away_goals"])},
         "man_advantage": int(row["inplay_man_advantage"]),
+        "stats": {
+            "xg": {"home": round(float(row["inplay_home_xg"]), 2),
+                   "away": round(float(row["inplay_away_xg"]), 2)},
+            "shot_diff": int(row["inplay_shot_diff"]),
+            "sot_diff": int(row["inplay_sot_diff"]),
+            "corner_diff": int(row["inplay_corner_diff"]),
+            "card_diff": int(row["inplay_card_diff"]),
+            "pressure_diff": int(row["inplay_pressure_diff"]),
+            "momentum_xg_diff": round(float(row["inplay_momentum_xg_diff"]),
+                                      3),
+        },
         "top_shap": state.top_attributions(index),
     }
 
@@ -234,13 +255,30 @@ def _prematch_payload(match_id):
     index = [state.prematch_index[match_id]]
     pre_c, pre_r = state.models["C"], state.models["R"]
     probs = pre_c.probabilities(index)[0]
+    row = pre_c.frame.iloc[index[0]]
+
+    def _num(value, digits):
+        value = float(value)
+        return round(value, digits) if np.isfinite(value) else None
+
+    def _form(side):
+        return {"points": _num(row[f"{side}_form_points"], 2),
+                "xg_for": _num(row[f"{side}_form_xgf"], 2),
+                "xg_against": _num(row[f"{side}_form_xga"], 2),
+                "rest_days": _num(row[f"{side}_rest_days"], 1)}
+
     return {
         "match_id": match_id, "minute": None, "state": "pre_match",
-        "models": {"outcome": pre_c.model_name, "margin": pre_r.model_name},
+        **state.match_meta.get(match_id, {}),
+        "competition": str(row["competition_name"]),
+        "date": str(row["match_date"]),
+        "models": {"outcome": pre_c.model_name, "margin": pre_r.model_name,
+                   "calibration": pre_c.calibration},
         "probabilities": {c: round(float(p), 4)
                           for c, p in zip(CLASS_ORDER, probs)},
         "expected_margin": round(float(pre_r.margin(index)[0]), 3),
         "score": {"home": 0, "away": 0},
+        "form": {"home": _form("home"), "away": _form("away")},
     }
 
 
