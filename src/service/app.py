@@ -10,17 +10,25 @@ against the sweep's stored predictions).
 
 Latency: everything expensive happens once at startup - models fitted,
 calibrators fitted on validation, the TreeSHAP explainer built, every servable
-snapshot's design matrix precomputed. A request is a dictionary lookup plus
-one model evaluation.
+snapshot's design matrix precomputed. On top of that, the first request for a
+match builds all of that match's payloads in one batched pass (one
+predict_proba, one predict, one TreeSHAP call over all its snapshot rows) and
+caches them; every later request for the same match is a dictionary lookup.
+
+The batching matters because a scikit-learn ensemble's predict cost is
+dominated by fixed per-call overhead, not by row count: one call for 19 rows
+costs little more than one call for 1 row. Serving a replay a row at a time
+paid that overhead 19 times over, twice (once in /replay, once per tick).
 
 Only test-split matches are servable: the demo must run on held-out data.
 
-    python src/service/app.py            # uvicorn on 127.0.0.1:8100 (PORT env)
+    python src/service/app.py            # uvicorn on 127.0.0.1:5500 (PORT env)
 """
 
 from pathlib import Path
 import os
 import sys
+import threading
 
 import numpy as np
 import pandas as pd
@@ -48,6 +56,31 @@ ZOO_TASK = {"C": "C", "R": "R", "Lc": "L", "Lr": "L"}
 # TreeSHAP needs a tree ensemble; the served in-play classifier is the best of
 # these on validation, mirroring shap_analysis.py.
 TREE_MODELS = ["lightgbm", "xgboost", "gbm", "random_forest"]
+# The only in-play feature columns the snapshot payload reads back.
+SNAPSHOT_COLUMNS = ["inplay_home_goals", "inplay_away_goals",
+                    "inplay_man_advantage", "inplay_home_xg", "inplay_away_xg",
+                    "inplay_shot_diff", "inplay_sot_diff",
+                    "inplay_corner_diff", "inplay_card_diff",
+                    "inplay_pressure_diff", "inplay_momentum_xg_diff"]
+
+_MODEL_RESULTS = None
+
+
+def _model_results():
+    """model_results.csv, read once instead of once per served task."""
+    global _MODEL_RESULTS
+    if _MODEL_RESULTS is None:
+        _MODEL_RESULTS = pd.read_csv(RESULTS_DIR / "model_results.csv",
+                                     encoding="utf-8")
+    return _MODEL_RESULTS
+
+
+def _dense_row(block, k):
+    """Row k of a design-matrix block as a 1-D array (dense or sparse)."""
+    row = block[k]
+    if hasattr(row, "toarray"):
+        return np.asarray(row.toarray()).ravel()
+    return np.asarray(row).ravel()
 
 
 def _proba(estimator, X):
@@ -66,7 +99,7 @@ def _proba(estimator, X):
 
 def _pick_model(task, allowed=None):
     """Best sweep model for the task (validation-ranked sweep output)."""
-    results = pd.read_csv(RESULTS_DIR / "model_results.csv", encoding="utf-8")
+    results = _model_results()
     metric = "rps" if task in {"C", "Lc"} else "mae"
     subset = results[(results["task"] == task) & (results["model"] != "dummy")]
     if allowed is not None:
@@ -150,7 +183,8 @@ class ServiceState:
         self.prematch_index = {
             int(r.match_id): i
             for i, r in enumerate(self.models["C"].frame.itertuples())}
-        self.minutes = sorted(inplay.frame["snapshot_minute"].unique().tolist())
+        self.minutes = sorted(
+            inplay.frame["snapshot_minute"].unique().tolist())
         store = pd.read_csv(SRC / "reports" / "processed" / "match_store.csv",
                             encoding="utf-8")
         self.match_meta = {
@@ -158,30 +192,160 @@ class ServiceState:
                               "away_team": str(r.away_team),
                               "kick_off": str(r.kick_off)}
             for r in store.itertuples()}
+        # Payload caches. Payloads depend only on fitted models and frozen
+        # feature rows, so they are computed once per match and reused.
+        self._lock = threading.Lock()
+        self._snap_cache = {}
+        self._pre_cache = {}
+        self._match_list = None
         for task, model in self.models.items():
             print(f"  serving {task}: {model.model_name}"
                   + (f" ({model.calibration})" if model.is_classification
                      else ""))
         print(f"Serving {len(self.prematch_index)} held-out matches.")
 
-    def top_attributions(self, index):
-        """Top-|SHAP| features for the home-win probability at one snapshot."""
+    def attributions(self, rows):
+        """Top-|SHAP| features for the home-win probability, one list per row.
+
+        One TreeSHAP call for the whole block. TreeSHAP scales close to
+        linearly in rows, so the saving here is modest; the batching matters
+        because it lets the whole match be built in a single pass.
+        """
         inplay = self.models["Lc"]
-        values = np.asarray(self.explainer.shap_values(inplay.X[index]))
-        if values.ndim == 3:                      # (rows, features, classes)
+        block = inplay.X[rows]
+        values = np.asarray(self.explainer.shap_values(block))
+        if values.ndim == 3:
             walkable = (inplay.estimator.estimator_
                         if isinstance(inplay.estimator, LabelEncodedClassifier)
                         else inplay.estimator)
             classes = (list(inplay.estimator.encoder_.classes_)
                        if isinstance(inplay.estimator, LabelEncodedClassifier)
                        else [str(c) for c in walkable.classes_])
-            values = values[0, :, classes.index("H")]
-        else:
-            values = values[0]
-        order = np.argsort(-np.abs(values))[:TOP_SHAP]
-        return [{"feature": inplay.feature_names[i],
-                 "value": round(float(inplay.X[index][0, i]), 4),
-                 "shap": round(float(values[i]), 5)} for i in order]
+            home = classes.index("H")
+            # Newer shap returns (rows, features, classes); older versions
+            # return a list of per-class (rows, features) arrays.
+            if values.shape[-1] == len(classes) and values.shape[0] == len(rows):
+                values = values[:, :, home]
+            else:
+                values = values[home]
+        out = []
+        for k in range(len(rows)):
+            row_values = values[k]
+            row_features = _dense_row(block, k)
+            order = np.argsort(-np.abs(row_values))[:TOP_SHAP]
+            out.append([{"feature": inplay.feature_names[i],
+                         "value": round(float(row_features[i]), 4),
+                         "shap": round(float(row_values[i]), 5)}
+                        for i in order])
+        return out
+
+    def _build_snapshots(self, match_id):
+        """Every servable snapshot payload for one match, in one pass."""
+        inplay_c, inplay_r = self.models["Lc"], self.models["Lr"]
+        minutes = [m for m in self.minutes
+                   if (match_id, m) in self.snapshot_index]
+        if not minutes:
+            return {}
+        rows = [self.snapshot_index[(match_id, m)] for m in minutes]
+        probs = inplay_c.probabilities(rows)
+        margins = inplay_r.margin(rows)
+        shap_rows = self.attributions(rows)
+        meta = self.match_meta.get(match_id, {})
+        models = {"outcome": inplay_c.model_name,
+                  "margin": inplay_r.model_name,
+                  "calibration": inplay_c.calibration}
+        records = (inplay_c.frame.iloc[rows][SNAPSHOT_COLUMNS]
+                   .to_dict("records"))
+        payloads = {}
+        for k, row in enumerate(records):
+            payloads[minutes[k]] = {
+                "match_id": match_id, "minute": minutes[k],
+                "state": "in_play",
+                **meta,
+                "models": models,
+                "probabilities": {c: round(float(p), 4)
+                                  for c, p in zip(CLASS_ORDER, probs[k])},
+                "expected_margin": round(float(margins[k]), 3),
+                "score": {"home": int(row["inplay_home_goals"]),
+                          "away": int(row["inplay_away_goals"])},
+                "man_advantage": int(row["inplay_man_advantage"]),
+                "stats": {
+                    "xg": {"home": round(float(row["inplay_home_xg"]), 2),
+                           "away": round(float(row["inplay_away_xg"]), 2)},
+                    "shot_diff": int(row["inplay_shot_diff"]),
+                    "sot_diff": int(row["inplay_sot_diff"]),
+                    "corner_diff": int(row["inplay_corner_diff"]),
+                    "card_diff": int(row["inplay_card_diff"]),
+                    "pressure_diff": int(row["inplay_pressure_diff"]),
+                    "momentum_xg_diff": round(
+                        float(row["inplay_momentum_xg_diff"]), 3),
+                },
+                "top_shap": shap_rows[k],
+            }
+        return payloads
+
+    def snapshots_for(self, match_id):
+        cached = self._snap_cache.get(match_id)
+        if cached is None:
+            with self._lock:
+                cached = self._snap_cache.get(match_id)
+                if cached is None:
+                    cached = self._build_snapshots(match_id)
+                    self._snap_cache[match_id] = cached
+        return cached
+
+    def _build_prematch(self, match_id):
+        index = [self.prematch_index[match_id]]
+        pre_c, pre_r = self.models["C"], self.models["R"]
+        probs = pre_c.probabilities(index)[0]
+        row = pre_c.frame.iloc[index[0]]
+
+        def _num(value, digits):
+            value = float(value)
+            return round(value, digits) if np.isfinite(value) else None
+
+        def _form(side):
+            return {"points": _num(row[f"{side}_form_points"], 2),
+                    "xg_for": _num(row[f"{side}_form_xgf"], 2),
+                    "xg_against": _num(row[f"{side}_form_xga"], 2),
+                    "rest_days": _num(row[f"{side}_rest_days"], 1)}
+
+        return {
+            "match_id": match_id, "minute": None, "state": "pre_match",
+            **self.match_meta.get(match_id, {}),
+            "competition": str(row["competition_name"]),
+            "date": str(row["match_date"]),
+            "models": {"outcome": pre_c.model_name, "margin": pre_r.model_name,
+                       "calibration": pre_c.calibration},
+            "probabilities": {c: round(float(p), 4)
+                              for c, p in zip(CLASS_ORDER, probs)},
+            "expected_margin": round(float(pre_r.margin(index)[0]), 3),
+            "score": {"home": 0, "away": 0},
+            "form": {"home": _form("home"), "away": _form("away")},
+        }
+
+    def prematch_for(self, match_id):
+        cached = self._pre_cache.get(match_id)
+        if cached is None:
+            with self._lock:
+                cached = self._pre_cache.get(match_id)
+                if cached is None:
+                    cached = self._build_prematch(match_id)
+                    self._pre_cache[match_id] = cached
+        return cached
+
+    def match_list(self):
+        if self._match_list is None:
+            frame = self.models["C"].frame
+            self._match_list = [
+                {"match_id": int(r.match_id),
+                 "competition": str(r.competition_name),
+                 "date": str(r.match_date),
+                 **self.match_meta.get(int(r.match_id), {}),
+                 "final_result": str(r.label_result),
+                 "final_margin": float(r.label_margin)}
+                for r in frame.itertuples()]
+        return self._match_list
 
 
 app = FastAPI(title="Forecasting Competitive Football - in-play service")
@@ -201,85 +365,32 @@ def health():
 
 @app.get("/matches")
 def matches():
-    frame = state.models["C"].frame
-    return [{"match_id": int(r.match_id),
-             "competition": str(r.competition_name),
-             "date": str(r.match_date),
-             **state.match_meta.get(int(r.match_id), {}),
-             "final_result": str(r.label_result),
-             "final_margin": float(r.label_margin)}
-            for r in frame.itertuples()]
+    return state.match_list()
+
+
+@app.get("/minutes")
+def snapshot_minutes():
+    """The servable snapshot minutes, without computing any prediction."""
+    return {"minutes": state.minutes}
 
 
 def _snapshot_payload(match_id, minute):
-    key = (match_id, minute)
-    if key not in state.snapshot_index:
+    if match_id not in state.prematch_index:
+        raise HTTPException(status_code=404,
+                            detail=f"match {match_id} is not a held-out match")
+    payloads = state.snapshots_for(match_id)
+    if minute not in payloads:
         raise HTTPException(status_code=404, detail=(
             f"match {match_id} minute {minute} is not servable; held-out "
             f"matches only, minutes {state.minutes}"))
-    index = [state.snapshot_index[key]]
-    inplay_c, inplay_r = state.models["Lc"], state.models["Lr"]
-    probs = inplay_c.probabilities(index)[0]
-    row = inplay_c.frame.iloc[index[0]]
-    return {
-        "match_id": match_id, "minute": minute, "state": "in_play",
-        **state.match_meta.get(match_id, {}),
-        "models": {"outcome": inplay_c.model_name,
-                   "margin": inplay_r.model_name,
-                   "calibration": inplay_c.calibration},
-        "probabilities": {c: round(float(p), 4)
-                          for c, p in zip(CLASS_ORDER, probs)},
-        "expected_margin": round(float(inplay_r.margin(index)[0]), 3),
-        "score": {"home": int(row["inplay_home_goals"]),
-                  "away": int(row["inplay_away_goals"])},
-        "man_advantage": int(row["inplay_man_advantage"]),
-        "stats": {
-            "xg": {"home": round(float(row["inplay_home_xg"]), 2),
-                   "away": round(float(row["inplay_away_xg"]), 2)},
-            "shot_diff": int(row["inplay_shot_diff"]),
-            "sot_diff": int(row["inplay_sot_diff"]),
-            "corner_diff": int(row["inplay_corner_diff"]),
-            "card_diff": int(row["inplay_card_diff"]),
-            "pressure_diff": int(row["inplay_pressure_diff"]),
-            "momentum_xg_diff": round(float(row["inplay_momentum_xg_diff"]),
-                                      3),
-        },
-        "top_shap": state.top_attributions(index),
-    }
+    return payloads[minute]
 
 
 def _prematch_payload(match_id):
     if match_id not in state.prematch_index:
         raise HTTPException(status_code=404,
                             detail=f"match {match_id} is not a held-out match")
-    index = [state.prematch_index[match_id]]
-    pre_c, pre_r = state.models["C"], state.models["R"]
-    probs = pre_c.probabilities(index)[0]
-    row = pre_c.frame.iloc[index[0]]
-
-    def _num(value, digits):
-        value = float(value)
-        return round(value, digits) if np.isfinite(value) else None
-
-    def _form(side):
-        return {"points": _num(row[f"{side}_form_points"], 2),
-                "xg_for": _num(row[f"{side}_form_xgf"], 2),
-                "xg_against": _num(row[f"{side}_form_xga"], 2),
-                "rest_days": _num(row[f"{side}_rest_days"], 1)}
-
-    return {
-        "match_id": match_id, "minute": None, "state": "pre_match",
-        **state.match_meta.get(match_id, {}),
-        "competition": str(row["competition_name"]),
-        "date": str(row["match_date"]),
-        "models": {"outcome": pre_c.model_name, "margin": pre_r.model_name,
-                   "calibration": pre_c.calibration},
-        "probabilities": {c: round(float(p), 4)
-                          for c, p in zip(CLASS_ORDER, probs)},
-        "expected_margin": round(float(pre_r.margin(index)[0]), 3),
-        "score": {"home": 0, "away": 0},
-        "form": {"home": _form("home"), "away": _form("away")},
-    }
+    return state.prematch_for(match_id)
 
 
 @app.get("/predict")
@@ -292,9 +403,10 @@ def predict(match_id: int, minute: int = -1):
 @app.get("/replay/{match_id}")
 def replay(match_id: int):
     pre = _prematch_payload(match_id)
+    payloads = state.snapshots_for(match_id)
     return {"match_id": match_id, "pre_match": pre,
-            "snapshots": [_snapshot_payload(match_id, m)
-                          for m in state.minutes]}
+            "snapshots": [payloads[m] for m in state.minutes
+                          if m in payloads]}
 
 
 @app.get("/")
@@ -304,5 +416,5 @@ def dashboard():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("PORT", 8100)),
-                log_level="warning")
+    uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("PORT", 5500)),
+                log_level="info", access_log=False)
