@@ -710,7 +710,7 @@ async function play() {
   $("livechip").classList.add("on");
   const matchId = $("match").value;
   if (!current || current.match_id !== Number(matchId)) await showPrematch();
-  minutes = (await api(`/replay/${matchId}`)).snapshots.map(s => s.minute);
+  minutes = (await api("/minutes")).minutes;
   await step();
   timer = setInterval(step, Number($("pace").value));
 }
