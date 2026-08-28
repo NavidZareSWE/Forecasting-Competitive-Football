@@ -3,6 +3,7 @@
     python src/pipeline/build_team_ratings.py
 """
 from pathlib import Path
+import json
 import math
 
 import pandas as pd
@@ -99,7 +100,22 @@ def run_league(matches):
     return rows
 
 
+def load_tuned_params():
+    global ELO_K, ELO_HOME_ADV, PI_LAMBDA
+    path = PROCESSED_DIR / "rating_params.json"
+    if not path.exists():
+        return
+    with open(path, encoding="utf-8") as source:
+        params = json.load(source)
+    ELO_K = float(params.get("ELO_K", ELO_K))
+    ELO_HOME_ADV = float(params.get("ELO_HOME_ADV", ELO_HOME_ADV))
+    PI_LAMBDA = float(params.get("PI_LAMBDA", PI_LAMBDA))
+    print(f"Tuned rating parameters: K={ELO_K}, HA={ELO_HOME_ADV}, "
+          f"lambda={PI_LAMBDA}")
+
+
 def main():
+    load_tuned_params()
     store = pd.read_csv(PROCESSED_DIR / "extended_match_store.csv",
                         encoding="utf-8", parse_dates=["match_date"])
     rows = []

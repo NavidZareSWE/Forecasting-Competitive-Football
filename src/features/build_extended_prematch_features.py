@@ -89,7 +89,8 @@ def pivot_prematch(long):
 def main():
     splits_path = PROCESSED_DIR / "temporal_match_splits_extended.csv"
     for path in [splits_path, PROCESSED_DIR / "team_ratings.csv",
-                 PROCESSED_DIR / "rating_features.csv"]:
+                 PROCESSED_DIR / "rating_features.csv",
+                 PROCESSED_DIR / "stat_form_features.csv"]:
         if not path.exists():
             raise FileNotFoundError(f"Missing {path}. Run earlier stages first.")
 
@@ -123,6 +124,10 @@ def main():
                  "pi_away_home_pre", "pi_away_away_pre", "pi_expected_gd"]],
         on="match_id", how="left", validate="one_to_one")
     prematch = prematch.merge(rating_features, on="match_id", how="left",
+                              validate="one_to_one")
+    stat_form = pd.read_csv(PROCESSED_DIR / "stat_form_features.csv",
+                            encoding="utf-8")
+    prematch = prematch.merge(stat_form, on="match_id", how="left",
                               validate="one_to_one")
 
     assert prematch["match_id"].is_unique
