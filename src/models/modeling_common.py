@@ -20,32 +20,65 @@ except Exception:
 HERE = Path(__file__).resolve().parent
 PROJECT = HERE.parent
 FEATURE_DIR = PROJECT / "reports" / "features"
+PROCESSED_DIR = PROJECT / "reports" / "processed"
 RESULTS_DIR = PROJECT / "reports"
 
 PAPERS_DIR = PROJECT / "papers"
 sys.path.insert(0, str(PAPERS_DIR))
 
 CLASS_ORDER = ["H", "D", "A"]
-NOMINAL_COLUMNS = ["competition_name"]
+NOMINAL_COLUMNS = ["competition_name", "era"]
 META_COLUMNS = {"match_id", "match_date", "split", "label_result",
-                "label_margin", "competition_name", "snapshot_minute"}
+                "label_margin", "competition_name", "snapshot_minute",
+                "era", "season"}
+
+STRENGTH_PRIOR_COLUMNS = ["elo_diff", "elo_expected_home", "pi_expected_gd",
+                          "diff_xi_overall_mean", "diff_squad_overall_top11"]
 
 
 def load_prematch():
+    path = FEATURE_DIR / "prematch_features_extended.csv"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Missing {path}. Run build_extended_prematch_features.py first.")
+    return pd.read_csv(path, encoding="utf-8")
+
+
+def load_prematch_2016():
     path = FEATURE_DIR / "prematch_features.csv"
     if not path.exists():
         raise FileNotFoundError(f"Missing {path}. Run build_prematch_features.py first.")
     return pd.read_csv(path, encoding="utf-8")
 
 
+def _strength_prior():
+    ratings_path = PROCESSED_DIR / "team_ratings.csv"
+    features_path = PROCESSED_DIR / "rating_features.csv"
+    for path in [ratings_path, features_path]:
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Missing {path}. Run build_team_ratings.py / "
+                "build_rating_features.py before the in-play tasks.")
+    rating_cols = [c for c in STRENGTH_PRIOR_COLUMNS
+                   if not c.startswith("diff_")]
+    feature_cols = [c for c in STRENGTH_PRIOR_COLUMNS
+                    if c.startswith("diff_")]
+    ratings = pd.read_csv(ratings_path, encoding="utf-8",
+                          usecols=["match_id"] + rating_cols)
+    rating_features = pd.read_csv(features_path, encoding="utf-8",
+                                  usecols=["match_id"] + feature_cols)
+    return ratings.merge(rating_features, on="match_id", how="left")
+
+
 def load_inplay():
-    prematch = load_prematch().drop(columns=["split", "label_result",
-                                             "label_margin", "match_date"])
+    prematch = load_prematch_2016().drop(columns=["split", "label_result",
+                                                  "label_margin", "match_date"])
     path = FEATURE_DIR / "inplay_features.csv"
     if not path.exists():
         raise FileNotFoundError(f"Missing {path}. Run build_inplay_features.py first.")
     inplay = pd.read_csv(path, encoding="utf-8")
-    return inplay.merge(prematch, on="match_id", how="inner")
+    merged = inplay.merge(prematch, on="match_id", how="inner")
+    return merged.merge(_strength_prior(), on="match_id", how="left")
 
 
 def task_frame(task):
@@ -82,6 +115,42 @@ def _apply_imblearn(name, X, y, random_state):
     return samplers[name](random_state=random_state).fit_resample(X, y)
 
 
+class FeaturePreprocessor:
+    def __init__(self, continuous_cols, nominal_cols):
+        self.continuous_cols = list(continuous_cols)
+        self.nominal_cols = list(nominal_cols)
+        self.imputer = SimpleImputer(strategy="median")
+        self.scaler = StandardScaler()
+        self.encoder = OneHotEncoder(handle_unknown="ignore",
+                                     sparse_output=False)
+
+    def fit_continuous(self, train_df):
+        transformed = self.imputer.fit_transform(
+            train_df[self.continuous_cols])
+        return self.scaler.fit_transform(transformed)
+
+    def fit_encoder(self, nominal_array):
+        if not self.nominal_cols:
+            return np.empty((len(nominal_array), 0))
+        return self.encoder.fit_transform(nominal_array)
+
+    def transform(self, subset):
+        cont = self.scaler.transform(
+            self.imputer.transform(subset[self.continuous_cols]))
+        if self.nominal_cols:
+            nom = self.encoder.transform(
+                subset[self.nominal_cols].astype(str).to_numpy())
+        else:
+            nom = np.empty((len(subset), 0))
+        return np.hstack([cont, nom])
+
+    @property
+    def feature_names(self):
+        encoded = (list(self.encoder.get_feature_names_out(self.nominal_cols))
+                   if self.nominal_cols else [])
+        return list(self.continuous_cols) + encoded
+
+
 def prepare_matrices(df, continuous_cols, nominal_cols, target, task_type,
                      resampling="none", random_state=0):
     if resampling not in RESAMPLERS:
@@ -98,10 +167,8 @@ def prepare_matrices(df, continuous_cols, nominal_cols, target, task_type,
         subset = df[df["split"] == name]
         parts[name] = subset
 
-    imputer = SimpleImputer(strategy="median")
-    scaler = StandardScaler()
-    train_cont = imputer.fit_transform(parts["train"][continuous_cols])
-    train_cont = scaler.fit_transform(train_cont)
+    preprocessor = FeaturePreprocessor(continuous_cols, nominal_cols)
+    train_cont = preprocessor.fit_continuous(parts["train"])
 
     train_nom = parts["train"][nominal_cols].astype(str).to_numpy() \
         if nominal_cols else np.empty((len(parts["train"]), 0), dtype=object)
@@ -124,40 +191,30 @@ def prepare_matrices(df, continuous_cols, nominal_cols, target, task_type,
             random_state)
         train_cont = combined[:, :n_cont]
         if nominal_cols:
-            assert len(nominal_cols) == 1, \
-                "one-hot snap-back assumes a single nominal column"
-            categories = pre_encoder.categories_[0]
-            winners = combined[:, n_cont:].argmax(axis=1)
-            train_nom = categories[winners].reshape(-1, 1)
+            snapped = []
+            offset = n_cont
+            for categories in pre_encoder.categories_:
+                block = combined[:, offset:offset + len(categories)]
+                snapped.append(categories[block.argmax(axis=1)])
+                offset += len(categories)
+            assert offset == combined.shape[1], \
+                "one-hot snap-back misaligned with the encoded block"
+            train_nom = np.column_stack(snapped)
         else:
             train_nom = np.empty((train_cont.shape[0], 0), dtype=object)
 
-    encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-    if nominal_cols:
-        train_nom_enc = encoder.fit_transform(train_nom)
-    else:
-        train_nom_enc = np.empty((train_cont.shape[0], 0))
-
-    def transform(subset):
-        cont = scaler.transform(imputer.transform(subset[continuous_cols]))
-        if nominal_cols:
-            nom = encoder.transform(subset[nominal_cols].astype(str).to_numpy())
-        else:
-            nom = np.empty((len(subset), 0))
-        return np.hstack([cont, nom])
+    train_nom_enc = preprocessor.fit_encoder(train_nom)
+    transform = preprocessor.transform
 
     def meta(subset):
         columns = [c for c in ["match_id", "snapshot_minute", "match_date",
                                "competition_name"] if c in subset.columns]
         return subset[columns].reset_index(drop=True)
 
-    encoded_names = (list(encoder.get_feature_names_out(nominal_cols))
-                     if nominal_cols else [])
-    feature_names = list(continuous_cols) + encoded_names
-
     return {
-        "feature_names": feature_names,
+        "feature_names": preprocessor.feature_names,
         "transform": transform,
+        "preprocessor": preprocessor,
         "continuous_cols": list(continuous_cols),
         "nominal_cols": list(nominal_cols),
         "X_train": np.hstack([train_cont, train_nom_enc]),

@@ -29,10 +29,15 @@ def load_predictions(task="C"):
 
 
 def load_market():
-    path = PROCESSED_DIR / "market_baseline.csv"
+    path = PROCESSED_DIR / "market_baseline_extended.csv"
     if not path.exists():
-        raise FileNotFoundError(f"Missing {path}. Run build_market_baseline.py first.")
+        raise FileNotFoundError(
+            f"Missing {path}. Run build_extended_market_baseline.py first - "
+            "the 2015/16 market_baseline.csv cannot score extended-era "
+            "predictions.")
     market = pd.read_csv(path, encoding="utf-8")
+    if "league" in market.columns and "competition_name" not in market.columns:
+        market = market.rename(columns={"league": "competition_name"})
     probabilities = market[[MARKET_COLUMNS[c] for c in CLASS_ORDER]].to_numpy()
 
     assert np.all(market["overround"] > 1.0), \

@@ -84,7 +84,7 @@ def parity_check(client, match_id, minute):
 def main():
     with TestClient(app) as client:          # runs the startup hook
         from app import state
-        test_match = int(state.models["C"].frame["match_id"].iloc[0])
+        test_match = int(state.models["Lc"].frame["match_id"].iloc[0])
         minute = state.minutes[len(state.minutes) // 2]
 
         checked = parity_check(client, test_match, minute)
