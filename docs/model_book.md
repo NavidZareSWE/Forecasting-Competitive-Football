@@ -286,26 +286,37 @@ the market knows the priors, and neither alone is best.
 
 ## 6 · In-play — how information accrues
 
-`Lc` RPS by snapshot minute, `random_forest`, against the **frozen pre-match reference** —
-the same pre-match forecast held flat across all 90 minutes, on the same 344 matches, so the
-two series are genuinely comparable:
+`Lc` RPS by snapshot minute for the served in-play model (`random_forest`), against the
+**frozen pre-match reference** — the served pre-match model (`xgboost`) scoring those same
+344 matches, held flat across all 90 minutes:
 
-| min | 0 | 15 | 30 | 45 | 60 | 75 | 90 |
-|---|---|---|---|---|---|---|---|
-| **in-play** | 0.2151 | 0.2058 | 0.1987 | 0.1594 | 0.1226 | 0.0847 | 0.0260 |
-| frozen pre-match | 0.2213 | 0.2213 | 0.2213 | 0.2213 | 0.2213 | 0.2213 | 0.2213 |
+| min | 0 | 5 | 15 | 20 | 30 | 45 | 60 | 75 | 90 |
+|---|---|---|---|---|---|---|---|---|---|
+| **in-play** | 0.2143 | 0.2119 | 0.2076 | **0.2039** | 0.1922 | 0.1530 | 0.1209 | 0.0844 | 0.0228 |
+| frozen pre-match | 0.2044 | 0.2044 | 0.2044 | 0.2044 | 0.2044 | 0.2044 | 0.2044 | 0.2044 | 0.2044 |
 
-The curve is the project in one line. The in-play model is ahead of the frozen reference from
-the very first snapshot — at $t=0$ it already has the strength priors *plus* the lineup — and
-the gap then widens as events accumulate, until by full time it is essentially reading the
-scoreboard. The interesting region is **minutes 30–70**, where events have started to matter
-but the result is not yet decided; that is where a live model earns its keep.
+The curve is the project in one line. At kick-off the in-play model is **worse** than the
+pre-match model — 0.2143 against 0.2044 — because it is spending its capacity on live
+features that are all still zero, while the pre-match model has 143 engineered columns of
+form, ratings and squad strength. It **overtakes at minute 20**, and from there the gap widens
+monotonically until, by full time, it is essentially reading the scoreboard.
 
-> [!caution] Don't compare this to §3
-> The 0.19451 in the Task C table is on **5,806 extended-era matches**. The numbers here are on
-> **344 StatsBomb 2015/16 matches**. Different test sets — the only fair pre-match comparator on
-> this page is the frozen reference row above, and that reference is itself the older
-> `n_train = 896` model (see §10).
+The honest summary: watching the first quarter of a football match tells you *less* than
+knowing the two team sheets. Everything the in-play model is worth is earned between
+**minutes 20 and 90**.
+
+> [!bug] How this table got rebuilt, and why the earlier numbers were wrong
+> The frozen reference is produced by scoring the in-play matches with the pre-match model.
+> The extended split deliberately marks those 344 StatsBomb matches `"excluded"` from tasks
+> C and R, so they stopped appearing in `predictions_C.csv` — and `inplay_curves.py` built
+> the reference with an **inner join on `match_id`**, which silently matched zero rows and
+> dropped the entire frozen series. Nothing failed; the column just vanished.
+>
+> `prematch_reference()` now falls back to the persisted serving bundle and scores the
+> excluded rows directly, which is exactly what the API would serve for a pre-match panel on
+> those matches. An earlier revision of this section quoted a frozen value of 0.2213 taken
+> from a stale file; that was the v1-era 896-row model, and it made the in-play model look
+> better than the pre-match model from minute zero. It is not.
 
 > [!note] Event ordering trap
 > `REPORT.md` says events are ordered by `(period, timestamp, index)`. True in

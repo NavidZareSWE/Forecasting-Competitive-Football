@@ -239,14 +239,29 @@ def table_inplay_curve():
     frame = read(REPORTS / "inplay_metric_by_minute.csv")
     if frame is None:
         return None
-    sub = frame[(frame["task"] == "Lc")]
-    best = (sub[sub["series"] == "in-play"].groupby("model")["rps"].mean()
-            .idxmin())
-    wide = (sub[sub["model"] == best]
+    sub = frame[frame["task"] == "Lc"]
+    live = sub[sub["series"] == "in-play"]
+    best = live.groupby("model")["rps"].mean().idxmin()
+    # The frozen rows carry the PRE-MATCH model's name, so they must not be
+    # filtered by the in-play model - that silently drops the reference column,
+    # which is the only thing that makes this table mean anything.
+    frozen = sub[sub["series"] == "frozen pre-match"]
+    wide = (pd.concat([live[live["model"] == best], frozen])
             .pivot_table(index="snapshot_minute", columns="series", values="rps")
-            .reset_index()
-            .rename(columns={"snapshot_minute": "minute"}))
-    return f"Model: `{best}`\n\n" + md_table(wide, "{:.4f}")
+            .reset_index().rename(columns={"snapshot_minute": "minute"}))
+    note = f"In-play model: `{best}`."
+    if len(frozen):
+        ref = str(frozen["model"].iloc[0])
+        cross = wide[wide["in-play"] < wide["frozen pre-match"]]
+        when = (f" The in-play model overtakes it at minute "
+                f"**{int(cross['minute'].iloc[0])}**." if len(cross)
+                else " The in-play model never overtakes it.")
+        note += (f" Frozen pre-match reference: the served `{ref}` scoring the "
+                 f"same matches, held flat.{when}")
+    else:
+        note += (" **No frozen pre-match reference** - the in-play matches are "
+                 "excluded from tasks C/R, so run train_final.py and rebuild.")
+    return note + "\n\n" + md_table(wide, "{:.4f}")
 
 
 def table_simple(path, floatfmt="{:.5f}", note=""):
