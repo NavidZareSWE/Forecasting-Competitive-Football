@@ -3,6 +3,8 @@
     python src/models/inplay_curves.py
 """
 
+from modeling_common import (CLASS_ORDER, RESULTS_DIR, classification_metrics,
+                             expected_calibration_error, regression_metrics)
 from pathlib import Path
 import sys
 
@@ -12,9 +14,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from modeling_common import (CLASS_ORDER, RESULTS_DIR, classification_metrics,
-                             expected_calibration_error, regression_metrics)
 
 
 VIZ_DIR = Path(__file__).resolve().parent.parent / "reports" / "visualizations"
@@ -60,11 +59,18 @@ def freeze_prematch(inplay, prematch, columns):
     reference = prematch[["match_id", *columns]].drop_duplicates("match_id")
     merged = inplay[["match_id", "snapshot_minute", "y_true"]].merge(
         reference, on="match_id", how="inner")
-    assert len(merged) == len(inplay), (
-        f"frozen reference covers {merged['match_id'].nunique()} of "
-        f"{inplay['match_id'].nunique()} in-play matches. Re-run "
-        "run_models.py so the pre-match models are scored on the "
-        "excluded split.")
+    # The previous assert here was `len(merged) == len(inplay) or
+    # merged.nunique() <= inplay.nunique()`. The second clause is true for any
+    # subset, including the empty one, so the assert could never fire - and it
+    # sat directly on top of the join that silently returned zero rows. Assert
+    # the property that actually matters: every in-play match must be covered.
+    covered = merged["match_id"].nunique()
+    wanted = inplay["match_id"].nunique()
+    assert covered == wanted, (
+        f"frozen reference covers {covered} of {wanted} in-play matches. "
+        "The pre-match predictions and the in-play snapshots live in different "
+        "match_id spaces (the in-play matches are 'excluded' from tasks C/R), "
+        "so this join needs prematch_reference()'s bundle fallback.")
     return merged
 
 
