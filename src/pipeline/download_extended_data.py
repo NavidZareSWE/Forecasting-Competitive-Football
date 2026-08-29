@@ -24,8 +24,13 @@ ESD_LEAGUE_COUNT = 11
 FOOTBALL_DATA_URL = "https://www.football-data.co.uk/mmz4281/{season}/{div}.csv"
 FOOTBALL_DATA_DIR = DATA_DIR / "Football_Data"
 FOOTBALL_DATA_DIVS = ["E0", "SP1", "I1", "F1", "D1", "N1", "P1", "B1", "SC0"]
+# Complete seasons only. A season still in progress must NOT be added: it
+# would enter the store as an undersized (league, season) cell, break the
+# split contract's "two full seasons per holdout" shape, and give a test set
+# weighted towards August fixtures. 2026/27 is excluded for exactly that
+# reason - it was ~10 matches old when 2025/26 was added.
 FOOTBALL_DATA_SEASONS = ["1617", "1718", "1819", "1920", "2021",
-                         "2122", "2223", "2324", "2425"]
+                         "2122", "2223", "2324", "2425", "2526"]
 FOOTBALL_DATA_REQUIRED = ["Div", "Date", "HomeTeam", "AwayTeam",
                           "FTHG", "FTAG", "B365H", "B365D", "B365A"]
 
@@ -164,7 +169,8 @@ def main():
     else:
         failures.append(f"ESD sqlite: download {ESD_URL} manually to {ESD_PATH}")
 
-    print("football-data.co.uk seasons 2016/17-2024/25:")
+    print(f"football-data.co.uk seasons 2016/17-"
+          f"20{FOOTBALL_DATA_SEASONS[-1][:2]}/{FOOTBALL_DATA_SEASONS[-1][2:]}:")
     for season in FOOTBALL_DATA_SEASONS:
         for div in FOOTBALL_DATA_DIVS:
             path = FOOTBALL_DATA_DIR / season / f"{div}.csv"

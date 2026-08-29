@@ -81,6 +81,15 @@ MANUAL_OVERRIDES = {
     ("Pro League", "Beerschot"): "beerschot va",
     ("Pro League", "Royale Union Saint-Gilloise"): "st. gilloise",
     ("Pro League", "Union Saint-Gilloise"): "st. gilloise",
+    # Paris FC was promoted to Ligue 1 for 2025/26 and has no ESD entry, so it
+    # needs a synthetic. It also sorts BEFORE "Paris SG", so without these two
+    # lines it takes a synthetic id first and then wins the fuzzy match for
+    # PSG - which would silently move Paris Saint-Germain off its real ESD id
+    # 9847 and onto a brand-new club, taking 17 seasons of Elo with it. Same
+    # failure class as Ath Madrid / Ath Bilbao above: no string metric
+    # separates these two, so both sides are pinned by hand.
+    ("Ligue 1", "Paris SG"): "paris saint germain",
+    ("Ligue 1", "Paris FC"): None,
 }
 
 

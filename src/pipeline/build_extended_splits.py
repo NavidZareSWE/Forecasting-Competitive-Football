@@ -10,9 +10,14 @@ HERE = Path(__file__).resolve().parent
 PROJECT = HERE.parent
 PROCESSED_DIR = PROJECT / "reports" / "processed"
 
-TRAIN_SEASONS_THROUGH = "2020/2021"
-VALIDATION_SEASONS = {"2021/2022", "2022/2023"}
-TEST_SEASONS = {"2023/2024", "2024/2025"}
+# Season-boundary split, rolled forward whenever a new complete season is
+# added to FOOTBALL_DATA_SEASONS. The shape is fixed - the two most recent
+# complete seasons are the test set, the two before them are validation, and
+# everything earlier trains - so that the holdout is always the most recent
+# football available and the contract stays "predict forward, never backward".
+TRAIN_SEASONS_THROUGH = "2021/2022"
+VALIDATION_SEASONS = {"2022/2023", "2023/2024"}
+TEST_SEASONS = {"2024/2025", "2025/2026"}
 
 
 def season_split(season):
