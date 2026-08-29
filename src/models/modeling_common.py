@@ -71,8 +71,11 @@ def _strength_prior():
 
 
 def load_inplay():
+    # match_date is kept (inplay_features.csv has no date of its own) so that
+    # anything needing a temporal order over snapshots has one. It stays out of
+    # the design matrix: META_COLUMNS excludes it in task_frame.
     prematch = load_prematch_2016().drop(columns=["split", "label_result",
-                                                  "label_margin", "match_date"])
+                                                  "label_margin"])
     path = FEATURE_DIR / "inplay_features.csv"
     if not path.exists():
         raise FileNotFoundError(f"Missing {path}. Run build_inplay_features.py first.")

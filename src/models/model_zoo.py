@@ -22,6 +22,11 @@ from hierarchical_shrinkage import (HSForestClassifier, HSForestRegressor,
 
 EXACT_KERNEL_MAX_TRAIN = 8000
 
+# The stacked ensemble (stacking.py) is deliberately NOT a zoo member: its
+# folds must be grouped by match_id for the in-play tasks, and a zoo factory
+# has no way to receive them. Callers that serve it build it through
+# stacking.build_stack; every zoo loop here therefore stays stack-free.
+
 
 class ClampedNystroem(Nystroem):
 

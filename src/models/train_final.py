@@ -17,6 +17,7 @@ from sklearn.calibration import CalibratedClassifierCV  # noqa: E402
 from modeling_common import (FEATURE_DIR, HAS_FROZEN, PROCESSED_DIR,  # noqa: E402
                              RESULTS_DIR, prepare_matrices, task_frame)
 from model_zoo import classifier_zoo, regressor_zoo  # noqa: E402
+from stacking import STACK_MODELS, build_named_stack  # noqa: E402
 from tuning import load_best_params  # noqa: E402
 
 if HAS_FROZEN:
@@ -24,7 +25,10 @@ if HAS_FROZEN:
 
 MODELS_DIR = RESULTS_DIR / "models"
 ZOO_TASK = {"C": "C", "R": "R", "Lc": "L", "Lr": "L"}
-TREE_MODELS = ["lightgbm", "xgboost", "gbm", "random_forest"]
+# Task Lc is served with a TreeSHAP explainer, so its model must be a tree
+# ensemble or a stack containing one (app.py explains via stack.tree_base).
+TREE_MODELS = ["lightgbm", "xgboost", "gbm", "random_forest",
+               "stack", "stack_temporal"]
 
 COMMON_INPUTS = [RESULTS_DIR / "best_params.json",
                  RESULTS_DIR / "model_results.csv"]
@@ -65,9 +69,15 @@ def fit_task(task, model_name):
     df, continuous, nominal, target, task_type = task_frame(task)
     matrices = prepare_matrices(df, continuous, nominal, target, task_type)
     tuned = load_best_params().get(task, {})
-    zoo = (classifier_zoo if is_classification else regressor_zoo)(
-        0, task=ZOO_TASK[task], tuned=tuned)
-    estimator = zoo[model_name]()
+    if model_name in STACK_MODELS:
+        # Not a zoo member: the stack needs grouped folds or a temporal meta
+        # holdout, neither of which a zoo factory can receive.
+        estimator = build_named_stack(model_name, task, tuned, df,
+                                      transform=matrices["transform"])
+    else:
+        zoo = (classifier_zoo if is_classification else regressor_zoo)(
+            0, task=ZOO_TASK[task], tuned=tuned)
+        estimator = zoo[model_name]()
     y = matrices["y_train"]
     estimator.fit(matrices["X_train"], y if is_classification
                   else y.astype(float))
