@@ -122,7 +122,8 @@ class FeaturePreprocessor:
     def __init__(self, continuous_cols, nominal_cols):
         self.continuous_cols = list(continuous_cols)
         self.nominal_cols = list(nominal_cols)
-        self.imputer = SimpleImputer(strategy="median")
+        self.imputer = SimpleImputer(strategy="median",
+                                     keep_empty_features=True)
         self.scaler = StandardScaler()
         self.encoder = OneHotEncoder(handle_unknown="ignore",
                                      sparse_output=False)
@@ -166,7 +167,7 @@ def prepare_matrices(df, continuous_cols, nominal_cols, target, task_type,
             "Resample the pre-match table only.")
 
     parts = {}
-    for name in ["train", "validation", "test"]:
+    for name in ["train", "validation", "test", "excluded"]:
         subset = df[df["split"] == name]
         parts[name] = subset
 
@@ -228,6 +229,11 @@ def prepare_matrices(df, continuous_cols, nominal_cols, target, task_type,
         "y_test": parts["test"][target].to_numpy(),
         "meta_val": meta(parts["validation"]),
         "meta_test": meta(parts["test"]),
+        "X_reference": (transform(parts["excluded"])
+                        if len(parts["excluded"]) else None),
+        "y_reference": (parts["excluded"][target].to_numpy()
+                        if len(parts["excluded"]) else None),
+        "meta_reference": meta(parts["excluded"]),
     }
 
 
@@ -344,20 +350,39 @@ def floor_probabilities(proba, floor=PROBABILITY_FLOOR):
     return floored / floored.sum(axis=1, keepdims=True)
 
 
-def calibrate_proba(estimator, X_val, y_val, X_test, order=CLASS_ORDER):
-    raw = _proba_in_order(estimator, X_test, order)
+def fit_calibrator(estimator, X_val, y_val, order=CLASS_ORDER):
+    """Fit the calibrator once and return (transform, method).
+
+    The transform is reused for every matrix that must be scored by the
+    same calibrated model - the test split and, for the pre-match tasks,
+    the frozen-reference rows. Refitting per matrix would silently give
+    two different calibrators.
+    """
     if not HAS_FROZEN:
-        return floor_probabilities(raw), "uncalibrated"
+        def raw_transform(X):
+            return floor_probabilities(_proba_in_order(estimator, X, order))
+        return raw_transform, "uncalibrated"
     for method in ["isotonic", "sigmoid"]:
         try:
             calibrated = CalibratedClassifierCV(
                 FrozenEstimator(estimator), method=method)
             calibrated.fit(X_val, y_val)
-            return (floor_probabilities(_proba_in_order(calibrated, X_test, order)),
-                    method)
+
+            def transform(X, model=calibrated):
+                return floor_probabilities(
+                    _proba_in_order(model, X, order))
+            return transform, method
         except Exception:
             continue
-    return floor_probabilities(raw), "uncalibrated"
+
+    def fallback(X):
+        return floor_probabilities(_proba_in_order(estimator, X, order))
+    return fallback, "uncalibrated"
+
+
+def calibrate_proba(estimator, X_val, y_val, X_test, order=CLASS_ORDER):
+    transform, method = fit_calibrator(estimator, X_val, y_val, order)
+    return transform(X_test), method
 
 
 def _proba_in_order(estimator, X, order):

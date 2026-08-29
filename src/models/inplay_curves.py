@@ -3,6 +3,8 @@
     python src/models/inplay_curves.py
 """
 
+from modeling_common import (CLASS_ORDER, RESULTS_DIR, classification_metrics,
+                             expected_calibration_error, regression_metrics)
 from pathlib import Path
 import sys
 
@@ -12,9 +14,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from modeling_common import (CLASS_ORDER, RESULTS_DIR, classification_metrics,
-                             expected_calibration_error, regression_metrics)
 
 
 VIZ_DIR = Path(__file__).resolve().parent.parent / "reports" / "visualizations"
