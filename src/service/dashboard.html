@@ -3,1117 +3,437 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Touchline — live win probability</title>
+<title>Touchline — match forecast</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700&family=Archivo+Black&display=swap" rel="stylesheet">
 <style>
   :root {
     --turf: #0c1812;
     --panel: #122419;
-    --panel-deep: #0f1f15;
     --chalk: #eaf2ea;
     --dim: #7c917f;
     --line: #1d3626;
     --home: #5fb2ff;
-    --away: #ff7e67;
     --draw: #9aa898;
+    --away: #ff7e67;
     --amber: #f2c14e;
-    --font-display: "Archivo Black", "Arial Black", "Helvetica Neue", sans-serif;
+    --font-display: "Archivo Black", "Arial Black", sans-serif;
     --font-body: "Archivo", -apple-system, "Segoe UI", Roboto, sans-serif;
     --font-num: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
   body {
-    background:
-      radial-gradient(1100px 500px at 50% -200px, #16301f 0%, transparent 70%),
-      var(--turf);
+    background: radial-gradient(1100px 500px at 50% -220px, #16301f 0%, transparent 70%), var(--turf);
     color: var(--chalk);
-    font: 15px/1.5 var(--font-body);
+    font: 15px/1.55 var(--font-body);
     min-height: 100vh;
   }
   .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 
-  .topbar {
-    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-    padding: 14px 22px; border-bottom: 1px solid var(--line);
+  header {
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    padding: 16px 22px; border-bottom: 1px solid var(--line);
   }
-  .wordmark {
-    font-family: var(--font-display); font-size: 18px; letter-spacing: .04em;
-    margin-right: 4px; user-select: none;
-  }
+  .wordmark { font-family: var(--font-display); font-size: 18px; letter-spacing: .04em; }
   .wordmark em { font-style: normal; color: var(--amber); }
-  .tagline { color: var(--dim); font-size: 12px; margin-right: auto; }
+  header .sub { color: var(--dim); font-size: 13px; }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 22px; }
+
+  .picker { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 22px; }
   select, button {
-    background: #16301f; color: var(--chalk); border: 1px solid #2a4a34;
-    border-radius: 8px; padding: 8px 12px; font: 13px var(--font-body);
+    background: var(--panel); color: var(--chalk); border: 1px solid var(--line);
+    border-radius: 8px; padding: 9px 12px; font: inherit; font-size: 14px; cursor: pointer;
   }
-  select { max-width: 340px; }
-  button { cursor: pointer; font-weight: 700; }
+  select:focus-visible, button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
   button:hover:not(:disabled) { border-color: var(--amber); }
-  button:disabled { opacity: .4; cursor: default; }
-  button:focus-visible, select:focus-visible {
-    outline: 2px solid var(--amber); outline-offset: 2px;
-  }
-  .live-chip {
-    display: none; align-items: center; gap: 7px;
-    font-size: 12px; font-weight: 700; letter-spacing: .1em; color: var(--amber);
-  }
-  .live-chip.on { display: inline-flex; }
-  .live-chip i {
-    width: 8px; height: 8px; border-radius: 50%; background: var(--amber);
-    animation: pulse 1.4s ease-in-out infinite;
-  }
-  @keyframes pulse { 50% { opacity: .25; } }
-  .clock { color: var(--dim); font-size: 13px; }
-  .clock b { color: var(--chalk); font-weight: 700; }
+  button:disabled { opacity: .45; cursor: default; }
+  #match { min-width: 320px; flex: 1; }
 
-  .scoreboard { padding: 26px 22px 18px; text-align: center; }
-  .fixture-meta {
-    color: var(--dim); font-size: 12px; letter-spacing: .12em;
-    text-transform: uppercase; margin-bottom: 10px;
-  }
-  .scoreline {
-    display: grid; grid-template-columns: 1fr auto 1fr;
-    gap: 18px; align-items: baseline; margin: 0 auto;
-  }
-  .team { font-family: var(--font-display); line-height: 1.15;
-          font-size: clamp(17px, 3.2vw, 30px); }
-  .team.home { text-align: right; color: var(--home); }
-  .team.away { text-align: left; color: var(--away); }
-  .score {
-    font-family: var(--font-display);
-    font-size: clamp(34px, 6vw, 58px); letter-spacing: .02em;
-  }
-  .verdict {
-    display: none; margin: 16px auto 0;
-    border: 1px solid var(--amber); border-radius: 12px;
-    padding: 14px 18px; font-size: 14px; text-align: left;
-  }
-  .verdict.show { display: block; }
-  .verdict b { color: var(--amber); }
-  .ft-title { font-family: var(--font-display); font-size: 15px;
-              letter-spacing: .06em; color: var(--amber); margin-bottom: 6px; }
-  .ft-tiles {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 10px; margin-top: 12px;
-  }
-  .tile {
-    background: var(--panel-deep); border: 1px solid var(--line);
-    border-radius: 10px; padding: 10px 12px;
-  }
-  .tile .t-lbl { color: var(--dim); font-size: 11px; letter-spacing: .1em;
-                 text-transform: uppercase; }
-  .tile .t-val { font: 700 22px var(--font-num); margin-top: 2px; }
-  .tile .t-sub { color: var(--dim); font-size: 11.5px; margin-top: 2px; }
-  .ft-note { color: var(--dim); font-size: 12px; margin-top: 10px; }
-
-  .prob-bar-wrap { margin: 20px auto 0; }
-  .prob-bar {
-    display: flex; height: 34px; border-radius: 9px; overflow: hidden;
-    border: 1px solid var(--line);
-  }
-  .prob-bar div {
-    display: flex; align-items: center; justify-content: center;
-    font: 700 13px var(--font-num); color: #0b120d; min-width: 0;
-    transition: flex-grow .45s ease;
-    white-space: nowrap; overflow: hidden;
-  }
-  .prob-bar .h { background: var(--home); }
-  .prob-bar .d { background: var(--draw); }
-  .prob-bar .a { background: var(--away); }
-  .prob-labels {
-    display: flex; justify-content: space-between; margin-top: 6px;
-    color: var(--dim); font-size: 11px; letter-spacing: .08em;
-    text-transform: uppercase;
-  }
-
-  main {
-    display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(300px, 1fr);
-    gap: 16px; padding: 8px 22px 28px; width: 100%;
-  }
   .card {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 12px; padding: 16px 18px; min-width: 0;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px 22px; margin-bottom: 20px;
   }
-  .card h2 {
-    font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
-    color: var(--dim); margin: 0 0 12px; font-weight: 700;
+  .card > h2 {
+    font-family: var(--font-display); font-size: 13px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--amber); margin: 0 0 4px;
   }
-  .stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .card > .lede { color: var(--dim); font-size: 13px; margin: 0 0 18px; }
 
-  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 8px;
-            font-size: 12px; color: var(--dim); }
-  .legend i { display: inline-block; width: 14px; height: 3px;
-              border-radius: 2px; margin-right: 6px; vertical-align: middle; }
-  svg { display: block; width: 100%; height: auto; }
-  svg text { fill: var(--dim); font: 10px var(--font-num); }
+  .teams { display: flex; align-items: center; gap: 12px; font-size: 20px; margin-bottom: 4px; flex-wrap: wrap; }
+  .teams .h { color: var(--home); font-weight: 700; }
+  .teams .a { color: var(--away); font-weight: 700; }
+  .teams .v { color: var(--dim); font-size: 13px; }
+  .meta { color: var(--dim); font-size: 13px; margin-bottom: 18px; }
 
-  .chart-wrap { position: relative; }
-  .chart-guide {
-    position: absolute; top: 3%; bottom: 12%; width: 1px;
-    background: var(--chalk); opacity: .5; pointer-events: none;
-    display: none;
+  .verdict {
+    font-size: 17px; margin: 0 0 18px; padding: 12px 14px;
+    background: #0f1f15; border-left: 3px solid var(--amber); border-radius: 0 8px 8px 0;
   }
-  .chart-tip {
-    position: absolute; z-index: 5; pointer-events: none; display: none;
-    background: #0b1710f2; border: 1px solid #2a4a34; border-radius: 10px;
-    padding: 10px 12px; font-size: 12.5px; min-width: 190px;
-    box-shadow: 0 6px 18px #0009;
+  .verdict b { font-size: 19px; }
+
+  .bars { display: grid; gap: 10px; margin-bottom: 6px; }
+  .bar-row { display: grid; grid-template-columns: 92px 1fr 58px; align-items: center; gap: 12px; }
+  .bar-lbl { font-size: 13px; color: var(--dim); }
+  .bar-track {
+    position: relative; height: 26px; background: #0d1c13;
+    border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
   }
-  .chart-tip .tip-min { font-family: var(--font-display); font-size: 13px;
-                        color: var(--amber); margin-bottom: 4px; }
-  .chart-tip .tip-row { display: flex; justify-content: space-between;
-                        gap: 14px; margin: 2px 0; }
-  .chart-tip .tip-row span:first-child { color: var(--dim); }
-  .chart-tip .h { color: var(--home); } .chart-tip .a { color: var(--away); }
-  .chart-tip .d { color: var(--draw); } .chart-tip .g { color: var(--amber); }
-
-  .tug { margin: 10px 0; }
-  .tug-head { display: flex; justify-content: space-between; font-size: 12px;
-              color: var(--dim); margin-bottom: 4px; }
-  .tug-head .num { color: var(--chalk); }
-  .tug-track {
-    position: relative; height: 8px; background: var(--panel-deep);
-    border-radius: 4px; overflow: hidden;
+  .bar-fill { height: 100%; border-radius: 5px 0 0 5px; transition: width .25s ease; }
+  .bar-mark {
+    position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--chalk);
+    opacity: .85; transition: left .25s ease;
   }
-  .tug-track::after {
-    content: ""; position: absolute; left: 50%; top: 0; bottom: 0;
-    width: 1px; background: var(--line);
-  }
-  .tug-fill { position: absolute; top: 0; bottom: 0; transition: all .45s ease; }
-  .momentum { display: flex; align-items: center; gap: 10px; font-size: 13px; }
-  .momentum .arrow { font-size: 20px; line-height: 1; }
+  .bar-val { text-align: right; font-size: 15px; font-weight: 700; }
+  .legend { color: var(--dim); font-size: 12px; margin-top: 10px; }
+  .legend i { display: inline-block; width: 2px; height: 11px; background: var(--chalk); vertical-align: -1px; margin: 0 3px; }
 
-  .form-grid {
-    display: grid; grid-template-columns: auto 1fr auto; gap: 5px 14px;
-    font-size: 13px;
-  }
-  .form-grid .lbl { color: var(--dim); text-align: center; font-size: 12px; }
-  .form-grid .hv { color: var(--home); text-align: right; }
-  .form-grid .av { color: var(--away); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 18px; }
+  .tile { background: #0f1f15; border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; }
+  .tile .t-lbl { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+  .tile .t-val { font-size: 18px; font-weight: 700; margin-top: 3px; }
+  .tile .t-note { color: var(--dim); font-size: 11px; margin-top: 2px; }
 
-  .shap-row { margin: 9px 0; font-size: 12.5px; }
-  .shap-top { display: flex; justify-content: space-between; gap: 8px; }
-  .shap-top .num { color: var(--chalk); }
-  .shap-bar-track { height: 7px; background: var(--panel-deep);
-                    border-radius: 4px; margin-top: 4px; overflow: hidden; }
-  .shap-bar { height: 100%; border-radius: 4px; transition: width .45s ease; }
+  .live-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+  .clock { font-size: 15px; }
+  .clock b { font-size: 26px; font-family: var(--font-num); }
+  input[type=range] { flex: 1; min-width: 220px; accent-color: var(--amber); }
+  .score { font-family: var(--font-num); font-size: 30px; font-weight: 700; letter-spacing: .04em; }
 
-  .evt { display: flex; gap: 10px; font-size: 13px; margin: 6px 0; }
-  .evt .num { color: var(--amber); width: 34px; flex: none; }
-  .muted { color: var(--dim); font-size: 12.5px; }
-
-  footer {
-    padding: 10px 22px 26px; text-align: center;
-    color: var(--dim); font-size: 12px;
+  .chart { width: 100%; height: auto; display: block; margin-top: 6px; }
+  .chart-legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--dim); font-size: 12px; margin-top: 6px; }
+  .chart-legend span::before {
+    content: ""; display: inline-block; width: 14px; height: 3px; border-radius: 2px;
+    margin-right: 5px; vertical-align: 3px; background: currentColor;
   }
 
-  .tabs { display: flex; gap: 6px; }
-  .tab {
-    background: transparent; border: 1px solid transparent; color: var(--dim);
-    padding: 8px 14px; border-radius: 8px; font-weight: 700; cursor: pointer;
-    font: 700 13px var(--font-body);
+  .drivers { list-style: none; padding: 0; margin: 10px 0 0; }
+  .drivers li {
+    display: flex; justify-content: space-between; gap: 12px; padding: 7px 0;
+    border-bottom: 1px dashed var(--line); font-size: 13px;
   }
-  .tab.on { background: #16301f; color: var(--chalk); border-color: #2a4a34; }
-  .view { display: none; }
-  .view.on { display: block; }
+  .drivers li:last-child { border-bottom: 0; }
+  .drivers .up { color: var(--home); }
+  .drivers .down { color: var(--away); }
 
-  .fx-filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
-                padding: 16px 22px 4px; }
-  .fx-count { color: var(--dim); font-size: 12.5px; margin-left: auto; }
-  .fx-list { display: grid; gap: 10px; padding: 12px 22px 30px;
-             grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
-  .fx-card {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 12px; padding: 12px 14px; cursor: pointer;
-    transition: border-color .15s ease;
-  }
-  .fx-card:hover { border-color: var(--amber); }
-  .fx-top { display: flex; justify-content: space-between; font-size: 11px;
-            color: var(--dim); letter-spacing: .08em; text-transform: uppercase;
-            margin-bottom: 8px; }
-  .fx-teams { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px;
-              align-items: center; margin-bottom: 10px; }
-  .fx-teams .h { text-align: right; color: var(--home); font-weight: 700; }
-  .fx-teams .a { text-align: left; color: var(--away); font-weight: 700; }
-  .fx-teams .v { color: var(--dim); font-size: 11px; }
-  .odds-row { display: flex; gap: 6px; }
-  .odds-chip {
-    flex: 1; text-align: center; background: var(--panel-deep);
-    border: 1px solid var(--line); border-radius: 8px; padding: 6px 4px;
-  }
-  .odds-chip .o-lbl { color: var(--dim); font-size: 10px; letter-spacing: .08em;
-                      text-transform: uppercase; }
-  .odds-chip .o-val { font: 700 15px var(--font-num); }
-  .odds-chip .o-edge { font: 11px var(--font-num); }
-  .odds-chip.value { border-color: var(--amber); }
-  .odds-chip.value .o-val { color: var(--amber); }
-  .edge-pos { color: #7fd98b; } .edge-neg { color: var(--dim); }
-  .value-badge {
-    display: inline-block; background: var(--amber); color: #0b120d;
-    font: 700 10px var(--font-body); letter-spacing: .08em; border-radius: 5px;
-    padding: 2px 7px; text-transform: uppercase;
-  }
-  .replay-badge {
-    display: inline-block; border: 1px solid var(--home); color: var(--home);
-    font: 700 10px var(--font-body); letter-spacing: .08em; border-radius: 5px;
-    padding: 1px 6px; text-transform: uppercase; margin-left: 6px;
-  }
-  .mini-bar { display: flex; height: 7px; border-radius: 4px; overflow: hidden;
-              margin-top: 8px; border: 1px solid var(--line); }
-  .mini-bar .h { background: var(--home); }
-  .mini-bar .d { background: var(--draw); }
-  .mini-bar .a { background: var(--away); }
-  .fx-pred { display: flex; justify-content: space-between; gap: 8px;
-             color: var(--dim); font-size: 11.5px; margin-top: 5px; }
-  .fx-pred b { color: var(--chalk); }
-  .fx-metrics { display: grid; gap: 10px; padding: 16px 22px 0;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-  .fx-metrics .tile { padding: 8px 12px; }
-  .fx-metrics .t-val { font-size: 17px !important; }
-  .fx-detail { padding: 8px 22px 30px; display: grid; gap: 16px;
-               grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); }
-  .fx-detail .full { grid-column: 1 / -1; }
-  .vsbar { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
-  .vsbar-row { display: grid; grid-template-columns: 84px 1fr 56px; gap: 10px;
-               align-items: center; font-size: 12.5px; }
-  .vsbar-row .lbl { color: var(--dim); text-align: right; }
-  .vsbar-track { height: 10px; background: var(--panel-deep); border-radius: 5px;
-                 overflow: hidden; position: relative; }
-  .vsbar-fill { position: absolute; top: 0; bottom: 0; left: 0;
-                border-radius: 5px; }
-  .vsbar-marker { position: absolute; top: -2px; bottom: -2px; width: 2px;
-                  background: var(--chalk); opacity: .85; }
-  .squad-grid { display: grid; gap: 8px;
-                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-  .p-card {
-    background: var(--panel-deep); border: 1px solid var(--line);
-    border-radius: 10px; padding: 8px 10px; display: flex; gap: 10px;
-    align-items: center;
-  }
-  .p-ovr {
-    font: 700 18px var(--font-num); width: 34px; height: 34px; flex: none;
-    display: flex; align-items: center; justify-content: center;
-    background: #16301f; border: 1px solid #2a4a34; border-radius: 8px;
-  }
-  .p-ovr.elite { color: var(--amber); border-color: var(--amber); }
-  .p-meta { min-width: 0; }
-  .p-name { font-size: 12.5px; font-weight: 700; white-space: nowrap;
-            overflow: hidden; text-overflow: ellipsis; }
-  .p-pos { color: var(--dim); font-size: 11px; }
-  .reveal-btn { width: 100%; margin-top: 10px; }
-  .result-chip { font: 700 13px var(--font-num); color: var(--amber); }
-  .back-btn { margin: 14px 22px 0; }
+  .muted { color: var(--dim); font-size: 13px; }
+  .err { color: var(--away); }
+  footer { color: var(--dim); font-size: 12px; padding: 6px 22px 40px; max-width: 1080px; margin: 0 auto; }
 
-  @media (max-width: 920px) {
-    main, .fx-detail { grid-template-columns: 1fr; }
-    .tagline { display: none; }
-    select { max-width: 100%; flex: 1 1 100%; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .live-chip i { animation: none; }
-    .prob-bar div, .tug-fill, .shap-bar { transition: none; }
+  @media (max-width: 620px) {
+    .bar-row { grid-template-columns: 78px 1fr 50px; }
+    #match { min-width: 100%; }
   }
 </style>
 </head>
 <body>
 
-<div class="topbar">
+<header>
   <span class="wordmark">TOUCH<em>LINE</em></span>
-  <nav class="tabs" role="tablist">
-    <button class="tab on" id="tab-fixtures" role="tab">Fixtures</button>
-    <button class="tab" id="tab-replay" role="tab">Live replay</button>
-  </nav>
-  <span class="tagline">model vs market on held-out matches</span>
-  <span id="replaycontrols" style="display:none">
-    <select id="match" aria-label="Choose a match"></select>
-    <button id="play">&#9654; Replay</button>
-    <button id="pause" disabled aria-label="Pause">&#10074;&#10074;</button>
-    <select id="pace" aria-label="Replay speed">
-      <option value="2000">Slow</option>
-      <option value="1200" selected>Normal</option>
-      <option value="500">Fast</option>
-    </select>
-  </span>
-  <span class="live-chip" id="livechip"><i></i>LIVE</span>
-  <span class="clock" id="clockwrap" style="display:none">minute <b class="num" id="clock">&ndash;</b></span>
-</div>
-
-<div class="view on" id="view-fixtures">
-  <div class="fx-metrics" id="fx-metrics"></div>
-  <div class="fx-filters">
-    <select id="fx-league" aria-label="League filter"><option value="">All leagues</option></select>
-    <select id="fx-season" aria-label="Season filter"><option value="">All seasons</option></select>
-    <label style="color:var(--dim);font-size:12.5px">
-      <input type="checkbox" id="fx-value-only"> value picks only
-    </label>
-    <label style="color:var(--dim);font-size:12.5px">
-      <input type="checkbox" id="fx-replay-only"> in-play replayable
-    </label>
-    <span class="fx-count" id="fx-count"></span>
-  </div>
-  <div class="fx-list" id="fx-list"><span class="muted">Loading fixtures…</span></div>
-</div>
-
-<div class="view" id="view-detail">
-  <button class="back-btn" id="fx-back">&larr; All fixtures</button>
-  <div id="fx-detail-body" class="fx-detail"></div>
-</div>
-
-<div class="view" id="view-replay">
-<div class="scoreboard">
-  <div class="fixture-meta" id="fixturemeta">choose a match, then press replay</div>
-  <div class="scoreline">
-    <div class="team home" id="hometeam">Home</div>
-    <div class="score num" id="scoreline">&ndash;</div>
-    <div class="team away" id="awayteam">Away</div>
-  </div>
-  <div class="prob-bar-wrap">
-    <div class="prob-bar" id="probbar" role="img" aria-label="Outcome probabilities">
-      <div class="h" style="flex-grow:33.3">&ndash;</div>
-      <div class="d" style="flex-grow:33.3">&ndash;</div>
-      <div class="a" style="flex-grow:33.3">&ndash;</div>
-    </div>
-    <div class="prob-labels">
-      <span>home win</span><span>draw</span><span>away win</span>
-    </div>
-  </div>
-  <div class="verdict" id="verdict"></div>
-</div>
+  <span class="sub">what the model thinks will happen — before kick-off, and while the match is playing</span>
+</header>
 
 <main>
-  <section class="stack">
-    <div class="card">
-      <h2>Win probability over match time</h2>
-      <div class="legend">
-        <span><i style="background:var(--home)"></i>Home win</span>
-        <span><i style="background:var(--draw)"></i>Draw</span>
-        <span><i style="background:var(--away)"></i>Away win</span>
-        <span><i style="background:var(--amber); height:8px; width:8px; border-radius:50%"></i>Goal</span>
-        <span><i style="background:var(--amber); height:8px; width:8px"></i>Card</span>
-      </div>
-      <div class="chart-wrap" id="probwrap">
-        <svg id="probchart" viewBox="0 0 760 280" aria-label="Probability timeline"></svg>
-        <div class="chart-guide" id="probguide"></div>
-        <div class="chart-tip" id="probtip"></div>
-      </div>
-    </div>
-    <div class="card">
-      <h2>Expected final margin <span style="text-transform:none">(home &minus; away goals)</span></h2>
-      <svg id="marginchart" viewBox="0 0 760 110" aria-label="Expected margin timeline"></svg>
-    </div>
+  <div class="picker">
+    <select id="league"><option value="">All leagues</option></select>
+    <select id="match" aria-label="Choose a match"><option>Loading matches…</option></select>
+    <button id="play">&#9654;&nbsp; Play match</button>
+  </div>
+
+  <div id="error" class="card" style="display:none"><span class="err"></span></div>
+
+  <!-- ============ 1 · PRE-MATCH ============ -->
+  <section class="card" id="pre" style="display:none">
+    <h2>1 · Before kick-off</h2>
+    <p class="lede">Uses only what was known before the match started — team form, Elo and pi-ratings, squad strength. No live events, no odds.</p>
+
+    <div class="teams"><span class="h" id="pre-home"></span><span class="v">vs</span><span class="a" id="pre-away"></span></div>
+    <div class="meta" id="pre-meta"></div>
+
+    <p class="verdict" id="pre-verdict"></p>
+    <div class="bars" id="pre-bars"></div>
+    <div class="legend">Bar = model &nbsp;·&nbsp; <i></i> = bookmaker (de-vigged Bet365)</div>
+
+    <div class="tiles" id="pre-tiles"></div>
   </section>
 
-  <section class="stack">
-    <div class="card" id="statecard">
-      <h2>Match stats</h2>
-      <div id="stats" class="muted">Pre-match: form comparison appears here.
-        During replay: xG, shots, corners, cards, pressures.</div>
+  <!-- ============ 2 · IN-PLAY ============ -->
+  <section class="card" id="live" style="display:none">
+    <h2>2 · During the match</h2>
+    <p class="lede">The same question, re-answered every 5 minutes using only what had actually happened on the pitch by that minute.</p>
+
+    <div class="live-bar">
+      <span class="clock">minute <b class="num" id="minute">0</b></span>
+      <input type="range" id="slider" min="0" max="90" step="5" value="0" aria-label="Match minute">
+      <span class="score" id="score">0&ndash;0</span>
     </div>
-    <div class="card">
-      <h2>Why the model believes this</h2>
-      <div id="shap" class="muted">Top feature attributions for the home-win
-        probability appear once the replay starts.</div>
+
+    <p class="verdict" id="live-verdict"></p>
+    <div class="bars" id="live-bars"></div>
+    <div class="legend">Bar = model at this minute</div>
+
+    <div class="tiles" id="live-tiles"></div>
+
+    <h2 style="margin-top:26px">How the forecast moved</h2>
+    <svg class="chart" id="chart" viewBox="0 0 640 200" role="img"
+         aria-label="Win probability over match time"></svg>
+    <div class="chart-legend">
+      <span style="color:var(--home)">Home win</span>
+      <span style="color:var(--draw)">Draw</span>
+      <span style="color:var(--away)">Away win</span>
     </div>
-    <div class="card">
-      <h2>Key events</h2>
-      <div id="events" class="muted">No events yet.</div>
-    </div>
+
+    <h2 style="margin-top:26px">What is driving it right now</h2>
+    <ul class="drivers" id="drivers"></ul>
+  </section>
+
+  <!-- ============ 3 · RESULT ============ -->
+  <section class="card" id="truth" style="display:none">
+    <h2>3 · What actually happened</h2>
+    <button id="reveal">Reveal the result</button>
+    <div id="truth-body" style="display:none"></div>
   </section>
 </main>
-</div>
 
-<footer id="modelfooter">Models load with the service; details appear after the
-first prediction.</footer>
+<footer id="footer"></footer>
 
 <script>
-"use strict";
 const $ = id => document.getElementById(id);
-let series = [], events = [], timer = null, cursor = 0, minutes = [];
-let matchList = [], current = null, finished = false;
+const OUT = ["H", "D", "A"];
+const NAME = { H: "Home win", D: "Draw", A: "Away win" };
+const COLOR = { H: "var(--home)", D: "var(--draw)", A: "var(--away)" };
+const pct = v => (v * 100).toFixed(1) + "%";
+const signed = v => (v > 0 ? "+" : "") + Number(v).toFixed(2);
 
-const FEATURE_LABELS = {
-  inplay_goal_diff: "Goal difference", inplay_home_goals: "Home goals",
-  inplay_away_goals: "Away goals", inplay_home_xg: "Home xG",
-  inplay_away_xg: "Away xG", inplay_xg_diff: "xG difference",
-  inplay_shot_diff: "Shot difference", inplay_sot_diff: "Shots on target diff",
-  inplay_man_advantage: "Man advantage",
-  inplay_recent_xg_diff: "xG momentum (last 10')",
-  inplay_diff_pressures: "Pressure difference",
-  inplay_diff_set_piece_corner: "Corner difference",
-  inplay_diff_xg: "xG difference", inplay_diff_goals: "Goal difference",
-  inplay_diff_shots: "Shot difference",
-  inplay_diff_shots_on_target: "Shots on target diff",
-  inplay_diff_fouls_committed: "Foul difference",
-  inplay_diff_possession_share: "Possession share diff",
-  inplay_minutes_remaining: "Minutes remaining",
-  inplay_events_so_far: "Events so far",
-  snapshot_minute: "Match minute",
-};
-function featureLabel(name) {
-  if (FEATURE_LABELS[name]) return FEATURE_LABELS[name];
-  return name.replace(/^inplay_rate_diff_/, "Per-minute diff ")
-             .replace(/^inplay_recent_diff_/, "Recent diff ")
-             .replace(/^inplay_diff_/, "Diff ")
-             .replace(/^inplay_(recent_)?/, (m, r) => r ? "Recent " : "")
-             .replace(/^(home|away)_form_/, (m, s) => s + " form ")
-             .replace(/_/g, " ")
-             .replace(/^./, c => c.toUpperCase());
-}
+let matches = [], snaps = [], timer = null;
 
 async function api(path) {
   const r = await fetch(path);
   if (!r.ok) throw new Error(path + " -> " + r.status);
   return r.json();
 }
-
-async function loadMatches() {
-  matchList = await api("/matches");
-  $("match").innerHTML = matchList.map(m => {
-    const teams = m.home_team ? `${m.home_team} v ${m.away_team}`
-                              : `match ${m.match_id}`;
-    return `<option value="${m.match_id}">${teams} · ${m.competition} · ` +
-           `${m.date.slice(0, 10)}</option>`;
-  }).join("");
-  $("match").addEventListener("change", showPrematch);
-  await showPrematch();
+function fail(msg) {
+  $("error").style.display = "block";
+  $("error").querySelector(".err").textContent = msg;
 }
 
-function meta(matchId) {
-  return matchList.find(m => m.match_id === Number(matchId)) || {};
+/* ---------- shared renderers ---------- */
+
+function bars(host, model, market) {
+  host.innerHTML = OUT.map(o =>
+    '<div class="bar-row">' +
+      '<span class="bar-lbl">' + NAME[o] + '</span>' +
+      '<span class="bar-track">' +
+        '<span class="bar-fill" style="width:' + (model[o] * 100) + '%;background:' + COLOR[o] + '"></span>' +
+        (market ? '<span class="bar-mark" style="left:' + (market[o] * 100) + '%"></span>' : '') +
+      '</span>' +
+      '<span class="bar-val num">' + pct(model[o]) + '</span>' +
+    '</div>').join("");
 }
 
-function setFixture(payload) {
-  $("hometeam").textContent = payload.home_team || "Home";
-  $("awayteam").textContent = payload.away_team || "Away";
-  $("fixturemeta").textContent =
-    `${payload.competition} · ${String(payload.date).slice(0, 10)}` +
-    (payload.kick_off ? ` · ${String(payload.kick_off).slice(0, 5)} kick-off`
-                      : "");
+const best = p => OUT.reduce((a, b) => (p[a] >= p[b] ? a : b));
+
+function verdict(host, p, teams) {
+  const call = best(p);
+  const conf = p[call] >= 0.6 ? "strongly favours" : p[call] >= 0.45 ? "leans towards" : "narrowly favours";
+  host.innerHTML = call === "D"
+    ? "The model " + conf + " <b>a draw</b> — " + pct(p.D) + " likely."
+    : "The model " + conf + " <b>" + (call === "H" ? teams.home : teams.away) + "</b> — " + pct(p[call]) + " likely.";
 }
 
-function renderProbBar(p) {
-  const bar = $("probbar").children;
-  const vals = [p.H, p.D, p.A];
-  for (let i = 0; i < 3; i++) {
-    bar[i].style.flexGrow = Math.max(vals[i] * 100, 0.001);
-    bar[i].textContent = vals[i] >= 0.07 ? Math.round(vals[i] * 100) + "%" : "";
+function tile(label, value, note) {
+  return '<div class="tile"><div class="t-lbl">' + label + '</div>' +
+         '<div class="t-val">' + value + '</div>' +
+         (note ? '<div class="t-note">' + note + '</div>' : '') + '</div>';
+}
+
+/* ---------- 1 · pre-match ---------- */
+
+function renderPre(pre, card) {
+  const teams = { home: pre.home_team, away: pre.away_team };
+  $("pre-home").textContent = teams.home;
+  $("pre-away").textContent = teams.away;
+  $("pre-meta").textContent = pre.competition + " · " + String(pre.date).slice(0, 10);
+
+  verdict($("pre-verdict"), pre.probabilities, teams);
+  bars($("pre-bars"), pre.probabilities, card && card.market);
+
+  const m = pre.expected_margin;
+  let tiles = tile("Expected margin", signed(m) + " goals",
+    m > 0 ? teams.home + " by " + Math.abs(m).toFixed(1)
+          : m < 0 ? teams.away + " by " + Math.abs(m).toFixed(1) : "level");
+
+  if (card && card.market) {
+    const mk = best(card.market);
+    tiles += tile("Bookmaker says", NAME[mk] + " " + pct(card.market[mk]),
+      card.odds ? "odds " + card.odds.H + " / " + card.odds.D + " / " + card.odds.A : "");
+    const call = best(pre.probabilities);
+    if (card.edge)
+      tiles += tile("Model vs bookmaker",
+        (card.edge[call] > 0 ? "+" : "") + (card.edge[call] * 100).toFixed(1) + " pts",
+        "on " + NAME[call] + (card.value_pick ? " — flagged value" : ""));
   }
-}
-
-const X = m => 44 + (m / 90) * 700;
-
-function pitchBackdrop(height) {
-  const cx = X(45), cy = height / 2;
-  return `<rect x="44" y="8" width="700" height="${height - 34}" rx="6"
-            fill="none" stroke="#22402d" stroke-width="1.5"/>` +
-         `<line x1="${cx}" x2="${cx}" y1="8" y2="${height - 26}"
-            stroke="#22402d" stroke-width="1.5"/>` +
-         `<circle cx="${cx}" cy="${cy - 9}" r="34" fill="none"
-            stroke="#22402d" stroke-width="1.5"/>`;
-}
-
-function drawProb(upto) {
-  const svg = $("probchart");
-  const Y = p => 254 - p * 232;
-  const colors = { H: "var(--home)", D: "var(--draw)", A: "var(--away)" };
-  let out = pitchBackdrop(280);
-  for (const g of [0, 0.5, 1])
-    out += `<text x="10" y="${Y(g) + 3}">${g.toFixed(1)}</text>`;
-  for (const m of [0, 15, 30, 45, 60, 75, 90])
-    out += `<text x="${X(m) - 6}" y="274">${m}'</text>`;
-  for (const key of ["H", "D", "A"]) {
-    const pts = series.slice(0, upto + 1)
-      .map(s => `${X(s.minute)},${Y(s.probabilities[key])}`).join(" ");
-    out += `<polyline points="${pts}" fill="none" stroke="${colors[key]}"
-              stroke-width="2.5" stroke-linejoin="round"/>`;
+  if (card && card.blend) {
+    const b = best(card.blend.probabilities);
+    tiles += tile("Model + bookmaker", NAME[b] + " " + pct(card.blend.probabilities[b]),
+      "blended, market weight " + card.blend.weight);
   }
-  const last = series[upto];
-  for (const key of ["H", "D", "A"])
-    out += `<circle cx="${X(last.minute)}" cy="${Y(last.probabilities[key])}"
-              r="3.5" fill="${colors[key]}"/>`;
-  for (const e of events.filter(e => e.minute <= last.minute)) {
-    out += e.kind === "goal"
-      ? `<circle cx="${X(e.minute)}" cy="18" r="5" fill="var(--amber)"/>`
-      : `<rect x="${X(e.minute) - 4}" y="28" width="8" height="8"
-           fill="var(--amber)"/>`;
-  }
-  svg.innerHTML = out;
+  if (card && card.elo_diff != null)
+    tiles += tile("Elo gap", (card.elo_diff > 0 ? "+" : "") + Math.round(card.elo_diff),
+      card.elo_diff > 0 ? "home stronger" : "away stronger");
+
+  $("pre-tiles").innerHTML = tiles;
+  $("pre").style.display = "";
 }
 
-function drawMargin(upto, actualMargin = null) {
-  const svg = $("marginchart");
-  const Y = v => 52 - (v / 3) * 38;
-  let out = `<line x1="44" x2="744" y1="${Y(0)}" y2="${Y(0)}"
-               stroke="#22402d" stroke-width="1.5" stroke-dasharray="4 4"/>`;
-  if (actualMargin !== null) {
-    const clipped = Math.max(-3, Math.min(3, actualMargin));
-    out += `<line x1="44" x2="744" y1="${Y(clipped)}" y2="${Y(clipped)}"
-              stroke="var(--chalk)" stroke-width="1.5" stroke-dasharray="2 5"/>` +
-           `<text x="46" y="${Y(clipped) - 5}" fill="var(--chalk)">actual ` +
-           `${actualMargin > 0 ? "+" : ""}${actualMargin}</text>`;
-  }
-  for (const v of [-3, 0, 3])
-    out += `<text x="10" y="${Y(v) + 3}">${v > 0 ? "+" + v : v}</text>`;
-  const clip = v => Math.max(-3, Math.min(3, v));
-  const pts = series.slice(0, upto + 1)
-    .map(s => `${X(s.minute)},${Y(clip(s.expected_margin))}`).join(" ");
-  out += `<polyline points="${pts}" fill="none" stroke="var(--amber)"
-            stroke-width="2.5" stroke-linejoin="round"/>`;
-  const last = series[upto];
-  out += `<circle cx="${X(last.minute)}" cy="${Y(clip(last.expected_margin))}"
-            r="3.5" fill="var(--amber)"/>` +
-         `<text x="${Math.min(X(last.minute) + 8, 700)}"
-            y="${Y(clip(last.expected_margin)) + 3}"
-            fill="var(--amber)">${last.expected_margin > 0 ? "+" : ""}` +
-         `${last.expected_margin.toFixed(2)}</text>`;
-  svg.innerHTML = out;
+/* ---------- 2 · in-play ---------- */
+
+function renderSnap(i) {
+  const s = snaps[i];
+  $("minute").textContent = s.minute;
+  $("score").textContent = s.score.home + "–" + s.score.away;
+  $("slider").value = s.minute;
+
+  verdict($("live-verdict"), s.probabilities, { home: s.home_team, away: s.away_team });
+  bars($("live-bars"), s.probabilities, null);
+
+  const st = s.stats;
+  $("live-tiles").innerHTML =
+    tile("Expected goals", st.xg.home.toFixed(2) + " – " + st.xg.away.toFixed(2), "home – away") +
+    tile("Shots on target", signed(st.sot_diff).replace(".00", ""), "home minus away") +
+    tile("Corners", signed(st.corner_diff).replace(".00", ""), "home minus away") +
+    tile("Expected final margin", signed(s.expected_margin), "goals, home minus away") +
+    (s.man_advantage ? tile("Player advantage", signed(s.man_advantage).replace(".00", ""), "red cards") : "");
+
+  $("drivers").innerHTML = (s.top_shap || []).map(f =>
+    '<li><span>' + f.feature.replace(/^inplay_/, "").replace(/_/g, " ") + '</span>' +
+    '<span class="' + (f.shap > 0 ? "up" : "down") + '">' +
+    (f.shap > 0 ? "↑ helps home" : "↓ helps away") + " " + Math.abs(f.shap).toFixed(3) +
+    '</span></li>').join("") || '<li class="muted">no attribution available</li>';
+
+  drawChart(i);
 }
 
-function tug(label, homeVal, awayVal) {
-  const span = Math.max(Math.abs(homeVal), Math.abs(awayVal), 1);
-  const hw = Math.abs(homeVal) / span * 50, aw = Math.abs(awayVal) / span * 50;
-  return `<div class="tug">
-    <div class="tug-head"><span class="num">${homeVal}</span>
-      <span>${label}</span><span class="num">${awayVal}</span></div>
-    <div class="tug-track">
-      <div class="tug-fill" style="right:50%;width:${hw}%;background:var(--home)"></div>
-      <div class="tug-fill" style="left:50%;width:${aw}%;background:var(--away)"></div>
-    </div></div>`;
+function drawChart(upto) {
+  const W = 640, H = 200, PAD = 26;
+  const last = snaps[snaps.length - 1].minute || 90;
+  const x = m => PAD + (m / last) * (W - PAD * 2);
+  const y = p => H - PAD - p * (H - PAD * 2);
+  const grid = [0, 0.25, 0.5, 0.75, 1].map(p =>
+    '<line x1="' + PAD + '" y1="' + y(p) + '" x2="' + (W - PAD) + '" y2="' + y(p) +
+    '" stroke="#1d3626" stroke-width="1"/>' +
+    '<text x="2" y="' + (y(p) + 4) + '" fill="#7c917f" font-size="10">' + (p * 100) + '</text>').join("");
+  const lines = OUT.map(o =>
+    '<polyline points="' + snaps.slice(0, upto + 1)
+      .map(s => x(s.minute) + "," + y(s.probabilities[o])).join(" ") +
+    '" fill="none" stroke="' + COLOR[o] + '" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'
+  ).join("");
+  const now = snaps[upto];
+  const dots = OUT.map(o =>
+    '<circle cx="' + x(now.minute) + '" cy="' + y(now.probabilities[o]) + '" r="4" fill="' + COLOR[o] + '"/>').join("");
+  const ticks = [0, 15, 30, 45, 60, 75, 90].filter(m => m <= last).map(m =>
+    '<text x="' + x(m) + '" y="' + (H - 6) + '" fill="#7c917f" font-size="10" text-anchor="middle">' + m + "'</text>").join("");
+  $("chart").innerHTML = grid + lines + dots + ticks;
 }
 
-function renderStats(snap) {
-  if (snap.state === "pre_match") {
-    const f = snap.form;
-    if (!f) { $("stats").textContent = "No form data for this match."; return; }
-    const row = (label, h, a) =>
-      `<div class="hv num">${h ?? "–"}</div><div class="lbl">${label}</div>` +
-      `<div class="av num">${a ?? "–"}</div>`;
-    $("statecard").querySelector("h2").textContent = "Pre-match form (rolling)";
-    $("stats").innerHTML = `<div class="form-grid">
-      ${row("points per game", f.home.points, f.away.points)}
-      ${row("goals for", f.home.goals_for, f.away.goals_for)}
-      ${row("goals against", f.home.goals_against, f.away.goals_against)}
-      ${row("Elo", f.home.elo, f.away.elo)}
-      ${row("squad rating", f.home.squad, f.away.squad)}
-      ${row("rest days", f.home.rest_days, f.away.rest_days)}
-      </div>`;
-    return;
-  }
-  const s = snap.stats;
-  $("statecard").querySelector("h2").textContent = "Match stats";
-  const fromDiff = d => [d > 0 ? "+" + d : 0, d < 0 ? "+" + (-d) : 0];
-  const [sh, sa] = fromDiff(s.shot_diff), [th, ta] = fromDiff(s.sot_diff);
-  const [ch, ca] = fromDiff(s.corner_diff);
-  const [ph, pa] = fromDiff(s.pressure_diff);
-  const mom = s.momentum_xg_diff;
-  const momSide = Math.abs(mom) < 0.02 ? null : (mom > 0 ? "home" : "away");
-  $("stats").innerHTML =
-    tug("xG", s.xg.home, s.xg.away) +
-    tug("shots (diff)", sh, sa) + tug("on target (diff)", th, ta) +
-    tug("corners (diff)", ch, ca) +
-    tug("pressures (diff)", ph, pa) +
-    `<div class="momentum" style="margin-top:12px">
-       <span class="arrow" style="color:${momSide === "home" ? "var(--home)"
-         : momSide === "away" ? "var(--away)" : "var(--dim)"}">
-         ${momSide === "home" ? "◀" : momSide === "away" ? "▶" : "◆"}</span>
-       <span>xG momentum ${momSide ? "with the " + momSide + " side"
-         : "balanced"} <span class="num">(${mom > 0 ? "+" : ""}${mom})</span></span>
-     </div>` +
-    (snap.man_advantage
-      ? `<div class="momentum" style="margin-top:6px">
-           <span class="arrow" style="color:var(--amber)">▮</span>
-           <span>${snap.man_advantage > 0 ? "Home" : "Away"} side has
-             ${Math.abs(snap.man_advantage)} more player(s) on the pitch</span>
-         </div>`
-      : "");
+/* ---------- playback ---------- */
+
+function stop() { clearInterval(timer); timer = null; $("play").innerHTML = "&#9654;&nbsp; Play match"; }
+
+$("play").onclick = () => {
+  if (timer) return stop();
+  let i = snaps.findIndex(s => s.minute === Number($("slider").value));
+  if (i < 0 || i === snaps.length - 1) i = 0;
+  renderSnap(i);
+  $("play").innerHTML = "&#10074;&#10074;&nbsp; Pause";
+  timer = setInterval(() => {
+    if (++i >= snaps.length) return stop();
+    renderSnap(i);
+  }, 900);
+};
+$("slider").oninput = e => {
+  stop();
+  const i = snaps.findIndex(s => s.minute === Number(e.target.value));
+  if (i >= 0) renderSnap(i);
+};
+
+/* ---------- 3 · result ---------- */
+
+function renderTruth(card, pre) {
+  $("reveal").style.display = "";
+  $("truth-body").style.display = "none";
+  $("truth-body").innerHTML = "";
+  $("reveal").onclick = () => {
+    const call = best(pre.probabilities);
+    $("truth-body").innerHTML = '<div class="tiles" style="margin-top:16px">' +
+      tile("Final result", NAME[card.result], "margin " + signed(card.margin)) +
+      tile("Pre-match call", call === card.result ? "correct ✓" : "wrong ✗", "model said " + NAME[call]) +
+      (card.value_pick
+        ? tile("Value pick", card.value_pick === card.result ? "won ✓" : "lost ✗", NAME[card.value_pick])
+        : "") +
+      '</div>';
+    $("truth-body").style.display = "";
+    $("reveal").style.display = "none";
+  };
+  $("truth").style.display = "";
 }
 
-function renderShap(snap) {
-  if (!snap.top_shap) {
-    $("shap").textContent =
-      "Pre-match prediction uses rolling form; attributions start in play.";
-    return;
-  }
-  const most = Math.max(...snap.top_shap.map(f => Math.abs(f.shap)), 1e-9);
-  $("shap").innerHTML = "<div class='muted' style='margin-bottom:8px'>" +
-    "Push on P(home win) at this snapshot — blue helps home, coral hurts.</div>" +
-    snap.top_shap.map(f => {
-      const width = Math.abs(f.shap) / most * 100;
-      const color = f.shap >= 0 ? "var(--home)" : "var(--away)";
-      return `<div class="shap-row">
-        <div class="shap-top"><span>${featureLabel(f.feature)}</span>
-          <span class="num">${f.shap >= 0 ? "+" : ""}${f.shap.toFixed(3)}</span></div>
-        <div class="shap-bar-track">
-          <div class="shap-bar" style="width:${width}%;background:${color}"></div>
-        </div></div>`;
-    }).join("");
-}
+/* ---------- load ---------- */
 
-const CALL_NAMES = { H: "home win", D: "draw", A: "away win" };
-const argmaxCall = p => Object.entries(p).sort((a, b) => b[1] - a[1])[0][0];
-
-function tipHtml(s) {
-  const p = s.probabilities;
-  const row = (l, v) => `<div class="tip-row"><span>${l}</span><span class="num">${v}</span></div>`;
-  let out = `<div class="tip-min">${s.state === "pre_match" ? "PRE-MATCH"
-      : s.minute + "&prime;"} &middot; ${s.score.home}&ndash;${s.score.away}</div>`
-    + row("home win", `<span class="h">${Math.round(p.H * 100)}%</span>`)
-    + row("draw", `<span class="d">${Math.round(p.D * 100)}%</span>`)
-    + row("away win", `<span class="a">${Math.round(p.A * 100)}%</span>`)
-    + row("model call", CALL_NAMES[argmaxCall(p)])
-    + row("exp. margin", (s.expected_margin > 0 ? "+" : "") +
-          s.expected_margin.toFixed(2));
-  if (s.stats)
-    out += row("xG", `<span class="h">${s.stats.xg.home}</span> · ` +
-                     `<span class="a">${s.stats.xg.away}</span>`) +
-           row("xG momentum", (s.stats.momentum_xg_diff > 0 ? "+" : "") +
-               s.stats.momentum_xg_diff);
-  if (finished) {
-    const m = meta(current.match_id);
-    const right = argmaxCall(p) === m.final_result;
-    out += row("RPS here", `<span class="g">${rps(p, m.final_result).toFixed(3)}</span>`) +
-           row("call was", right ? "✓ right" : "✗ wrong");
-  }
-  return out;
-}
-
-function hoverProb(ev) {
-  if (!series.length) return;
-  const wrap = $("probwrap"), svg = $("probchart");
-  const rect = svg.getBoundingClientRect();
-  const xView = (ev.clientX - rect.left) / rect.width * 760;
-  let best = null, bestDist = Infinity;
-  for (const s of series) {
-    const d = Math.abs(X(s.minute ?? 0) - xView);
-    if (d < bestDist) { bestDist = d; best = s; }
-  }
-  if (!best || bestDist > 40) { hideTip(); return; }
-  const px = X(best.minute ?? 0) / 760 * rect.width;
-  $("probguide").style.left = px + "px";
-  $("probguide").style.display = "block";
-  const tip = $("probtip");
-  tip.innerHTML = tipHtml(best);
-  tip.style.display = "block";
-  const flip = px > rect.width - 230;
-  tip.style.left = flip ? (px - 210) + "px" : (px + 14) + "px";
-  tip.style.top = Math.max(8, ev.clientY - rect.top - 40) + "px";
-}
-
-function hideTip() {
-  $("probguide").style.display = "none";
-  $("probtip").style.display = "none";
-}
-
-function detectEvents(snaps) {
-  const found = [];
-  for (let i = 1; i < snaps.length; i++) {
-    const prev = snaps[i - 1], cur = snaps[i];
-    for (const side of ["home", "away"])
-      for (let g = 0; g < cur.score[side] - prev.score[side]; g++)
-        found.push({ minute: cur.minute, kind: "goal", side });
-    if (cur.man_advantage !== prev.man_advantage)
-      found.push({ minute: cur.minute, kind: "card",
-                   side: cur.man_advantage > prev.man_advantage
-                     ? "away" : "home" });
-  }
-  return found;
-}
-
-function renderEvents(uptoMinute) {
-  const rows = events.filter(e => e.minute <= uptoMinute).map(e => {
-    const team = e.side === "home" ? current.home_team || "home"
-                                   : current.away_team || "away";
-    const what = e.kind === "goal" ? "⚽ Goal" : "🟥 Player off";
-    return `<div class="evt"><span class="num">${e.minute}'</span>
-              <span>${what} — ${team}</span></div>`;
-  });
-  $("events").innerHTML = rows.join("") ||
-    "<span class='muted'>No goals or cards yet.</span>";
-}
-
-function rps(probs, actual) {
-  const order = ["H", "D", "A"];
-  const outcome = order.map(k => k === actual ? 1 : 0);
-  let cumP = 0, cumO = 0, total = 0;
-  for (let k = 0; k < 2; k++) {
-    cumP += probs[order[k]]; cumO += outcome[k];
-    total += (cumP - cumO) ** 2;
-  }
-  return total / 2;
-}
-
-function renderFullTime() {
-  finished = true;
-  const m = meta(current.match_id);
-  const last = series[series.length - 1];
-  const preCall = argmaxCall(current.probabilities);
-  const preRight = preCall === m.final_result;
-
-  let lockMinute = null;
-  for (const s of series) {
-    if (argmaxCall(s.probabilities) === m.final_result) {
-      if (lockMinute === null) lockMinute = s.minute;
-    } else lockMinute = null;
-  }
-
-  const preRps = rps(current.probabilities, m.final_result);
-  const ftRps = rps(last.probabilities, m.final_result);
-  const meanRps = series.reduce((t, s) =>
-    t + rps(s.probabilities, m.final_result), 0) / series.length;
-  const preErr = Math.abs(current.expected_margin - m.final_margin);
-  const trueProb = last.probabilities[m.final_result];
-
-  const tile = (lbl, val, sub) =>
-    `<div class="tile"><div class="t-lbl">${lbl}</div>` +
-    `<div class="t-val">${val}</div><div class="t-sub">${sub}</div></div>`;
-
-  $("verdict").innerHTML =
-    `<div class="ft-title">FULL-TIME REPORT</div>` +
-    `Actual result: <b>${CALL_NAMES[m.final_result]}</b>, margin ` +
-    `${m.final_margin > 0 ? "+" : ""}${m.final_margin}. Before kick-off the ` +
-    `model said <b>${CALL_NAMES[preCall]}</b> ` +
-    `(${Math.round(current.probabilities[preCall] * 100)}%) — ` +
-    `<b>${preRight ? "right" : "wrong"}</b> with no match information at all. ` +
-    (lockMinute !== null
-      ? `In play it locked onto the correct call from <b>minute ${lockMinute}</b> ` +
-        `and never let go.`
-      : `In play it never settled on the correct call — stoppage time or a ` +
-        `late twist beat the final snapshot.`) +
-    `<div class="ft-tiles">` +
-    tile("Called it from", lockMinute !== null ? lockMinute + "'" : "never",
-         "earliest minute the call stayed right") +
-    tile("Pre-match call", preRight ? "✓ right" : "✗ wrong",
-         `${CALL_NAMES[preCall]} at ` +
-         `${Math.round(current.probabilities[preCall] * 100)}%`) +
-    tile("RPS pre-match", preRps.toFixed(3), "before kick-off") +
-    tile("RPS match average", meanRps.toFixed(3), "mean over snapshots") +
-    tile("RPS at 90'", ftRps.toFixed(3),
-         "score-informed, near-trivial by design") +
-    tile("Margin error pre", preErr.toFixed(2) + " goals",
-         "|predicted − actual| before kick-off") +
-    `</div>` +
-    `<div class="ft-note">Ranked probability score: 0 is a perfect forecast, ` +
-    `lower is better — the same metric the offline sweep and the bookmaker ` +
-    `comparison are judged on. Hover the probability chart to inspect any ` +
-    `snapshot's full readout, now including its RPS. ` +
-    `P(actual) reached ${Math.round(trueProb * 100)}% by 90'.</div>`;
-  $("verdict").classList.add("show");
-  drawMargin(series.length - 1, m.final_margin);
-}
-
-function render(index) {
-  const snap = series[index];
-  $("clock").textContent = snap.state === "pre_match" ? "pre" : snap.minute + "'";
-  $("scoreline").textContent = `${snap.score.home} – ${snap.score.away}`;
-  renderProbBar(snap.probabilities);
-  renderStats(snap); renderShap(snap);
-  drawProb(index); drawMargin(index);
-  renderEvents(snap.minute ?? -1);
-  $("modelfooter").textContent =
-    `Outcome: ${snap.models.outcome}` +
-    (snap.models.calibration ? ` (${snap.models.calibration} calibration)` : "") +
-    ` · margin: ${snap.models.margin} · held-out test matches only — ` +
-    `the models never saw these games.`;
-}
-
-async function showPrematch() {
-  pause();
-  finished = false;
-  hideTip();
-  $("verdict").classList.remove("show");
-  const matchId = $("match").value;
-  current = await api(`/predict?match_id=${matchId}`);
-  series = [Object.assign({}, current, { minute: 0 })];
-  events = []; cursor = 0;
-  setFixture(current);
-  render(0);
-}
-
-async function step() {
-  if (cursor >= minutes.length) { pause(); renderFullTime(); return; }
-  const snap = await api(
-    `/predict?match_id=${current.match_id}&minute=${minutes[cursor]}`);
-  Object.assign(snap, { home_team: current.home_team,
-                        away_team: current.away_team });
-  series[cursor] = snap;
-  events = detectEvents(series);
-  render(cursor);
-  cursor += 1;
-}
-
-async function play() {
-  $("play").disabled = true; $("pause").disabled = false;
-  $("livechip").classList.add("on");
-  const matchId = $("match").value;
-  if (!current || current.match_id !== Number(matchId)) await showPrematch();
-  minutes = (await api("/minutes")).minutes;
-  await step();
-  timer = setInterval(step, Number($("pace").value));
-}
-
-function pause() {
-  clearInterval(timer); timer = null;
-  $("play").disabled = false; $("pause").disabled = true;
-  $("livechip").classList.remove("on");
-}
-
-$("play").addEventListener("click", play);
-$("pause").addEventListener("click", pause);
-$("probwrap").addEventListener("pointermove", hoverProb);
-$("probwrap").addEventListener("pointerleave", hideTip);
-$("pace").addEventListener("change", () => {
-  if (timer) { clearInterval(timer); timer = setInterval(step, Number($("pace").value)); }
-});
-
-let fixtures = [], matchesPromise = null, metrics = null;
-
-function ensureMatches() {
-  if (!matchesPromise) matchesPromise = loadMatches();
-  return matchesPromise;
-}
-
-const pct = v => Math.round(v * 100) + "%";
-const OUTS = ["H", "D", "A"];
-const OUT_LBL = { H: "1", D: "X", A: "2" };
-
-function showView(name) {
-  pause();
-  for (const v of ["fixtures", "detail", "replay"])
-    $(`view-${v}`).classList.toggle("on", v === name);
-  $("tab-fixtures").classList.toggle("on", name !== "replay");
-  $("tab-replay").classList.toggle("on", name === "replay");
-  const replay = name === "replay";
-  $("replaycontrols").style.display = replay ? "inline" : "none";
-  $("clockwrap").style.display = replay ? "inline" : "none";
-  if (replay) ensureMatches();
-}
-
-async function openReplay(matchId) {
-  showView("replay");
-  await ensureMatches();
-  const options = [...$("match").options];
-  if (options.some(o => Number(o.value) === matchId)) {
-    $("match").value = String(matchId);
-    await showPrematch();
-    play();
-  }
-}
-
-function oddsChip(card, out, withEdge = false) {
-  const isValue = card.value_pick === out;
-  const edge = card.edge ? card.edge[out] : null;
-  const detail = !withEdge ? "" :
-    `<div class="o-edge">${pct(card.model[out])}${edge === null ? "" :
-      ` <span class="${edge > 0 ? "edge-pos" : "edge-neg"}">` +
-      `${edge > 0 ? "+" : ""}${(edge * 100).toFixed(1)}</span>`}</div>`;
-  return `<div class="odds-chip${isValue ? " value" : ""}">
-    <div class="o-lbl">${OUT_LBL[out]}</div>
-    <div class="o-val">${card.odds ? card.odds[out].toFixed(2) : "–"}</div>
-    ${detail}
-  </div>`;
-}
-
-function fixtureCard(card) {
-  const call = argmaxCall(card.model);
-  return `<div class="fx-card" data-id="${card.match_id}" role="button" tabindex="0">
-    <div class="fx-top"><span>${card.league} · ${card.date}</span>
-      <span>${card.value_pick ? '<span class="value-badge">Value ' +
-        OUT_LBL[card.value_pick] + "</span>" : ""}${card.replay_available
-        ? '<span class="replay-badge">in-play</span>' : ""}</span></div>
-    <div class="fx-teams">
-      <span class="h">${card.home_team ?? "Home"}</span><span class="v">vs</span>
-      <span class="a">${card.away_team ?? "Away"}</span></div>
-    <div class="odds-row">${OUTS.map(o => oddsChip(card, o)).join("")}</div>
-    <div class="mini-bar">
-      <div class="h" style="flex-grow:${card.model.H * 100}"></div>
-      <div class="d" style="flex-grow:${card.model.D * 100}"></div>
-      <div class="a" style="flex-grow:${card.model.A * 100}"></div></div>
-    <div class="fx-pred">
-      <span>pre-match: <b>${CALL_NAMES[call]}</b> ${pct(card.model[call])}</span>
-      <span>margin <b class="num">${card.expected_margin > 0 ? "+" : ""}${card.expected_margin}</b></span>
-    </div>
-  </div>`;
-}
-
-function renderFixtures() {
-  const league = $("fx-league").value, season = $("fx-season").value;
-  const valueOnly = $("fx-value-only").checked;
-  const replayOnly = $("fx-replay-only").checked;
-  const subset = fixtures.filter(c =>
-    (!league || c.league === league) && (!season || c.season === season)
-    && (!valueOnly || c.value_pick)
-    && (!replayOnly || c.replay_available));
-  $("fx-count").textContent =
-    `${subset.length} fixtures · chips = Bet365 odds · bar = model H/D/A`;
-  const shown = subset.slice(0, 200);
-  $("fx-list").innerHTML = shown.map(fixtureCard).join("") ||
-    "<span class='muted'>No fixtures match the filters.</span>";
-  for (const el of $("fx-list").querySelectorAll(".fx-card"))
-    el.addEventListener("click", () => showDetail(Number(el.dataset.id)));
-  if (subset.length > shown.length)
-    $("fx-list").insertAdjacentHTML("beforeend",
-      `<span class="muted">Showing first ${shown.length}; narrow the filters.</span>`);
-}
-
-function vsBars(card) {
-  const colors = { H: "var(--home)", D: "var(--draw)", A: "var(--away)" };
-  const names = { H: "Home win", D: "Draw", A: "Away win" };
-  return `<div class="vsbar">` + OUTS.map(o => {
-    const model = card.model[o], market = card.market ? card.market[o] : null;
-    return `<div class="vsbar-row"><span class="lbl">${names[o]}</span>
-      <div class="vsbar-track">
-        <div class="vsbar-fill" style="width:${model * 100}%;background:${colors[o]}"></div>
-        ${market !== null ? `<div class="vsbar-marker" style="left:${market * 100}%"></div>` : ""}
-      </div><span class="num">${pct(model)}</span></div>`;
-  }).join("") + `</div>
-  <div class="muted">bar = model probability · white tick = de-vigged market</div>`;
-}
-
-function playerCards(players) {
-  return `<div class="squad-grid">` + players.map(p => `
-    <div class="p-card">
-      <div class="p-ovr${p.overall >= 85 ? " elite" : ""}">${p.overall ?? "–"}</div>
-      <div class="p-meta"><div class="p-name">${p.name}</div>
-        <div class="p-pos">${p.position ?? ""}${p.age ? " · " + p.age + "y" : ""}</div>
-      </div></div>`).join("") + `</div>`;
-}
-
-async function showDetail(matchId) {
-  showView("detail");
-  $("fx-detail-body").innerHTML = "<span class='muted'>Loading…</span>";
-  const d = await api(`/fixture/${matchId}`);
-  const form = d.form ? `
-    <div class="form-grid">
-      <div class="hv num">${d.form.home.points ?? "–"}</div><div class="lbl">form points/game</div><div class="av num">${d.form.away.points ?? "–"}</div>
-      <div class="hv num">${d.form.home.goals_for ?? "–"}</div><div class="lbl">form goals for</div><div class="av num">${d.form.away.goals_for ?? "–"}</div>
-      <div class="hv num">${d.form.home.elo ?? "–"}</div><div class="lbl">Elo</div><div class="av num">${d.form.away.elo ?? "–"}</div>
-      <div class="hv num">${d.form.home.squad ?? "–"}</div><div class="lbl">squad rating (top 11)</div><div class="av num">${d.form.away.squad ?? "–"}</div>
-    </div>` : "<span class='muted'>No form panel for this fixture.</span>";
-  const lineups = d.lineups ? `
-    <div class="card full"><h2>${d.lineups.kind === "actual_xi"
-        ? "Starting XIs (EA FIFA ratings)"
-        : "Strongest squads by EA FC rating"}</h2>
-      <div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
-        <div><div class="muted" style="color:var(--home);margin-bottom:6px">${d.home_team}</div>
-          ${playerCards(d.lineups.home)}</div>
-        <div><div class="muted" style="color:var(--away);margin-bottom:6px">${d.away_team}</div>
-          ${playerCards(d.lineups.away)}</div>
-      </div></div>` : "";
-  const modelLine = metrics ? `<div class="muted" style="margin-top:8px">
-      served: ${metrics.tasks.C.model}${metrics.tasks.C.calibration ?
-        " (" + metrics.tasks.C.calibration + ")" : ""} outcome ·
-      ${metrics.tasks.R.model} margin · test RPS
-      <b class="num">${metrics.tasks.C.rps?.toFixed(4) ?? "–"}</b>${metrics.market ?
-        ` vs market <b class="num">${metrics.market.rps.toFixed(4)}</b>` : ""}
-    </div>` : "";
-  $("fx-detail-body").innerHTML = `
-    <div class="card">
-      <h2>Pre-match prediction · ${d.league} · ${d.date}</h2>
-      <div class="fx-teams" style="font-size:18px">
-        <span class="h">${d.home_team}</span><span class="v">vs</span>
-        <span class="a">${d.away_team}</span></div>
-      <div class="odds-row" style="margin:10px 0">${OUTS.map(o => oddsChip(d, o, true)).join("")}</div>
-      ${vsBars(d)}
-      <div style="margin-top:10px">Model call:
-        <b>${CALL_NAMES[argmaxCall(d.model)]}</b> at ${pct(d.model[argmaxCall(d.model)])}
-        · expected margin
-        <b class="num">${d.expected_margin > 0 ? "+" : ""}${d.expected_margin}</b>
-        ${d.value_pick ? ` · <span class="value-badge">value: ${OUT_LBL[d.value_pick]}</span>` : ""}</div>
-      ${d.blend ? `<div class="muted" style="margin-top:6px">model+market blend
-        (α=${d.blend.weight}, declared odds-as-feature arm — not used for the
-        edge above): ${OUTS.map(o =>
-          `${OUT_LBL[o]} ${pct(d.blend.probabilities[o])}`).join(" · ")}</div>` : ""}
-      ${modelLine}
-      <button class="reveal-btn" id="fx-reveal">Reveal result &amp; measures</button>
-      ${d.replay_available ? `<button class="reveal-btn" id="fx-run-replay">&#9654;
-        Run in-play prediction (minute-by-minute replay)</button>` : ""}
-      <div id="fx-result" style="display:none;margin-top:8px"></div>
-    </div>
-    <div class="card"><h2>Team strength</h2>${form}
-      ${d.ratings ? `<div class="muted" style="margin-top:10px">pi-rating expected goal diff:
-        <b class="num">${d.ratings.pi_expected_gd > 0 ? "+" : ""}${d.ratings.pi_expected_gd.toFixed(2)}</b></div>` : ""}
-    </div>
-    ${lineups}`;
-  $("fx-reveal").addEventListener("click", () => {
-    const call = argmaxCall(d.model);
-    const rows = [
-      ["Result", `${CALL_NAMES[d.result]} (${d.margin > 0 ? "+" : ""}${d.margin})`],
-      ["Model call", `${CALL_NAMES[call]} ${call === d.result ? "✓" : "✗"}`],
-      ["RPS — model", rps(d.model, d.result).toFixed(4)],
-    ];
-    if (d.market) rows.push(["RPS — market", rps(d.market, d.result).toFixed(4)]);
-    if (d.blend) rows.push(["RPS — blend", rps(d.blend.probabilities, d.result).toFixed(4)]);
-    rows.push(["Margin error", Math.abs(d.expected_margin - d.margin).toFixed(2) + " goals"]);
-    if (d.value_pick)
-      rows.push(["Value pick", d.value_pick === d.result ? "won ✓" : "lost ✗"]);
-    $("fx-result").innerHTML = `<div class="ft-tiles">` + rows.map(([l, v]) =>
-      `<div class="tile"><div class="t-lbl">${l}</div>
-       <div class="t-val" style="font-size:15px">${v}</div></div>`).join("") +
-      `</div><div class="ft-note">RPS: 0 = perfect forecast, lower beats the
-       market on this match.</div>`;
-    $("fx-result").style.display = "block";
-    $("fx-reveal").style.display = "none";
-  });
-  const runBtn = $("fx-run-replay");
-  if (runBtn) runBtn.addEventListener("click", () => openReplay(matchId));
-}
-
-async function loadFixtures() {
-  let data;
+async function select(matchId) {
+  stop();
   try {
-    data = await api("/fixtures");
-  } catch (err) {
-    $("fx-list").innerHTML = `<span class="muted">Fixtures unavailable ` +
-      `(${err.message}). The service may still be starting, or the extended ` +
-      `data layer has not been built - the Live replay tab works either way. ` +
-      `<a href="#" id="fx-retry" style="color:var(--amber)">Retry</a></span>`;
-    $("fx-retry").addEventListener("click", e => { e.preventDefault(); loadFixtures(); });
+    const [replay, card] = await Promise.all([
+      api("/replay/" + matchId),
+      api("/fixture/" + matchId).catch(() => null),
+    ]);
+    snaps = replay.snapshots;
+    if (!snaps.length) throw new Error("no snapshots for this match");
+    $("slider").min = snaps[0].minute;
+    $("slider").max = snaps[snaps.length - 1].minute;
+    $("slider").step = snaps.length > 1 ? snaps[1].minute - snaps[0].minute : 5;
+    renderPre(replay.pre_match, card);
+    renderSnap(0);
+    $("live").style.display = "";
+    if (card) renderTruth(card, replay.pre_match);
+    $("error").style.display = "none";
+  } catch (e) { fail("Could not load match " + matchId + ": " + e.message); }
+}
+
+function fillMatches() {
+  const league = $("league").value;
+  const rows = matches.filter(m => !league || m.competition === league);
+  $("match").innerHTML = rows.map(m =>
+    '<option value="' + m.match_id + '">' + String(m.date).slice(0, 10) +
+    " — " + m.home_team + " vs " + m.away_team + "</option>").join("");
+  if (rows.length) select(rows[0].match_id);
+}
+
+(async function init() {
+  try {
+    matches = await api("/matches");
+    matches.sort((a, b) => (a.date < b.date ? -1 : 1));
+    const leagues = [...new Set(matches.map(m => m.competition))].sort();
+    $("league").innerHTML = '<option value="">All leagues</option>' +
+      leagues.map(l => "<option>" + l + "</option>").join("");
+    $("league").onchange = fillMatches;
+    $("match").onchange = e => select(e.target.value);
+    fillMatches();
+  } catch (e) {
+    fail('Cannot reach the service — start it with "python src/service/app.py". (' + e.message + ")");
     return;
   }
-  fixtures = data.fixtures;
-  const leagues = [...new Set(fixtures.map(c => c.league))].sort();
-  const seasons = [...new Set(fixtures.map(c => c.season))].sort();
-  $("fx-league").innerHTML = '<option value="">All leagues</option>' +
-    leagues.map(l => `<option>${l}</option>`).join("");
-  $("fx-season").innerHTML = '<option value="">All seasons</option>' +
-    seasons.map(s => `<option>${s}</option>`).join("");
-  renderFixtures();
-}
-
-async function loadMetrics() {
-  try { metrics = await api("/metrics"); } catch { return; }
-  const t = metrics.tasks, mk = metrics.market;
-  const tile = (lbl, val, sub) =>
-    `<div class="tile"><div class="t-lbl">${lbl}</div>` +
-    `<div class="t-val" style="font-size:18px">${val}</div>` +
-    `<div class="t-sub">${sub}</div></div>`;
-  $("fx-metrics").innerHTML =
-    tile("Pre-match RPS", t.C.rps?.toFixed(4) ?? "–",
-         mk ? `market ${mk.rps.toFixed(4)} · ${mk.n.toLocaleString()} test matches`
-            : `${t.C.model} · held-out test`) +
-    (mk && mk.gap != null ? tile("Gap vs market",
-         (mk.gap > 0 ? "+" : "") + mk.gap.toFixed(4),
-         metrics.blend?.C
-           ? `blend +${(metrics.blend.C.rps - mk.rps).toFixed(4)} (α=${metrics.blend.C.alpha})`
-           : "0 = market matched") : "") +
-    tile("In-play RPS", t.Lc.rps?.toFixed(4) ?? "–",
-         metrics.blend?.Lc
-           ? `blend ${metrics.blend.Lc.rps.toFixed(4)} · per 5-min snapshot`
-           : "per 5-min snapshot") +
-    tile("Margin MAE", t.R.mae?.toFixed(2) ?? "–",
-         `${metrics.n_fixtures.toLocaleString()} fixtures · ` +
-         `${metrics.n_replayable} replayable`);
-}
-
-$("tab-fixtures").addEventListener("click", () => showView("fixtures"));
-$("tab-replay").addEventListener("click", () => showView("replay"));
-$("fx-back").addEventListener("click", () => showView("fixtures"));
-for (const id of ["fx-league", "fx-season", "fx-value-only", "fx-replay-only"])
-  $(id).addEventListener("change", renderFixtures);
-loadFixtures();
-loadMetrics();
+  try {
+    const m = await api("/metrics"), t = m.tasks;
+    $("footer").innerHTML =
+      "Before kick-off: <b>" + t.C.model + "</b> for the result, <b>" + t.R.model + "</b> for the margin. " +
+      "During the match: <b>" + t.Lc.model + "</b> and <b>" + t.Lr.model + "</b>. " +
+      (m.market ? "On " + m.market.n.toLocaleString() + " held-out matches the bookmaker scores <b class='num'>" +
+        m.market.rps.toFixed(4) + "</b> and the model <b class='num'>" + m.market.model_rps.toFixed(4) +
+        "</b> (RPS, lower is better) — the model does not beat the market." : "");
+  } catch (e) { /* footer is optional */ }
+})();
 </script>
 </body>
 </html>
