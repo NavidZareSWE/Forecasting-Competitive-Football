@@ -255,6 +255,23 @@
     font: 700 10px var(--font-body); letter-spacing: .08em; border-radius: 5px;
     padding: 2px 7px; text-transform: uppercase;
   }
+  .replay-badge {
+    display: inline-block; border: 1px solid var(--home); color: var(--home);
+    font: 700 10px var(--font-body); letter-spacing: .08em; border-radius: 5px;
+    padding: 1px 6px; text-transform: uppercase; margin-left: 6px;
+  }
+  .mini-bar { display: flex; height: 7px; border-radius: 4px; overflow: hidden;
+              margin-top: 8px; border: 1px solid var(--line); }
+  .mini-bar .h { background: var(--home); }
+  .mini-bar .d { background: var(--draw); }
+  .mini-bar .a { background: var(--away); }
+  .fx-pred { display: flex; justify-content: space-between; gap: 8px;
+             color: var(--dim); font-size: 11.5px; margin-top: 5px; }
+  .fx-pred b { color: var(--chalk); }
+  .fx-metrics { display: grid; gap: 10px; padding: 16px 22px 0;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .fx-metrics .tile { padding: 8px 12px; }
+  .fx-metrics .t-val { font-size: 17px !important; }
   .fx-detail { padding: 8px 22px 30px; display: grid; gap: 16px;
                grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); }
   .fx-detail .full { grid-column: 1 / -1; }
@@ -324,11 +341,15 @@
 </div>
 
 <div class="view on" id="view-fixtures">
+  <div class="fx-metrics" id="fx-metrics"></div>
   <div class="fx-filters">
     <select id="fx-league" aria-label="League filter"><option value="">All leagues</option></select>
     <select id="fx-season" aria-label="Season filter"><option value="">All seasons</option></select>
     <label style="color:var(--dim);font-size:12.5px">
       <input type="checkbox" id="fx-value-only"> value picks only
+    </label>
+    <label style="color:var(--dim);font-size:12.5px">
+      <input type="checkbox" id="fx-replay-only"> in-play replayable
     </label>
     <span class="fx-count" id="fx-count"></span>
   </div>
@@ -846,7 +867,12 @@ $("pace").addEventListener("change", () => {
   if (timer) { clearInterval(timer); timer = setInterval(step, Number($("pace").value)); }
 });
 
-let fixtures = [], replayLoaded = false;
+let fixtures = [], matchesPromise = null, metrics = null;
+
+function ensureMatches() {
+  if (!matchesPromise) matchesPromise = loadMatches();
+  return matchesPromise;
+}
 
 const pct = v => Math.round(v * 100) + "%";
 const OUTS = ["H", "D", "A"];
@@ -861,42 +887,66 @@ function showView(name) {
   const replay = name === "replay";
   $("replaycontrols").style.display = replay ? "inline" : "none";
   $("clockwrap").style.display = replay ? "inline" : "none";
-  if (replay && !replayLoaded) { replayLoaded = true; loadMatches(); }
+  if (replay) ensureMatches();
 }
 
-function oddsChip(card, out) {
+async function openReplay(matchId) {
+  showView("replay");
+  await ensureMatches();
+  const options = [...$("match").options];
+  if (options.some(o => Number(o.value) === matchId)) {
+    $("match").value = String(matchId);
+    await showPrematch();
+    play();
+  }
+}
+
+function oddsChip(card, out, withEdge = false) {
   const isValue = card.value_pick === out;
   const edge = card.edge ? card.edge[out] : null;
+  const detail = !withEdge ? "" :
+    `<div class="o-edge">${pct(card.model[out])}${edge === null ? "" :
+      ` <span class="${edge > 0 ? "edge-pos" : "edge-neg"}">` +
+      `${edge > 0 ? "+" : ""}${(edge * 100).toFixed(1)}</span>`}</div>`;
   return `<div class="odds-chip${isValue ? " value" : ""}">
     <div class="o-lbl">${OUT_LBL[out]}</div>
     <div class="o-val">${card.odds ? card.odds[out].toFixed(2) : "–"}</div>
-    <div class="o-edge">${pct(card.model[out])}${edge === null ? "" :
-      ` <span class="${edge > 0 ? "edge-pos" : "edge-neg"}">` +
-      `${edge > 0 ? "+" : ""}${(edge * 100).toFixed(1)}</span>`}</div>
+    ${detail}
   </div>`;
 }
 
 function fixtureCard(card) {
+  const call = argmaxCall(card.model);
   return `<div class="fx-card" data-id="${card.match_id}" role="button" tabindex="0">
     <div class="fx-top"><span>${card.league} · ${card.date}</span>
-      ${card.value_pick ? '<span class="value-badge">Value ' +
-        OUT_LBL[card.value_pick] + "</span>" : ""}</div>
+      <span>${card.value_pick ? '<span class="value-badge">Value ' +
+        OUT_LBL[card.value_pick] + "</span>" : ""}${card.replay_available
+        ? '<span class="replay-badge">in-play</span>' : ""}</span></div>
     <div class="fx-teams">
       <span class="h">${card.home_team ?? "Home"}</span><span class="v">vs</span>
       <span class="a">${card.away_team ?? "Away"}</span></div>
     <div class="odds-row">${OUTS.map(o => oddsChip(card, o)).join("")}</div>
+    <div class="mini-bar">
+      <div class="h" style="flex-grow:${card.model.H * 100}"></div>
+      <div class="d" style="flex-grow:${card.model.D * 100}"></div>
+      <div class="a" style="flex-grow:${card.model.A * 100}"></div></div>
+    <div class="fx-pred">
+      <span>pre-match: <b>${CALL_NAMES[call]}</b> ${pct(card.model[call])}</span>
+      <span>margin <b class="num">${card.expected_margin > 0 ? "+" : ""}${card.expected_margin}</b></span>
+    </div>
   </div>`;
 }
 
 function renderFixtures() {
   const league = $("fx-league").value, season = $("fx-season").value;
   const valueOnly = $("fx-value-only").checked;
+  const replayOnly = $("fx-replay-only").checked;
   const subset = fixtures.filter(c =>
     (!league || c.league === league) && (!season || c.season === season)
-    && (!valueOnly || c.value_pick));
+    && (!valueOnly || c.value_pick)
+    && (!replayOnly || c.replay_available));
   $("fx-count").textContent =
-    `${subset.length} fixtures · odds: Bet365 decimals · ` +
-    `small number = model %, green = edge vs market`;
+    `${subset.length} fixtures · chips = Bet365 odds · bar = model H/D/A`;
   const shown = subset.slice(0, 200);
   $("fx-list").innerHTML = shown.map(fixtureCard).join("") ||
     "<span class='muted'>No fixtures match the filters.</span>";
@@ -951,19 +1001,35 @@ async function showDetail(matchId) {
         <div><div class="muted" style="color:var(--away);margin-bottom:6px">${d.away_team}</div>
           ${playerCards(d.lineups.away)}</div>
       </div></div>` : "";
+  const modelLine = metrics ? `<div class="muted" style="margin-top:8px">
+      served: ${metrics.tasks.C.model}${metrics.tasks.C.calibration ?
+        " (" + metrics.tasks.C.calibration + ")" : ""} outcome ·
+      ${metrics.tasks.R.model} margin · test RPS
+      <b class="num">${metrics.tasks.C.rps?.toFixed(4) ?? "–"}</b>${metrics.market ?
+        ` vs market <b class="num">${metrics.market.rps.toFixed(4)}</b>` : ""}
+    </div>` : "";
   $("fx-detail-body").innerHTML = `
     <div class="card">
-      <h2>${d.league} · ${d.date}</h2>
+      <h2>Pre-match prediction · ${d.league} · ${d.date}</h2>
       <div class="fx-teams" style="font-size:18px">
         <span class="h">${d.home_team}</span><span class="v">vs</span>
         <span class="a">${d.away_team}</span></div>
-      <div class="odds-row" style="margin:10px 0">${OUTS.map(o => oddsChip(d, o)).join("")}</div>
+      <div class="odds-row" style="margin:10px 0">${OUTS.map(o => oddsChip(d, o, true)).join("")}</div>
       ${vsBars(d)}
-      <div style="margin-top:10px">Expected margin:
+      <div style="margin-top:10px">Model call:
+        <b>${CALL_NAMES[argmaxCall(d.model)]}</b> at ${pct(d.model[argmaxCall(d.model)])}
+        · expected margin
         <b class="num">${d.expected_margin > 0 ? "+" : ""}${d.expected_margin}</b>
         ${d.value_pick ? ` · <span class="value-badge">value: ${OUT_LBL[d.value_pick]}</span>` : ""}</div>
-      <button class="reveal-btn" id="fx-reveal">Reveal result</button>
-      <div id="fx-result" style="display:none;margin-top:8px" class="result-chip"></div>
+      ${d.blend ? `<div class="muted" style="margin-top:6px">model+market blend
+        (α=${d.blend.weight}, declared odds-as-feature arm — not used for the
+        edge above): ${OUTS.map(o =>
+          `${OUT_LBL[o]} ${pct(d.blend.probabilities[o])}`).join(" · ")}</div>` : ""}
+      ${modelLine}
+      <button class="reveal-btn" id="fx-reveal">Reveal result &amp; measures</button>
+      ${d.replay_available ? `<button class="reveal-btn" id="fx-run-replay">&#9654;
+        Run in-play prediction (minute-by-minute replay)</button>` : ""}
+      <div id="fx-result" style="display:none;margin-top:8px"></div>
     </div>
     <div class="card"><h2>Team strength</h2>${form}
       ${d.ratings ? `<div class="muted" style="margin-top:10px">pi-rating expected goal diff:
@@ -971,13 +1037,27 @@ async function showDetail(matchId) {
     </div>
     ${lineups}`;
   $("fx-reveal").addEventListener("click", () => {
-    const right = d.value_pick ? (d.value_pick === d.result ? " — value pick ✓" : " — value pick ✗") : "";
-    $("fx-result").textContent =
-      `Result: ${CALL_NAMES[d.result]} (margin ${d.margin > 0 ? "+" : ""}${d.margin})` +
-      ` · model said ${CALL_NAMES[argmaxCall(d.model)]}${right}`;
+    const call = argmaxCall(d.model);
+    const rows = [
+      ["Result", `${CALL_NAMES[d.result]} (${d.margin > 0 ? "+" : ""}${d.margin})`],
+      ["Model call", `${CALL_NAMES[call]} ${call === d.result ? "✓" : "✗"}`],
+      ["RPS — model", rps(d.model, d.result).toFixed(4)],
+    ];
+    if (d.market) rows.push(["RPS — market", rps(d.market, d.result).toFixed(4)]);
+    if (d.blend) rows.push(["RPS — blend", rps(d.blend.probabilities, d.result).toFixed(4)]);
+    rows.push(["Margin error", Math.abs(d.expected_margin - d.margin).toFixed(2) + " goals"]);
+    if (d.value_pick)
+      rows.push(["Value pick", d.value_pick === d.result ? "won ✓" : "lost ✗"]);
+    $("fx-result").innerHTML = `<div class="ft-tiles">` + rows.map(([l, v]) =>
+      `<div class="tile"><div class="t-lbl">${l}</div>
+       <div class="t-val" style="font-size:15px">${v}</div></div>`).join("") +
+      `</div><div class="ft-note">RPS: 0 = perfect forecast, lower beats the
+       market on this match.</div>`;
     $("fx-result").style.display = "block";
     $("fx-reveal").style.display = "none";
   });
+  const runBtn = $("fx-run-replay");
+  if (runBtn) runBtn.addEventListener("click", () => openReplay(matchId));
 }
 
 async function loadFixtures() {
@@ -1002,12 +1082,38 @@ async function loadFixtures() {
   renderFixtures();
 }
 
+async function loadMetrics() {
+  try { metrics = await api("/metrics"); } catch { return; }
+  const t = metrics.tasks, mk = metrics.market;
+  const tile = (lbl, val, sub) =>
+    `<div class="tile"><div class="t-lbl">${lbl}</div>` +
+    `<div class="t-val" style="font-size:18px">${val}</div>` +
+    `<div class="t-sub">${sub}</div></div>`;
+  $("fx-metrics").innerHTML =
+    tile("Pre-match RPS", t.C.rps?.toFixed(4) ?? "–",
+         mk ? `market ${mk.rps.toFixed(4)} · ${mk.n.toLocaleString()} test matches`
+            : `${t.C.model} · held-out test`) +
+    (mk && mk.gap != null ? tile("Gap vs market",
+         (mk.gap > 0 ? "+" : "") + mk.gap.toFixed(4),
+         metrics.blend?.C
+           ? `blend +${(metrics.blend.C.rps - mk.rps).toFixed(4)} (α=${metrics.blend.C.alpha})`
+           : "0 = market matched") : "") +
+    tile("In-play RPS", t.Lc.rps?.toFixed(4) ?? "–",
+         metrics.blend?.Lc
+           ? `blend ${metrics.blend.Lc.rps.toFixed(4)} · per 5-min snapshot`
+           : "per 5-min snapshot") +
+    tile("Margin MAE", t.R.mae?.toFixed(2) ?? "–",
+         `${metrics.n_fixtures.toLocaleString()} fixtures · ` +
+         `${metrics.n_replayable} replayable`);
+}
+
 $("tab-fixtures").addEventListener("click", () => showView("fixtures"));
 $("tab-replay").addEventListener("click", () => showView("replay"));
 $("fx-back").addEventListener("click", () => showView("fixtures"));
-for (const id of ["fx-league", "fx-season", "fx-value-only"])
+for (const id of ["fx-league", "fx-season", "fx-value-only", "fx-replay-only"])
   $(id).addEventListener("change", renderFixtures);
 loadFixtures();
+loadMetrics();
 </script>
 </body>
 </html>

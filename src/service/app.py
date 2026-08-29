@@ -48,6 +48,7 @@ from sklearn.calibration import CalibratedClassifierCV  # noqa: E402
 from modeling_common import (CLASS_ORDER, HAS_FROZEN, RESULTS_DIR,  # noqa: E402
                              floor_probabilities, prepare_matrices, task_frame)
 from model_zoo import LabelEncodedClassifier, classifier_zoo, regressor_zoo  # noqa: E402
+from stacking import STACK_MODELS, StackedClassifier, build_named_stack  # noqa: E402
 from tuning import load_best_params  # noqa: E402
 
 MODELS_DIR = RESULTS_DIR / "models"
@@ -60,8 +61,10 @@ TOP_SHAP = 5
 VALUE_EDGE = 0.03
 ZOO_TASK = {"C": "C", "R": "R", "Lc": "L", "Lr": "L"}
 # TreeSHAP needs a tree ensemble; the served in-play classifier is the best of
-# these on validation, mirroring shap_analysis.py.
-TREE_MODELS = ["lightgbm", "xgboost", "gbm", "random_forest"]
+# these on validation, mirroring shap_analysis.py. "stack" qualifies because
+# _walkable_tree explains it through its strongest tree member.
+TREE_MODELS = ["lightgbm", "xgboost", "gbm", "random_forest",
+               "stack", "stack_temporal"]
 # The only in-play feature columns the snapshot payload reads back.
 SNAPSHOT_COLUMNS = ["inplay_home_goals", "inplay_away_goals",
                     "inplay_man_advantage", "inplay_home_xg", "inplay_away_xg",
@@ -101,6 +104,32 @@ def _proba(estimator, X):
     totals = aligned.sum(axis=1, keepdims=True)
     totals[totals == 0] = 1.0
     return aligned / totals
+
+
+def _walkable_tree(estimator):
+    """(tree, classes, source) for TreeSHAP.
+
+    ``classes`` is the label order of *that tree's* predict_proba columns - a
+    label-encoded member (xgboost) reports integer classes, so the wrapper's
+    order cannot be reused. ``source`` names the stack member the explanation
+    came from, None when the served model is itself the tree.
+
+    A stack is explained through its strongest tree member, so the attribution
+    panel describes one component of the served model rather than the blend of
+    all five; the payload says which.
+    """
+    if isinstance(estimator, StackedClassifier):
+        tree, classes, name = estimator.tree_base()
+        assert tree is not None, (
+            "served in-play stack has no tree member; TreeSHAP cannot explain "
+            "it. Keep at least one of "
+            f"{[m for m in TREE_MODELS if m not in STACK_MODELS]} in "
+            "stacking.BASE_MODELS['Lc'].")
+        return tree, classes, name
+    if isinstance(estimator, LabelEncodedClassifier):
+        return (estimator.estimator_,
+                [str(c) for c in estimator.encoder_.classes_], None)
+    return estimator, [str(c) for c in estimator.classes_], None
 
 
 def _pick_model(task, allowed=None):
@@ -159,9 +188,14 @@ class TaskModel:
             matrices = prepare_matrices(df, continuous, nominal, target,
                                         task_type)
             tuned = load_best_params().get(task, {})
-            zoo = (classifier_zoo if self.is_classification
-                   else regressor_zoo)(0, task=ZOO_TASK[task], tuned=tuned)
-            self.estimator = zoo[model_name]()
+            if model_name in STACK_MODELS:
+                self.estimator = build_named_stack(
+                    model_name, task, tuned, df,
+                    transform=matrices["transform"])
+            else:
+                zoo = (classifier_zoo if self.is_classification
+                       else regressor_zoo)(0, task=ZOO_TASK[task], tuned=tuned)
+                self.estimator = zoo[model_name]()
             y = matrices["y_train"]
             self.estimator.fit(matrices["X_train"],
                                y if self.is_classification
@@ -215,9 +249,11 @@ class ServiceState:
             f"snapshot payload columns missing from inplay_features.csv: "
             f"{sorted(missing)}; SNAPSHOT_COLUMNS is out of sync with "
             "build_inplay_features.py")
-        walkable = (inplay.estimator.estimator_
-                    if isinstance(inplay.estimator, LabelEncodedClassifier)
-                    else inplay.estimator)
+        walkable, self.shap_classes, self.shap_source = _walkable_tree(
+            inplay.estimator)
+        assert "H" in self.shap_classes, (
+            f"TreeSHAP source reports classes {self.shap_classes}; cannot "
+            "locate the home-win column")
         self.explainer = shap.TreeExplainer(walkable)
         # (match_id, minute) -> row index in the Lc/Lr test frames (identical
         # frames by construction: same source table, same split filter).
@@ -266,6 +302,7 @@ class ServiceState:
         lineups = _optional("lineup_display.csv")
         self.lineups = (dict(tuple(lineups.groupby("match_id")))
                         if lineups is not None else {})
+        self.blend_params = self._load_blend_params()
 
         # Payload caches. Payloads depend only on fitted models and frozen
         # feature rows, so they are computed once per match and reused.
@@ -274,11 +311,61 @@ class ServiceState:
         self._pre_cache = {}
         self._match_list = None
         self._fixture_cards = None
+        self._metrics = None
         for task, model in self.models.items():
             print(f"  serving {task}: {model.model_name}"
                   + (f" ({model.calibration})" if model.is_classification
                      else ""))
         print(f"Serving {len(self.prematch_index)} held-out matches.")
+
+    @staticmethod
+    def _load_blend_params():
+        """Validation-chosen blend weights from train_market_blend.py.
+
+        This is the *declared* odds-as-feature arm (brief 7.1): the served
+        probabilities under "model" never see odds, and the market stays the
+        yardstick for them. The blend is reported beside both, never folded
+        into either, and never into the model-vs-market edge.
+        """
+        path = RESULTS_DIR / "market_blend.csv"
+        if not path.exists():
+            print("  WARNING: market_blend.csv missing; serving without the "
+                  "blend arm")
+            return {}
+        frame = pd.read_csv(path, encoding="utf-8")
+        frame = frame[frame["arm"] == "blend"]
+        params = {}
+        for row in frame.itertuples():
+            entry = {"alpha": float(row.alpha), "base_model": str(row.base_model),
+                     "rps": float(row.rps)}
+            tau = getattr(row, "tau", None)
+            if tau is not None and pd.notna(tau):
+                entry["tau"] = float(tau)
+            params[str(row.task)] = entry
+        return params
+
+    def blend(self, task, model_p, match_id, minute=None):
+        """alpha * market + (1 - alpha) * model, or None when not servable.
+
+        For the in-play task alpha decays as alpha0 * exp(-minute / tau): the
+        market prior is worth most before kick-off and least at minute 90,
+        which is what the validation search found.
+        """
+        params = self.blend_params.get(task)
+        if params is None or match_id not in self.market.index:
+            return None
+        weight = params["alpha"]
+        if minute is not None and "tau" in params:
+            weight *= float(np.exp(-minute / params["tau"]))
+        m = self.market.loc[match_id]
+        market_p = {"H": float(m["p_home"]), "D": float(m["p_draw"]),
+                    "A": float(m["p_away"])}
+        return {
+            "weight": round(float(weight), 4),
+            "probabilities": {
+                c: round(weight * market_p[c] + (1.0 - weight) * model_p[c], 4)
+                for c in CLASS_ORDER},
+        }
 
     def attributions(self, rows):
         """Top-|SHAP| features for the home-win probability, one list per row.
@@ -291,12 +378,7 @@ class ServiceState:
         block = inplay.X[rows]
         values = np.asarray(self.explainer.shap_values(block))
         if values.ndim == 3:
-            walkable = (inplay.estimator.estimator_
-                        if isinstance(inplay.estimator, LabelEncodedClassifier)
-                        else inplay.estimator)
-            classes = (list(inplay.estimator.encoder_.classes_)
-                       if isinstance(inplay.estimator, LabelEncodedClassifier)
-                       else [str(c) for c in walkable.classes_])
+            classes = self.shap_classes
             home = classes.index("H")
             # Newer shap returns (rows, features, classes); older versions
             # return a list of per-class (rows, features) arrays.
@@ -356,7 +438,12 @@ class ServiceState:
                         float(row["inplay_recent_xg_diff"]), 3),
                 },
                 "top_shap": shap_rows[k],
+                "shap_source": self.shap_source,
             }
+            blended = self.blend("Lc", payloads[minutes[k]]["probabilities"],
+                                 match_id, minute=minutes[k])
+            if blended is not None:
+                payloads[minutes[k]]["blend"] = blended
         return payloads
 
     def snapshots_for(self, match_id):
@@ -388,7 +475,7 @@ class ServiceState:
                                     else "elo_away_pre"], 0),
                     "squad": _num(row[f"{side}_squad_overall_top11"], 1)}
 
-        return {
+        payload = {
             "match_id": match_id, "minute": None, "state": "pre_match",
             **self.match_meta.get(match_id, {}),
             "competition": str(row["competition_name"]),
@@ -401,6 +488,10 @@ class ServiceState:
             "score": {"home": 0, "away": 0},
             "form": {"home": _form("home"), "away": _form("away")},
         }
+        blended = self.blend("C", payload["probabilities"], match_id)
+        if blended is not None:
+            payload["blend"] = blended
+        return payload
 
     def prematch_for(self, match_id):
         cached = self._pre_cache.get(match_id)
@@ -436,8 +527,10 @@ class ServiceState:
 
     def _build_fixture_cards(self):
         pre_c, pre_r = self.models["C"], self.models["R"]
-        mask = pre_c.frame["split"] == "test"
-        rows = np.flatnonzero(mask)
+        replayable = {match_id for match_id, _ in self.snapshot_index}
+        mask = ((pre_c.frame["split"] == "test")
+                | pre_c.frame["match_id"].isin(replayable))
+        rows = np.flatnonzero(mask.to_numpy())
         probs = pre_c.probabilities(rows)
         margins = pre_r.margin(rows)
         cards = []
@@ -461,6 +554,7 @@ class ServiceState:
                 "result": str(r["label_result"]),
                 "margin": float(r["label_margin"]),
                 "has_lineups": match_id in self.lineups,
+                "replay_available": match_id in replayable,
             }
             if match_id in self.market.index:
                 m = self.market.loc[match_id]
@@ -474,12 +568,92 @@ class ServiceState:
                     "odds": {"H": float(m["B365H"]), "D": float(m["B365D"]),
                              "A": float(m["B365A"])},
                     "market": market_p,
+                    # Edge is model-vs-market and stays odds-free on the model
+                    # side; the blend below is the separate declared arm.
                     "edge": edge,
                     "value_pick": best if edge[best] > VALUE_EDGE else None,
                 })
+                blended = self.blend("C", model_p, match_id)
+                if blended is not None:
+                    card["blend"] = blended
             cards.append(card)
         cards.sort(key=lambda c: (c["date"], c["match_id"]))
         return cards
+
+    def metrics(self):
+        if self._metrics is not None:
+            return self._metrics
+        results = _model_results()
+        tasks = {}
+        for task, model in self.models.items():
+            metric = "rps" if model.is_classification else "mae"
+            subset = results[(results["task"] == task)
+                             & (results["model"] == model.model_name)]
+            subset = subset.dropna(subset=[metric]).sort_values(metric)
+            entry = {"model": model.model_name,
+                     "calibration": model.calibration}
+            if len(subset):
+                row = subset.iloc[0]
+                if model.is_classification:
+                    entry.update({"rps": float(row["rps"]),
+                                  "log_loss": float(row["log_loss"]),
+                                  "brier": float(row["brier"])})
+                else:
+                    entry.update({"mae": float(row["mae"]),
+                                  "rmse": float(row["rmse"])})
+            tasks[task] = entry
+
+        def _optional_results(name):
+            path = RESULTS_DIR / name
+            return (pd.read_csv(path, encoding="utf-8") if path.exists()
+                    else None)
+
+        market = None
+        comparison = _optional_results("market_comparison.csv")
+        if comparison is not None:
+            base = comparison[comparison["model"] == "MARKET_devigged"]
+            served = comparison[comparison["model"]
+                                == self.models["C"].model_name]
+            if len(base):
+                market = {"rps": float(base["rps"].iloc[0]),
+                          "n": int(base["n_matches"].iloc[0])}
+                if len(served):
+                    market["model_rps"] = float(served["rps"].iloc[0])
+                    market["gap"] = round(float(served["rps"].iloc[0])
+                                          - market["rps"], 5)
+
+        blend = None
+        blend_frame = _optional_results("market_blend.csv")
+        if blend_frame is not None:
+            blend = {str(r.task): {"rps": float(r.rps),
+                                   "alpha": float(r.alpha)}
+                     for r in blend_frame[blend_frame["arm"] == "blend"]
+                     .itertuples()}
+
+        ensemble = None
+        ensemble_frame = _optional_results("ensemble_comparison.csv")
+        if ensemble_frame is not None:
+            ensemble = {str(r.task): {"stack": float(r.stack),
+                                      "metric": str(r.metric),
+                                      "best_single": str(r.best_single),
+                                      "best_single_value":
+                                          float(r.best_single_value),
+                                      "delta": float(r.delta),
+                                      "stack_wins": bool(r.stack_wins)}
+                        for r in ensemble_frame.itertuples()}
+
+        cards = self.fixture_cards()
+        self._metrics = {
+            "tasks": tasks,
+            "market": market,
+            "blend": blend,
+            "blend_served": self.blend_params,
+            "ensemble": ensemble,
+            "shap_source": self.shap_source,
+            "n_fixtures": len(cards),
+            "n_replayable": sum(1 for c in cards if c["replay_available"]),
+        }
+        return self._metrics
 
 
 app = FastAPI(title="Forecasting Competitive Football - in-play service")
@@ -544,6 +718,12 @@ def fixtures(league: str = None, season: str = None, date: str = None):
     if date:
         cards = [c for c in cards if c["date"] == date]
     return {"count": len(cards), "fixtures": cards}
+
+
+@app.get("/metrics")
+def model_metrics():
+    """Served models and their held-out measures, for the dashboard console."""
+    return state.metrics()
 
 
 @app.get("/fixture/{match_id}")

@@ -21,6 +21,7 @@ from modeling_common import (CLASS_ORDER, RESULTS_DIR, PROCESSED_DIR,  # noqa: E
                              classification_metrics, floor_probabilities,
                              prepare_matrices, task_frame)
 from model_zoo import classifier_zoo, LabelEncodedClassifier  # noqa: E402
+from stacking import STACK_MODELS, build_named_stack  # noqa: E402
 from tuning import load_best_params  # noqa: E402
 from train_final import pick_model  # noqa: E402
 from sklearn.calibration import CalibratedClassifierCV  # noqa: E402
@@ -54,8 +55,12 @@ def fit_task(task):
     df, continuous, nominal, target, task_type = task_frame(task)
     matrices = prepare_matrices(df, continuous, nominal, target, task_type)
     tuned = load_best_params().get(task, {})
-    estimator = classifier_zoo(0, task=ZOO_TASK[task],
-                               tuned=tuned)[model_name]()
+    if model_name in STACK_MODELS:
+        estimator = build_named_stack(model_name, task, tuned, df,
+                                      transform=matrices["transform"])
+    else:
+        estimator = classifier_zoo(0, task=ZOO_TASK[task],
+                                   tuned=tuned)[model_name]()
     estimator.fit(matrices["X_train"], matrices["y_train"])
     source = estimator
     if HAS_FROZEN:
