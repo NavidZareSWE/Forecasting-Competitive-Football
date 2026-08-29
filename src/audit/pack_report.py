@@ -32,9 +32,49 @@ REPO = PROJECT.parent
 REPORTS = PROJECT / "reports"
 PROCESSED = REPORTS / "processed"
 FEATURES = REPORTS / "features"
-PACK = Path(os.environ.get("PACK_DIR", REPO / "report_pack"))
+_DEFAULT_PACK = ("report_pack_v2" if os.environ.get("SCOPE", "").lower() == "v2"
+                 else "report_pack")
+PACK = Path(os.environ.get("PACK_DIR", REPO / _DEFAULT_PACK))
 
 COPY_LIMIT_MB = 12.0
+
+# SCOPE=v2 packs only what the v2 modelling run actually produced, for someone
+# writing the v2 report. Two kinds of file are dropped:
+#
+#   * v1-era analyses - ablation, significance, SHAP, resampling, P1,
+#     margin-to-probability. They were produced before the extended data layer
+#     and report n_train=896 against today's 39,707. They are not "old but
+#     roughly right"; they describe a different experiment.
+#   * the data-layer tables rebuilt after the sweep (the 2025/26 season). They
+#     are ahead of the models, so including them would put a dataset summary
+#     next to accuracy numbers measured on a different split.
+#
+# In v2 scope the dataset table is derived from the FEATURE table instead - the
+# authoritative record of the split the models were actually trained on.
+SCOPE = os.environ.get("SCOPE", "all").lower()
+
+V1_ERA_FILES = {
+    "ablation.csv", "resampling_study.csv", "p1_comparison.csv",
+    "significance_bootstrap.csv", "significance_seeds.csv",
+    "seed_repetitions.csv", "margin_to_probability.csv",
+    "shap_importance.csv", "worst_predictions.csv",
+    "compute_profile.csv", "kernel_scaling.csv",
+}
+AHEAD_OF_MODELS = {
+    "extended_match_store.csv", "temporal_match_splits_extended.csv",
+    "team_registry.csv", "alias_map_extended.csv", "download_manifest.csv",
+    "odds_failures_extended.csv", "team_ratings.csv",
+}
+# Raw stores a report writer does not need; results and tables are enough.
+BULKY = {"extended_match_store.csv", "temporal_match_splits_extended.csv",
+         "team_ratings.csv", "alias_map_extended.csv",
+         "odds_failures_extended.csv", "predictions_Cm.csv"}
+
+
+def in_scope(path):
+    if SCOPE != "v2":
+        return True
+    return path.name not in (V1_ERA_FILES | AHEAD_OF_MODELS | BULKY)
 
 # section -> (subfolder, [files]). Order is report order.
 SECTIONS = {
@@ -135,12 +175,22 @@ def read(path, **kw):
 # --------------------------------------------------------------------------
 
 def table_dataset():
-    splits = read(PROCESSED / "temporal_match_splits_extended.csv")
-    store = read(PROCESSED / "extended_match_store.csv")
-    if splits is None or store is None:
-        return None
-    league = "league" if "league" in store.columns else "competition_name"
-    j = store.merge(splits[["match_id", "split"]], on="match_id")
+    if SCOPE == "v2":
+        # The feature table is what the models were actually fitted on, so in
+        # v2 scope it - not the newer splits file - defines the dataset.
+        j = read(FEATURES / "prematch_features_extended.csv",
+                 usecols=["match_id", "match_date", "split", "season",
+                          "competition_name"])
+        if j is None:
+            return None
+        league = "competition_name"
+    else:
+        splits = read(PROCESSED / "temporal_match_splits_extended.csv")
+        store = read(PROCESSED / "extended_match_store.csv")
+        if splits is None or store is None:
+            return None
+        league = "league" if "league" in store.columns else "competition_name"
+        j = store.merge(splits[["match_id", "split"]], on="match_id")
     rows = []
     for name in ["train", "validation", "test", "excluded"]:
         part = j[j["split"] == name]
@@ -234,6 +284,9 @@ def build_tables():
     curve = table_inplay_curve()
     if curve:
         out["T10_inplay_rps_by_minute"] = curve
+    if SCOPE == "v2":
+        out = {k: v for k, v in out.items()
+               if TABLE_SOURCE.get(k) is None or in_scope(TABLE_SOURCE[k])}
     return out
 
 
@@ -242,7 +295,9 @@ def build_tables():
 # Which file each report table is rendered from, so every table can carry its
 # own provenance stamp - a table pasted into a document loses the README.
 TABLE_SOURCE = {
-    "T1_dataset_and_splits": PROCESSED / "temporal_match_splits_extended.csv",
+    "T1_dataset_and_splits": (FEATURES / "prematch_features_extended.csv"
+                              if SCOPE == "v2"
+                              else PROCESSED / "temporal_match_splits_extended.csv"),
     "T2_odds_coverage_by_league": REPORTS / "market_coverage.csv",
     "T3_task_C_prematch_outcome": REPORTS / "model_results.csv",
     "T4_task_R_prematch_margin": REPORTS / "model_results.csv",
@@ -264,6 +319,8 @@ def copy_files():
         dest_dir = PACK / folder
         dest_dir.mkdir(parents=True, exist_ok=True)
         for path in paths:
+            if not in_scope(path):
+                continue
             if not path.exists():
                 manifest.append({"section": section, "file": path.name,
                                  "stage": "MISSING", "rows": "", "size_kb": "",
@@ -290,13 +347,21 @@ def copy_figures():
     dest = PACK / "05_figures"
     dest.mkdir(parents=True, exist_ok=True)
     n = 0
+    # Figures that visualise RESULTS which have since changed are dropped in v2
+    # scope. Figures that describe the DATA or the maths are kept - the league
+    # selection, the odds baseline and the equation renders did not move.
+    stale = {"kernel_scaling.html", "kernel_time.png",
+             "curve_mae.png", "curve_rps.png"}
     for src in [REPORTS / "visualizations", REPORTS / "report_build"]:
         if not src.exists():
             continue
         for path in sorted(src.rglob("*")):
-            if path.is_file() and path.suffix in {".html", ".png", ".svg"}:
-                shutil.copy2(path, dest / path.name)
-                n += 1
+            if not (path.is_file() and path.suffix in {".html", ".png", ".svg"}):
+                continue
+            if SCOPE == "v2" and (path.name in stale or "shap" in path.parts):
+                continue
+            shutil.copy2(path, dest / path.name)
+            n += 1
     for extra in [REPO / "docs" / "pipeline_overview.png",
                   REPO / "docs" / "pipeline_overview.svg"]:
         if extra.exists():
@@ -319,6 +384,77 @@ def copy_docs():
     return n
 
 
+def write_readme_v2(manifest, tables):
+    """Teammate-facing README: what is here, what is deliberately not."""
+    stamp = datetime.datetime.fromtimestamp(
+        mtime(REPORTS / "model_results.csv")).strftime("%Y-%m-%d %H:%M")
+    lines = [
+        "# v2 results",
+        "",
+        "Everything needed to write the v2 report. One modelling run, "
+        f"finished {stamp}. Every number here comes from that run, so the "
+        "tables are consistent with each other.",
+        "",
+        "## Start here",
+        "",
+        "1. `tables/` — the numbers, as Markdown tables. Paste them straight "
+        "into the document; each carries its source file and run time in a "
+        "footer.",
+        "2. `06_docs/model_book.md` — prose walkthrough of every model, what "
+        "was tried and what the results mean. Written for exactly this "
+        "purpose.",
+        "3. `06_docs/model_vs_market.ipynb` — the analysis notebook, already "
+        "executed with outputs. Section 9 is the significance test.",
+        "4. `05_figures/` — HTML figures, open in a browser.",
+        "",
+        "## The three findings the report has to state",
+        "",
+        "**1. The market wins.** The best odds-free model trails the "
+        "de-vigged Bet365 line by +0.005 RPS (T8). Every model clears the "
+        "dummy easily and they cluster within 0.001 of each other, which says "
+        "the signal is real but shared - the bookmaker has something we do "
+        "not. Reported, not buried.",
+        "",
+        "**2. Ensembling does not help.** Stacking five tuned learners "
+        "improves one of four heads on the point estimate (T7) and *none* of "
+        "the four survives a paired cluster bootstrap - the in-play rows are "
+        "19 snapshots of only 344 matches, so clustering matters. Notebook "
+        "section 9. The gap to the market is a data problem, not a "
+        "model-class problem.",
+        "",
+        "**3. Live information accrues steadily.** In-play RPS falls from "
+        "0.215 at kick-off to 0.026 at full time (T10), crossing well below "
+        "the frozen pre-match reference. The useful window is minutes 30-70.",
+        "",
+        "## Deliberately not in here",
+        "",
+        "- **v1-era analyses** — ablation, significance across seeds, SHAP "
+        "importances, resampling / G-SMOTENC, margin-to-probability, kernel "
+        "scaling, compute profile. They were produced before the extended "
+        "data layer and report `n_train = 896` against today's 39,707. They "
+        "describe a different experiment, not an older version of this one. "
+        "Re-run them before quoting any of it.",
+        "- **The 2025/26 season.** The data layer has since been rebuilt with "
+        "it (test would become 2024/25-2025/26), but the models have not been "
+        "re-run, so those tables are excluded rather than mixed in.",
+        "- Raw match stores and rating tables — results and tables are enough "
+        "to write from. They live in `src/reports/` if needed.",
+        "",
+        "## What the numbers describe",
+        "",
+        (tables.get("T1_dataset_and_splits", "").split("*Source")[0]
+         if "T1_dataset_and_splits" in tables else ""),
+        "",
+        "## Files",
+        "",
+        md_table(pd.DataFrame(manifest)),
+        "",
+        "Regenerate: `SCOPE=v2 python src/audit/pack_report.py`",
+        "",
+    ]
+    (PACK / "README.md").write_text("\n".join(lines), encoding="utf-8")
+
+
 def write_readme(manifest, tables):
     stages = {}
     for row in manifest:
@@ -327,6 +463,9 @@ def write_readme(manifest, tables):
     ordered += [s for s in stages if s not in ordered]
 
     coherent = len({s for s in stages if s.startswith(("A.", "D."))}) <= 1
+    if SCOPE == "v2":
+        write_readme_v2(manifest, tables)
+        return
     lines = [
         "# Report pack",
         "",
@@ -396,7 +535,10 @@ def main():
     tdir = PACK / "tables"
     tdir.mkdir(exist_ok=True)
     split_path = PROCESSED / "temporal_match_splits_extended.csv"
-    mismatch = stage_of(split_path) != stage_of(REPORTS / "model_results.csv")
+    # In v2 scope T1 is rendered from the feature table the models were fitted
+    # on, so it cannot disagree with the accuracy tables and needs no warning.
+    mismatch = (SCOPE != "v2"
+                and stage_of(split_path) != stage_of(REPORTS / "model_results.csv"))
     split_warning = (
         "> **Different split from the model tables.** This describes the data "
         "layer as rebuilt on "
@@ -430,6 +572,10 @@ def main():
           f"{n_doc} documents, {len(tables)} tables  ({total_mb:.1f} MB)")
     if missing:
         print(f"  missing (stage not run): {', '.join(missing)}")
+    if SCOPE == "v2":
+        print("  scope=v2: one coherent modelling run; v1-era analyses and the "
+              "2025/26 rebuild are excluded (see README.md)")
+        return
     dated = sorted((mtime(sn), lb) for lb, sn in STAGES if mtime(sn))
     if dated:
         span = (dated[-1][0] - dated[0][0]) / 3600
