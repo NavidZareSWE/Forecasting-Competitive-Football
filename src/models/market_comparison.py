@@ -112,7 +112,21 @@ def main():
     market_rps = float(results.loc[results["model"] == "MARKET_devigged", "rps"].iloc[0])
     results["rps_gap_vs_market"] = (results["rps"] - market_rps).round(5)
     results["beats_market"] = results["rps"] < market_rps
+    results.loc[results["model"] == "MARKET_devigged",
+                "beats_market"] = pd.NA
     results["tagging_coverage"] = round(coverage, 4)
+
+    untagged_ids = sorted(set(test_matches) - tagged_ids)
+    untagged = (predictions.drop_duplicates("match_id")
+                .loc[lambda f: f["match_id"].isin(untagged_ids),
+                     [c for c in ["match_id", "match_date",
+                                  "competition_name"]
+                      if c in predictions.columns]]
+                .assign(reason="no de-vigged 1X2 odds tagged to this "
+                               "match; excluded from the model-vs-market "
+                               "comparison"))
+    untagged.to_csv(RESULTS_DIR / "market_untagged_test_matches.csv",
+                    index=False, encoding="utf-8")
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     results.to_csv(RESULTS_DIR / "market_comparison.csv", index=False,
@@ -128,6 +142,9 @@ def main():
           f"{len(results) - 1}")
     print(f"Wrote -> {RESULTS_DIR / 'market_comparison.csv'}")
     print(f"Wrote -> {RESULTS_DIR / 'market_coverage.csv'}")
+    print(f"Wrote -> "
+          f"{RESULTS_DIR / 'market_untagged_test_matches.csv'} "
+          f"({len(untagged)} rows)")
 
 
 if __name__ == "__main__":

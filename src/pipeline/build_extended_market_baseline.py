@@ -154,6 +154,13 @@ def main():
     coverage["with_odds"] = coverage["with_odds"].fillna(0).astype(int)
     coverage["coverage"] = (coverage["with_odds"] / coverage["matches"]).round(4)
 
+    scope = (store[["match_id", "season"]]
+             .merge(splits, on="match_id", how="left")
+             .groupby("season")["split"]
+             .agg(lambda s: "out_of_scope"
+                  if (s == "out_of_scope").all() else "modelled"))
+    coverage["scope"] = coverage["season"].map(scope).fillna("modelled")
+
     failures = pd.concat(
         [esd_dropped.assign(reason="no complete bookmaker triplet in ESD")
          [["match_id", "league", "season", "match_date", "reason"]],
@@ -172,8 +179,14 @@ def main():
                     index=False, encoding="utf-8")
     failures.to_csv(PROCESSED_DIR / "odds_failures_extended.csv",
                     index=False, encoding="utf-8")
+    in_scope = coverage[coverage["scope"] == "modelled"]
     print(f"Baseline rows: {len(baseline)} / {len(store)} matches "
           f"({len(baseline) / len(store):.1%}); test-era coverage {test_cov:.4f}")
+    print(f"Seasons inside the pinned split window: "
+          f"{in_scope['matches'].sum()} matches, "
+          f"{in_scope['with_odds'].sum()} tagged "
+          f"({in_scope['with_odds'].sum() / in_scope['matches'].sum():.4f}). "
+          f"Report these, not the all-seasons totals.")
     print(baseline.groupby("odds_source").size().to_string())
     print("Wrote market_baseline_extended.csv, odds_coverage_extended.csv, "
           "odds_failures_extended.csv")

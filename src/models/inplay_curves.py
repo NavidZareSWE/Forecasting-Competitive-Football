@@ -32,6 +32,23 @@ def _read_predictions(name):
     return pd.read_csv(path, encoding="utf-8")
 
 
+def _prematch_reference(task):
+    """Pre-match predictions covering the in-play matches.
+
+    The extended pre-match test split is 2023-25 Football-Data and the
+    in-play test split is StatsBomb 2015/16, so the two prediction
+    files share no match_id and an inner join on predictions_C.csv
+    returns nothing. run_models.py therefore also scores the pre-match
+    models on the excluded split and writes predictions_ref_{task}.csv;
+    that is what the frozen reference is built from. The fallback keeps
+    the single-era case working.
+    """
+    path = RESULTS_DIR / f"predictions_ref_{task}.csv"
+    if path.exists():
+        return pd.read_csv(path, encoding="utf-8")
+    return _read_predictions(task)
+
+
 def phase_of(minute):
     for label, (low, high) in zip(PHASE_LABELS, PHASE_EDGES):
         if low <= minute < high:
@@ -43,14 +60,17 @@ def freeze_prematch(inplay, prematch, columns):
     reference = prematch[["match_id", *columns]].drop_duplicates("match_id")
     merged = inplay[["match_id", "snapshot_minute", "y_true"]].merge(
         reference, on="match_id", how="inner")
-    assert len(merged) == len(inplay) or merged["match_id"].nunique() <= \
-        inplay["match_id"].nunique(), "frozen reference lost rows unexpectedly"
+    assert len(merged) == len(inplay), (
+        f"frozen reference covers {merged['match_id'].nunique()} of "
+        f"{inplay['match_id'].nunique()} in-play matches. Re-run "
+        "run_models.py so the pre-match models are scored on the "
+        "excluded split.")
     return merged
 
 
 def classification_curves(rows):
     inplay = _read_predictions("Lc")
-    prematch = _read_predictions("C")
+    prematch = _prematch_reference("C")
     shared_models = sorted(set(inplay["model"]) & set(prematch["model"]))
 
     for model in sorted(inplay["model"].unique()):
@@ -80,7 +100,7 @@ def classification_curves(rows):
 
 def regression_curves(rows):
     inplay = _read_predictions("Lr")
-    prematch = _read_predictions("R")
+    prematch = _prematch_reference("R")
     shared_models = sorted(set(inplay["model"]) & set(prematch["model"]))
 
     for model in sorted(inplay["model"].unique()):
@@ -189,6 +209,12 @@ def main():
 
     frozen = curves[(curves["series"] == "frozen pre-match")
                     & (curves["task"] == "Lc")]
+    assert len(frozen), (
+        "no frozen pre-match reference rows were produced. The brief "
+        "requires every Task L metric-vs-minute curve to carry the "
+        "frozen pre-match prediction as its reference. Run "
+        "run_models.py so predictions_ref_C.csv and "
+        "predictions_ref_R.csv exist, then re-run this script.")
     for model, group in frozen.groupby("model"):
         spread = group["rps"].max() - group["rps"].min()
         assert spread < 1e-9, \

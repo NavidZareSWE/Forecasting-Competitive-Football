@@ -29,7 +29,11 @@ from model_zoo import (classifier_zoo, regressor_zoo, CLASSIFIER_SPACES,
 
 N_CANDIDATES = 12
 K_FOLDS = 3
-SUBSAMPLE_ABOVE = 8000
+# Hyperparameter search runs on at most this many training rows. Selection
+# on a subsample is a deliberate budget choice, recorded per row in the
+# subsampled column of tuning_results.csv and reported in the setup
+# section - set TUNING_SUBSAMPLE_ABOVE to raise or disable it.
+SUBSAMPLE_ABOVE = int(os.environ.get("TUNING_SUBSAMPLE_ABOVE", "8000"))
 MARGIN_CLIP = (-5.0, 5.0)
 RANDOM_STATE = 0
 

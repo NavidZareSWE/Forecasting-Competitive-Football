@@ -37,37 +37,46 @@ def run_classification_task(task, random_state=0, resampling="none"):
                          f"task {task}: the snapshot table must not be "
                          f"oversampled across matches.")
     tuned = load_best_params().get(task, {})
-    rows, frames = [], []
+    rows, frames, references = [], [], []
     for name, factory in classifier_zoo(random_state, task=ZOO_TASK[task],
                                         tuned=tuned).items():
-        result, predictions = evaluate_classification(name, factory, data,
-                                                      resampling)
+        result, predictions, reference = evaluate_classification(
+            name, factory, data, resampling, with_reference=True)
         result["task"] = task
         result["tuned"] = name in tuned
         rows.append(result)
         frames.append(predictions)
+        if reference is not None:
+            references.append(reference)
         print(f"  [{task}] {name:18s} rps={result['rps']:.5f} "
               f"ece={result['ece_before']:.4f}->{result['ece_after']:.4f} "
               f"cal={result['calibration']} {result['train_seconds']:.1f}s")
-    return rows, pd.concat(frames, ignore_index=True)
+    reference = (pd.concat(references, ignore_index=True)
+                 if references else None)
+    return rows, pd.concat(frames, ignore_index=True), reference
 
 
 def run_regression_task(task, random_state=0):
     df, continuous, nominal, target, task_type = task_frame(task)
     data = (df, continuous, nominal, target, task_type)
     tuned = load_best_params().get(task, {})
-    rows, frames = [], []
+    rows, frames, references = [], [], []
     for name, factory in regressor_zoo(random_state, task=ZOO_TASK[task],
                                        tuned=tuned).items():
-        result, predictions = evaluate_regression(name, factory, data)
+        result, predictions, reference = evaluate_regression(
+            name, factory, data, with_reference=True)
         result["task"] = task
         result["tuned"] = name in tuned
         rows.append(result)
         frames.append(predictions)
+        if reference is not None:
+            references.append(reference)
         print(f"  [{task}] {name:18s} mae={result['mae']:.5f} "
               f"rmse={result['rmse']:.5f} corr={result['corr']:.4f} "
               f"{result['train_seconds']:.1f}s")
-    return rows, pd.concat(frames, ignore_index=True)
+    reference = (pd.concat(references, ignore_index=True)
+                 if references else None)
+    return rows, pd.concat(frames, ignore_index=True), reference
 
 
 PER_CLASS_COLUMNS = [f"{metric}_{label}"
@@ -100,6 +109,24 @@ def write_predictions(frame, task):
     return output_path
 
 
+def write_reference(frame, task):
+    """Pre-match predictions on the excluded split.
+
+    Kept in its own file so that everything reading
+    predictions_{task}.csv keeps seeing test rows only, and only
+    inplay_curves.py has to know these exist.
+    """
+    if frame is None or not len(frame):
+        return None
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = RESULTS_DIR / f"predictions_ref_{task}.csv"
+    frame.to_csv(output_path, index=False, encoding="utf-8")
+    print(f"  wrote {len(frame)} frozen-reference rows "
+          f"({frame['match_id'].nunique()} matches) -> "
+          f"{output_path.name}")
+    return output_path
+
+
 def main():
     selected = [t for t in os.environ.get("TASKS", "C,Lc,R,Lr").split(",")
                 if t.strip()]
@@ -111,14 +138,16 @@ def main():
     all_rows = []
     for task in [t for t in ["C", "Lc"] if t in selected]:
         print(f"\n=== {TASK_LABELS[task]} ===")
-        rows, predictions = run_classification_task(task)
+        rows, predictions, reference = run_classification_task(task)
         all_rows.extend(rows)
         write_predictions(predictions, task)
+        write_reference(reference, task)
     for task in [t for t in ["R", "Lr"] if t in selected]:
         print(f"\n=== {TASK_LABELS[task]} ===")
-        rows, predictions = run_regression_task(task)
+        rows, predictions, reference = run_regression_task(task)
         all_rows.extend(rows)
         write_predictions(predictions, task)
+        write_reference(reference, task)
 
     existing_path = RESULTS_DIR / "model_results.csv"
     if existing_path.exists() and len(selected) < len(TASK_LABELS):

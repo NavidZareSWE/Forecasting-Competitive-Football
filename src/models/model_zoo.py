@@ -95,6 +95,13 @@ def _has(module):
 HAS_XGBOOST = _has("xgboost")
 HAS_LIGHTGBM = _has("lightgbm")
 
+for _library, _present in [("xgboost", HAS_XGBOOST),
+                           ("lightgbm", HAS_LIGHTGBM)]:
+    if not _present:
+        print(f"WARNING: {_library} is not importable. The zoo will run "
+              f"without it and the sweep will silently come back one "
+              f"model short. On macOS this is usually a missing libomp.")
+
 
 TASK_SUPPORT = {
     "dummy": {"C", "R", "L"},
