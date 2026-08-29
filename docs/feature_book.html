@@ -1,0 +1,261 @@
+<title>Touchline Feature Book</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Archivo+Black&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f6f7f3;
+    --card: #ffffff;
+    --ink: #1c2621;
+    --muted: #5d6b62;
+    --line: #d8ded7;
+    --pitch: #1f7a4d;
+    --pitch-soft: #e3efe7;
+    --market: #a06f14;
+    --market-soft: #f4ead3;
+    --loss: #b3402e;
+    --loss-soft: #f6e4df;
+    --display: "Archivo Black", "Arial Black", sans-serif;
+    --head: "Archivo", "Helvetica Neue", sans-serif;
+    --body: "Source Serif 4", Georgia, serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #101613; --card: #17201b; --ink: #e8ede8; --muted: #93a198;
+      --line: #2a3630; --pitch: #52b183; --pitch-soft: #1b2f25;
+      --market: #d9a83f; --market-soft: #2f2712; --loss: #e0705c;
+      --loss-soft: #33201b;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #101613; --card: #17201b; --ink: #e8ede8; --muted: #93a198;
+    --line: #2a3630; --pitch: #52b183; --pitch-soft: #1b2f25;
+    --market: #d9a83f; --market-soft: #2f2712; --loss: #e0705c;
+    --loss-soft: #33201b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 16.5px/1.65 var(--body);
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 48px 24px 80px; }
+  header { border-bottom: 3px solid var(--ink); padding-bottom: 24px; margin-bottom: 40px; }
+  .kicker { font: 600 12px/1 var(--head); letter-spacing: .16em; text-transform: uppercase; color: var(--pitch); margin-bottom: 14px; }
+  h1 { font-family: var(--display); font-size: clamp(30px, 5.5vw, 46px); line-height: 1.05; margin: 0 0 14px; letter-spacing: .01em; text-wrap: balance; }
+  .standfirst { font-size: 18.5px; color: var(--muted); max-width: 62ch; margin: 0; }
+  .metaline { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 18px; font: 500 12.5px var(--head); color: var(--muted); }
+  .metaline b { color: var(--ink); font-family: var(--mono); font-weight: 600; }
+
+  h2 { font: 700 21px/1.25 var(--head); margin: 52px 0 6px; text-wrap: balance; }
+  h2 .no { font-family: var(--mono); color: var(--pitch); font-weight: 600; margin-right: 8px; }
+  h3 { font: 600 16px/1.3 var(--head); margin: 28px 0 4px; }
+  p { max-width: 68ch; margin: 10px 0; }
+  .lede { color: var(--muted); font-size: 15px; font-family: var(--head); max-width: 70ch; margin: 0 0 16px; }
+
+  .tablewrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th { font: 600 11.5px var(--head); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); text-align: left; padding: 10px 14px; border-bottom: 2px solid var(--line); white-space: nowrap; }
+  td { padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td .sub { display: block; color: var(--muted); font-size: 12.5px; font-family: var(--head); }
+  .src { font: 600 12px var(--head); color: var(--pitch); white-space: nowrap; }
+  .good { color: var(--pitch); font-weight: 600; }
+  .bad { color: var(--loss); font-weight: 600; }
+  .mk { color: var(--market); font-weight: 600; }
+  .mkrow td { background: var(--market-soft); }
+  code, .mono { font-family: var(--mono); font-size: .88em; }
+
+  .rulebox { background: var(--pitch-soft); border-left: 4px solid var(--pitch); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 20px 0; font-family: var(--head); font-size: 14.5px; max-width: 72ch; }
+  .rulebox b { color: var(--pitch); }
+
+  .verdict { border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; margin: 26px 0; background: var(--card); }
+  .verdict-head { padding: 14px 20px; font: 700 14px var(--head); letter-spacing: .1em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .verdict-head.yes { background: var(--pitch-soft); color: var(--pitch); }
+  .verdict-head.no { background: var(--loss-soft); color: var(--loss); }
+  .stamp { font-family: var(--display); font-size: 20px; letter-spacing: .04em; }
+  .verdict-body { padding: 6px 20px 16px; }
+  .verdict-body p { font-size: 15.5px; }
+
+  .statrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 18px 0; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .stat .v { font: 600 22px var(--mono); }
+  .stat .l { font: 500 11.5px var(--head); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-top: 3px; }
+  .stat .s { font: 400 12px var(--head); color: var(--muted); margin-top: 2px; }
+  footer { margin-top: 60px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font: 500 12.5px var(--head); }
+</style>
+
+<div class="wrap">
+<header>
+  <div class="kicker">Forecasting Competitive Football · model documentation</div>
+  <h1>Touchline Feature Book</h1>
+  <p class="standfirst">Every dataset the models eat, every feature engineered from it, how each one is
+  extracted without leaking the future — and the honest answer to the only question that matters:
+  can you bet on this?</p>
+  <div class="metaline">
+    <span>Matches <b>52,080</b></span><span>Leagues <b>11</b></span>
+    <span>Seasons <b>2008/09–2024/25</b></span>
+    <span>Player-rating snapshots <b>3.2M</b></span>
+    <span>Held-out test <b>5,806 matches</b> (2023–25)</span>
+    <span>Revision <b>v2 · stat form + tuned ratings + market blend</b></span>
+  </div>
+</header>
+
+<h2><span class="no">1</span>The data</h2>
+<p class="lede">Five sources, all free. Everything below runs on one laptop; the only large raw file
+(5.6&nbsp;GB of FIFA updates) is filtered once to ~200&nbsp;MB and deleted.</p>
+<div class="tablewrap"><table>
+  <tr><th>Source</th><th>What it contains</th><th>What we extract</th><th class="num">Span</th></tr>
+  <tr><td class="src">StatsBomb Open Data</td>
+      <td>Full event streams (~3.4&nbsp;GB JSON), lineups, xG for 1,517 matches — PL, La Liga, Serie A, Ligue 1, 2015/16</td>
+      <td>All in-play snapshot features; xG-based pre-match form; the replay demo</td><td class="num">2015/16</td></tr>
+  <tr><td class="src">European Soccer Database<span class="sub">(Kaggle&nbsp;· sqlite, 313&nbsp;MB)</span></td>
+      <td>25,979 matches, 11 leagues; <b>named starting XIs</b> (player api-ids + formation coordinates); dated EA&nbsp;FIFA player attributes; odds from 10 bookmakers</td>
+      <td>Match results 2008–16; actual-XI rating features; ESD-era squads; odds</td><td class="num">2008–16</td></tr>
+  <tr><td class="src">football-data.co.uk</td>
+      <td>Season CSVs, 9 leagues × 9 seasons: results, Bet365 odds, and per-match statistics (shots, shots on target, corners, fouls, cards)</td>
+      <td>Match results, market baseline 2016–25, and the stat-form feature block</td><td class="num">2016–25</td></tr>
+  <tr><td class="src">EA FIFA ratings<span class="sub">(sofifa scrape, HF mirror)</span></td>
+      <td>Every weekly update, FIFA 15–23; 3.0M league-filtered player rows: overall, potential, positions, age, club</td>
+      <td>Dated player-rating snapshots; post-2016 squad rosters</td><td class="num">2014–23</td></tr>
+  <tr><td class="src">Derived registry</td>
+      <td>Canonical team identity across all four sources (fuzzy matching + ~40 manual overrides, bijection-asserted per league-season); players matched <b>only by api-id, never by name</b></td>
+      <td>The join keys everything else depends on</td><td class="num">—</td></tr>
+</table></div>
+
+<h2><span class="no">2</span>Pre-match features — 114 columns per match</h2>
+<p class="lede">Most features come as <code>home_*</code>, <code>away_*</code>, <code>diff_*</code> triplets.
+Nothing raw enters the model; every column is engineered or extracted.</p>
+
+<div class="rulebox"><b>The leakage rule that governs everything:</b> rolling windows are
+<code>.shift(1)</code> before <code>.rolling()</code>, ratings are recorded <i>before</i> each match updates them,
+and every rating snapshot joins with <code>merge_asof</code> strictly dated before kickoff — all enforced by
+asserts that fail the build, plus 24 hand-computed unit tests.</p>
+
+<div class="tablewrap"><table>
+  <tr><th>Family</th><th>Features</th><th>Engineering</th><th>From</th></tr>
+  <tr><td><b>Rolling form</b></td>
+      <td><code>form_{gf, ga, points, win}</code>, venue-split variants, <code>rest_days</code>, <code>played_prior</code></td>
+      <td>Prior-5-match means per team; venue form uses home-only / away-only histories; schedule gap in days</td>
+      <td class="src">results</td></tr>
+  <tr><td><b>Head-to-head</b></td>
+      <td><code>h2h_{gf, ga, points, played_prior}</code></td>
+      <td>Prior-3 meetings of this exact pairing</td><td class="src">results</td></tr>
+  <tr><td><b>Stat form</b></td>
+      <td><code>form_stat_{shots, sot, corners, fouls, yellows, reds}_{f,a}</code> × home/away/diff + <code>stat_form_available</code></td>
+      <td>Prior-5 rolling means of the bookmaker-sheet match statistics — shots are a ~25-event sample of the same latent strength goals sample ~2.7 times. Coverage 96–97% where the stat sheets exist (2015–25)</td>
+      <td class="src">football-data stats</td></tr>
+  <tr><td><b>Elo</b></td>
+      <td><code>elo_home_pre</code>, <code>elo_away_pre</code>, <code>elo_diff</code>, <code>elo_expected_home</code></td>
+      <td>Sequential extraction over 17 seasons; K and home advantage tuned on validation RPS (K=10, HA=90), season-boundary reversion, promoted sides start below mean</td>
+      <td class="src">results</td></tr>
+  <tr><td><b>Pi-ratings</b></td>
+      <td><code>pi_{home,away}_{home,away}_pre</code>, <code>pi_expected_gd</code></td>
+      <td>Constantinou &amp; Fenton: separate home/away rating per team in expected-goal units; goal-difference error with logarithmic dampening, λ tuned on validation to 0.06 (γ=0.7). A logistic probe on the rating block alone scores 0.1988 validation RPS</td>
+      <td class="src">results</td></tr>
+  <tr><td><b>Starting-XI ratings</b><span class="sub">2008–16 only, <code>xi_available</code> flag</span></td>
+      <td><code>xi_overall_{mean,max}</code>, <code>xi_gk</code>, <code>xi_{def,mid,att}_mean</code>, <code>xi_potential_mean</code>, <code>xi_age_mean</code>, <code>xi_n_rated</code></td>
+      <td>The 11 players actually named, joined by api-id to their latest dated EA rating before kickoff; formation Y-coordinate assigns lines (1&nbsp;GK, 2–4&nbsp;DEF, 5–8&nbsp;MID, 9+&nbsp;ATT)</td>
+      <td class="src">ESD lineups + EA</td></tr>
+  <tr><td><b>Squad strength</b></td>
+      <td><code>squad_overall_{top11,top18}</code>, <code>squad_star</code>, <code>squad_gk_best</code>, <code>squad_{def,mid,att}_mean</code>, <code>squad_age_mean</code></td>
+      <td>Club roster as-of date: pre-2016 = everyone in the club's lineups over the prior 12 months (monthly snapshots); 2016+ = sofifa roster at each weekly FIFA update (101,616 club-snapshots). Continuous across the era seam</td>
+      <td class="src">ESD + EA</td></tr>
+  <tr><td><b>Context</b></td><td><code>competition_name</code> (11), <code>era</code> (3)</td>
+      <td>One-hot; lets trees learn league- and source-specific behavior</td><td class="src">—</td></tr>
+</table></div>
+
+<h2><span class="no">3</span>In-play features — ~390 per 5-minute snapshot</h2>
+<p class="lede">One row per match per minute t ∈ {0, 5, …, 90}, built from a <b>strict event prefix</b>:
+only events at or before t, asserted clean (corrupted timestamps sorted by period + index instead).</p>
+<div class="tablewrap"><table>
+  <tr><th>Family</th><th>Features</th><th>Engineering</th></tr>
+  <tr><td><b>Match state</b></td><td>goal diff, score, man advantage, shot/SoT diff, cumulative xG, events so far, minutes remaining</td>
+      <td>Counted over the prefix; red cards and second yellows drive man advantage</td></tr>
+  <tr><td><b>30 event quantities × 5 views</b></td>
+      <td>shots, xG, box shots, passes by third, carries, dribbles, mean pitch position, touches, pressures, under-pressure share, defensive actions, fouls, turnovers, possession chains/share, set pieces, …</td>
+      <td>Each as home / away / diff / recent-10-minute diff / per-minute rate diff</td></tr>
+  <tr><td><b>Momentum</b></td><td><code>inplay_recent_xg_diff</code></td><td>xG created in the last 10 minutes</td></tr>
+  <tr><td><b>Strength prior</b></td><td><code>elo_diff</code>, <code>elo_expected_home</code>, <code>pi_expected_gd</code>, <code>diff_xi_overall_mean</code>, <code>diff_squad_overall_top11</code></td>
+      <td>The pre-match ratings joined into every snapshot — the in-play literature's one dominant feature this project previously lacked</td></tr>
+  <tr><td><b>Pre-match form</b></td><td>full 2015/16 xG-form table</td><td>Merged per match; the in-play model sees everything the pre-match model sees</td></tr>
+</table></div>
+
+<h2><span class="no">4</span>Against the market</h2>
+<p class="lede">Every model is judged by ranked probability score (RPS, lower = better) against de-vigged
+Bet365 closing odds on the same 5,806 held-out matches (seasons 2023/24–24/25; odds coverage 99.97%).</p>
+<div class="tablewrap"><table>
+  <tr><th>Forecaster</th><th class="num">RPS</th><th class="num">Log loss</th><th class="num">Calibration (ECE)</th><th class="num">Gap vs market</th></tr>
+  <tr class="mkrow"><td class="mk">De-vigged Bet365 market</td><td class="num">0.18945</td><td class="num">0.954</td><td class="num">0.018</td><td class="num">—</td></tr>
+  <tr><td><b>Market blend, α=0.66</b><span class="sub">declared odds-as-feature arm</span></td><td class="num">0.19035</td><td class="num">—</td><td class="num">—</td><td class="num">+0.0009</td></tr>
+  <tr><td>XGBoost <span class="sub">best odds-free model</span></td><td class="num">0.19444</td><td class="num">0.971</td><td class="num">0.019</td><td class="num">+0.0050</td></tr>
+  <tr><td>Hierarchical-shrinkage forest</td><td class="num">0.19454</td><td class="num">0.971</td><td class="num">0.022</td><td class="num">+0.0051</td></tr>
+  <tr><td>Random forest</td><td class="num">0.19473</td><td class="num">0.972</td><td class="num">0.013</td><td class="num">+0.0053</td></tr>
+  <tr><td>Always-prior dummy</td><td class="num">0.23005</td><td class="num">1.075</td><td class="num">0.011</td><td class="num">+0.0406</td></tr>
+  <tr><td>Old project best <span class="sub">343 matches, 2015/16</span></td><td class="num">0.21656</td><td class="num">—</td><td class="num">—</td><td class="num">+0.0199</td></tr>
+</table></div>
+<div class="statrow">
+  <div class="stat"><div class="v">−75%</div><div class="l">Odds-free gap</div><div class="s">0.0199 → 0.0050</div></div>
+  <div class="stat"><div class="v">α = 0.66</div><div class="l">Blend weight on market</div><div class="s">model earns 34% — real independent signal</div></div>
+  <div class="stat"><div class="v">0.1424</div><div class="l">In-play RPS (blend)</div><div class="s">0.1456 odds-free; 0.1534 originally</div></div>
+  <div class="stat"><div class="v">17×</div><div class="l">Test size</div><div class="s">343 → 5,806 matches</div></div>
+</div>
+<p>For scale: the best published academic result on comparable data (CatBoost + pi-ratings, Soccer
+Prediction Challenge line of work) sits around 0.1925 — this model's 0.1944 is in that band, and like
+every published odds-free model it stays behind the closing market. The blend row is the declared
+experiment the brief permits (odds as a feature, never simultaneously the baseline of the same
+experiment): α fit on validation only. α=0.66 means the market keeps two-thirds of the weight but the
+model contributes a genuine third — and in-play, a pre-match-odds prior decaying with τ=30 minutes is
+worth 0.0034 RPS (0.14572 → 0.14235) before live events take over.</p>
+
+<h2><span class="no">5</span>Is it robust? Can you bet the model's pick?</h2>
+<p class="lede">Two different questions, two different answers. Both verdicts come from the same
+flat-stake backtest at real Bet365 prices over all 5,806 test matches.</p>
+
+<div class="verdict">
+  <div class="verdict-head yes"><span>As a forecaster</span><span class="stamp">ROBUST</span></div>
+  <div class="verdict-body">
+    <p>Calibration matches the bookmaker's (ECE 0.019 vs 0.018) — when the model says 60%, it happens
+    ~60% of the time. Accuracy and RPS are stable across all nine test leagues and both test seasons,
+    with no league collapsing. The result reproduces end-to-end from raw downloads through
+    leakage-asserted pipelines, and the served API is bit-checked against the offline sweep.</p>
+  </div>
+</div>
+
+<div class="verdict">
+  <div class="verdict-head no"><span>As a betting strategy</span><span class="stamp">DO NOT BET</span></div>
+  <div class="verdict-body">
+    <p>Flat-staking the v2 model's pick on every match: 53.6% of picks win, but at Bet365 prices the
+    return is <span class="bad">−4.7%</span>; the α=0.66 blend's picks do no better
+    (<span class="bad">−4.8%</span>) because its picks nearly coincide with the market favourite. On the
+    earlier sweep, betting only "value picks" (model ≥3 points above market) was
+    <span class="bad">worse, −10.7%</span> — the strongest possible sign that where the model disagrees
+    with the market, <i>the market is right and the model is wrong</i>. Even blindly backing the market's
+    own favourite loses <span class="bad">−3.2%</span>, which is simply the bookmaker's margin.</p>
+    <div class="tablewrap"><table>
+      <tr><th>Strategy</th><th class="num">Bets</th><th class="num">Hit rate</th><th class="num">ROI</th></tr>
+      <tr><td>Back the v2 model's pick, every match</td><td class="num">5,806</td><td class="num">53.6%</td><td class="num bad">−4.7%</td></tr>
+      <tr><td>Back the blend's pick, every match</td><td class="num">5,806</td><td class="num">54.0%</td><td class="num bad">−4.8%</td></tr>
+      <tr><td>Back only value picks (edge &gt; 3%)</td><td class="num">2,245</td><td class="num">45.4%</td><td class="num bad">−10.7%</td></tr>
+      <tr><td>Back the market favourite (control)</td><td class="num">5,806</td><td class="num">54.7%</td><td class="num bad">−3.2%</td></tr>
+    </table></div>
+    <p>To profit you must clear the ~5–6% overround <i>and</i> out-forecast the closing line. The odds-free
+    model is 0.5 RPS points behind that line, largely because closing odds price team news — confirmed
+    injuries, actual lineups, rotation — that no historical dataset carries; the blend gets within 0.1
+    points but a blend of the market cannot out-price the market by enough to clear its own vig. The value
+    flags in the app are a forecasting-error microscope, not a betting signal.</p>
+  </div>
+</div>
+
+<h3>What would still move the needle (in order of cheapness)</h3>
+<p>Done in v2: shot/corner/card rolling form, validation-tuned rating parameters, and the market blend.
+Remaining: 1) a Dixon-Coles time-weighted goal model as a feature generator (also unlocks correct-score
+and over/under outputs); 2) Understat/FBref xG rolling form via the <span class="mono">soccerdata</span>
+package; 3) FC&nbsp;24/25 rating refresh for the test seasons; 4) confirmed pre-kickoff lineups — the
+market's main informational edge, with no free leak-safe historical source. None of these change the
+honest expectation: the closing line is close to efficient.</p>
+
+<footer>Touchline · Forecasting Competitive Football — feature &amp; robustness documentation ·
+backtest and metrics generated 2026-08-28 from <span class="mono">market_comparison.csv</span>,
+<span class="mono">predictions_C.csv</span>, <span class="mono">market_baseline_extended.csv</span></footer>
+</div>

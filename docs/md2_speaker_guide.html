@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mid Defence 2 — 6-Minute Speaker Guide</title>
+<style>
+:root{
+  --ink:#10100f; --panel:#1a1916; --panel2:#222019;
+  --cream:#f4efe4; --dim:#cfc8b8; --line:rgba(244,239,228,.14);
+  --tc:#4fd1c5; --tr:#a78bfa; --tl:#5b9cf6; --market:#ffc24b;
+  --hs:#e26fe8; --p1:#ff8a3d; --ok:#6bd47e; --bad:#ff5c5c; --grey:#9aa3b2;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,monospace;
+  --body:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ink);color:var(--cream);font-family:var(--body);
+  font-size:15px;line-height:1.5;padding:2rem 1.2rem 5rem;}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:2.1rem;margin:0 0 .2rem;letter-spacing:-.02em}
+h2{font-size:1.25rem;margin:2.4rem 0 .6rem;padding-bottom:.35rem;border-bottom:1px solid var(--line)}
+h3{font-size:.95rem;margin:1.2rem 0 .4rem;color:var(--dim)}
+.sub{color:var(--dim);margin:.2rem 0 1.4rem;max-width:60rem}
+.mono{font-family:var(--mono)}
+.small{font-size:.85rem}
+.dim{color:var(--dim)}
+code,.k{font-family:var(--mono);font-size:.86em;background:var(--panel2);
+  padding:.1em .38em;border-radius:4px;color:var(--market)}
+
+table{width:100%;border-collapse:collapse;font-size:.88rem;margin:.5rem 0 0}
+th,td{padding:.55em .7em;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{background:var(--panel2);font-family:var(--mono);font-size:.68rem;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--dim);font-weight:500}
+tbody tr:hover{background:rgba(255,255,255,.03)}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+td.t{font-family:var(--mono);color:var(--market);white-space:nowrap;font-weight:600}
+td.n{font-family:var(--mono);white-space:nowrap}
+
+.beat{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--c,var(--market));
+  border-radius:12px;padding:.85rem 1rem;margin:.6rem 0}
+.beat .hd{display:flex;flex-wrap:wrap;gap:.6rem;align-items:baseline;margin-bottom:.4rem}
+.beat .num{font-family:var(--mono);font-size:.7rem;letter-spacing:.1em;color:var(--c,var(--market));
+  border:1px solid var(--c,var(--market));border-radius:99px;padding:.15em .6em}
+.beat .ttl{font-weight:600;font-size:1rem}
+.beat .clock{font-family:var(--mono);font-size:.78rem;color:var(--dim);margin-left:auto}
+.beat .slide{font-family:var(--mono);font-size:.72rem;color:var(--dim)}
+.say{border-left:2px solid var(--ok);padding-left:.75rem;margin:.45rem 0;color:var(--cream)}
+.say b{color:#fff}
+.why{font-size:.85rem;color:var(--dim);margin:.4rem 0 0}
+.why::before{content:"WHY THIS SLIDE · ";font-family:var(--mono);font-size:.68rem;
+  letter-spacing:.08em;color:var(--c,var(--market))}
+
+.b-tc{--c:var(--tc)} .b-tl{--c:var(--tl)} .b-hs{--c:var(--hs)}
+.b-mk{--c:var(--market)} .b-ok{--c:var(--ok)} .b-p1{--c:var(--p1)}
+
+ul{margin:.35rem 0;padding-left:1.1rem}
+li{margin:.22rem 0}
+ul.tight li{margin:.1rem 0}
+
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:1.4rem}
+@media(max-width:820px){.cols{grid-template-columns:1fr}}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:.9rem 1rem}
+.card h3{margin-top:0}
+.good{border-color:rgba(107,212,126,.45)}
+.bad{border-color:rgba(255,92,92,.45)}
+.good h3{color:var(--ok)} .bad h3{color:var(--bad)}
+
+.q{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--c,var(--market));
+  border-radius:10px;padding:.6rem .85rem;margin:.45rem 0}
+.q .ask{font-weight:600;font-size:.92rem;margin-bottom:.2rem}
+.q .ans{font-size:.85rem;color:var(--dim)}
+.q .ans b{color:var(--cream)}
+
+.pill{display:inline-block;font-family:var(--mono);font-size:.66rem;letter-spacing:.09em;
+  text-transform:uppercase;padding:.25em .6em;border-radius:5px;margin:0 .3rem .3rem 0}
+.pill.ok{background:rgba(107,212,126,.15);color:var(--ok)}
+.pill.bad{background:rgba(255,92,92,.15);color:var(--bad)}
+.pill.mk{background:rgba(255,194,75,.15);color:var(--market)}
+.pill.hs{background:rgba(226,111,232,.15);color:var(--hs)}
+
+.formula{font-family:var(--mono);background:var(--ink);border:1px solid var(--hs);
+  border-radius:8px;padding:.6em .8em;margin:.4rem 0;font-size:.85rem;color:var(--hs);
+  overflow-x:auto;white-space:pre}
+.hr{height:1px;background:var(--line);margin:2rem 0}
+.foot{font-family:var(--mono);font-size:.72rem;color:var(--dim);opacity:.7;margin-top:2.5rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Mid Defence 2 — 6-minute speaker guide</h1>
+<p class="sub">The deck has 28 slides and its own 17-minute run sheet. This is the <b>6-minute cut</b>: 8 slides, what to say on each, and the defence for every choice. Everything not in the run order below is Q&amp;A ammunition — know it, do not present it.</p>
+
+<div class="tw">
+<table>
+<thead><tr><th>#</th><th>Slide</th><th>Clock</th><th>The one thing you must land</th></tr></thead>
+<tbody>
+<tr><td class="n">1</td><td>Hero + three deliverables</td><td class="t">0:00–0:40</td><td>Two moments, one question, judged against the bookmaker</td></tr>
+<tr><td class="n">2</td><td>Pipeline forks (the diagram)</td><td class="t">0:40–1:25</td><td>The odds branch never joins the feature path</td></tr>
+<tr><td class="n">3</td><td>Time-<em>t</em> cut invariant</td><td class="t">1:25–2:10</td><td>"The cut can only ever exclude too much"</td></tr>
+<tr><td class="n">4</td><td>P2 gate — 5 filters</td><td class="t">2:10–2:55</td><td>DRF and GPBoost failed the <b>fifth</b> filter, not the quality one</td></tr>
+<tr><td class="n">5</td><td>P2 equation</td><td class="t">2:55–3:50</td><td>The divisor is the <b>parent's</b> count</td></tr>
+<tr><td class="n">6</td><td>λ diagnosed the data</td><td class="t">3:50–4:20</td><td>λ=100 pre-match, λ=0 in-play — CV chose, not us</td></tr>
+<tr><td class="n">7</td><td>Task C vs market</td><td class="t">4:20–5:05</td><td>Zero of seven. +0.01991 RPS. Stated plainly</td></tr>
+<tr><td class="n">8</td><td>In-play curve + close</td><td class="t">5:05–6:00</td><td>Live data buys nothing before minute 15</td></tr>
+</tbody>
+</table>
+</div>
+<p class="small dim" style="margin-top:.6rem">Overrun budget: 7:00 hard stop. If you are behind at beat 5, cut beat 6 entirely (λ result is one sentence you can fold into beat 5). <b>Never cut beats 4–5</b> — the P2 sign-off is what the defence is for.</p>
+
+<h2>The run order, beat by beat</h2>
+
+<div class="beat b-tc">
+  <div class="hd"><span class="num">01</span><span class="ttl">Hero + three deliverables</span><span class="clock">0:40</span></div>
+  <div class="slide">Slides: title → "Three deliverables, one question"</div>
+  <p class="say"><b>Say:</b> "One question — who wins and by how much — asked at two moments: before kick-off, and again every fifth minute. Task C is H/D/A, Task R is the clipped goal margin, Task L asks both again at nineteen snapshots per match. 1,517 matches, 28,823 snapshot rows. Every classifier is scored beside the de-vigged bookmaker price on the same games."</p>
+  <p class="say"><b>Then one line on labels:</b> "Labels are derived once, from the match file. Never from odds, never from events — <code>build_label_store.py</code> recomputes them independently and asserts agreement."</p>
+  <p class="why">It sets the frame — market comparison — so the "we lost to the market" slide later reads as the designed result, not a disappointment. Do not explain the chips; the audience reads them.</p>
+</div>
+
+<div class="beat b-mk">
+  <div class="hd"><span class="num">02</span><span class="ttl">The pipeline forks</span><span class="clock">0:45</span></div>
+  <div class="slide">Slide: "The pipeline forks" (ASCII diagram). Skip the two-sources slide and the split slide — fold them into this.</div>
+  <p class="say"><b>Say:</b> "Two sources that share no key. StatsBomb gives events; Football-Data gives closing 1X2 odds. They are tagged together on <b>pre-match identity only</b> — date, home, away — with 99.71% coverage and one unmatched row logged with a reason. Notice the amber branch: it goes to <b>evaluation</b> and never touches the feature path. Odds are either a baseline or a feature, never both, and we chose baseline because the comparison is the framing of the whole project."</p>
+  <p class="say"><b>The split, in one breath:</b> "The split is a date, not a shuffle — 896 train, 277 validation, 344 test, chronological, and validation is spent entirely on calibration so no hyperparameter ever sees it."</p>
+  <p class="why">One diagram replaces three slides. It also pre-empts the obvious attack ("did the odds leak into your features?") before it is asked.</p>
+</div>
+
+<div class="beat b-tl">
+  <div class="hd"><span class="num">03</span><span class="ttl">The time-<em>t</em> cut</span><span class="clock">0:45</span></div>
+  <div class="slide">Slide: "The time-<em>t</em> cut, and why it can only err safely". <b>Skip the half-time slide</b> — it is your best Q&amp;A ammo.</div>
+  <p class="say"><b>Say:</b> "The sharpest leakage trap is in-play. About 26 events across 24 matches carry corrupted zero timestamps that would otherwise sort to the front of their period, so we sort by <code>(period, index)</code> and repair the clock with a running maximum. Because <code>accumulate</code> only ever raises a minute, effective minute ≤ <em>t</em> implies true minute ≤ <em>t</em>. <b>So the cut can only ever exclude too much — it can never include an event that happened after <em>t</em>.</b> That is not a claim, it is a one-line proof, and <code>assert_prefix()</code> checks both directions on every snapshot. Seven tests, all passing, as a pipeline stage."</p>
+  <p class="why">This is the slide that converts "we were careful" into "we proved it". Say the bolded sentence without notes.</p>
+</div>
+
+<div class="beat b-hs">
+  <div class="hd"><span class="num">04</span><span class="ttl">P2 — the sign-off gate</span><span class="clock">0:45</span></div>
+  <div class="slide">Slide: "Hierarchical Shrinkage" filter table</div>
+  <p class="say"><b>Say:</b> "P2 is Hierarchical Shrinkage — Agarwal et al., ICML 2022. Four hard filters: published 2022 or later, CORE A* venue, applicable to mixed-type tabular data at small <em>n</em>, and not deep learning. It passes all four. The one that actually did the work is the <b>fifth</b>: reimplementable from the paper text alone. DRF and GPBoost are both JMLR 2022, both excellent — they failed <b>that</b> filter, not the quality filter, because their approximations live in a C++ codebase and not in the paper. Hierarchical Shrinkage is one closed-form recursion with no hidden constants. FIGS is our declared fallback if the sign-off goes against it."</p>
+  <p class="why">Examiners test whether you rejected papers for defensible reasons. Naming a rejected paper you clearly respect is stronger than naming only the winner.</p>
+</div>
+
+<div class="beat b-hs">
+  <div class="hd"><span class="num">05</span><span class="ttl">The P2 equation</span><span class="clock">0:55</span></div>
+  <div class="slide">Slide: "Damp each split by the node it was estimated from". Skip both appendix derivation slides unless asked.</div>
+  <div class="formula">f_HS(x) = μ(t₀) + Σ_l [ μ(t_l) − μ(t_{l−1}) ] / ( 1 + λ / N(t_{l−1}) )</div>
+  <p class="say"><b>Say:</b> "A leaf mean is the root mean plus the increments picked up along the path — that is an identity, it telescopes, it assumes nothing. HS damps each increment by the size of the node it was estimated <b>from</b>. <b>The divisor is the parent's count, not the child's</b> — a split taken off a large node is trusted almost fully, the identical split taken off a nearly-empty node is almost ignored. One parameter, λ."</p>
+  <p class="say"><b>Add the payoff, if the clock allows (10s):</b> "Rewritten, the output is a convex combination of the ancestor means, so for classification the prediction is a valid probability vector at <em>any</em> λ — no clipping, no renormalising. And it is not ad-hoc: it is the exact ridge minimiser of the increments, penalised by the fraction of the parent's samples the split sent into the child."</p>
+  <p class="say"><b>Provenance, one sentence, mandatory:</b> "Implemented from the paper against the raw <code>tree_</code> arrays. sklearn grows the CART and nothing else. <code>imodels</code> was used to cross-check the scheme, never called to produce a result."</p>
+  <p class="why">The equation plus the parent-count annotation is the single most examinable thing in the deck. If you say only one formula out loud all defence, say this one.</p>
+</div>
+
+<div class="beat b-hs">
+  <div class="hd"><span class="num">06</span><span class="ttl">What λ chose</span><span class="clock">0:30</span><span class="pill bad" style="margin-left:.5rem">cut me first</span></div>
+  <div class="slide">Slide: "The method diagnosed our own data"</div>
+  <p class="say"><b>Say:</b> "λ is chosen by 3-fold CV inside the training rows only — tuning it on validation would turn the calibration set into a second training set. On 896 pre-match rows it picked λ=100, the top of the grid: shrink almost all the way to the base rate. On 17,024 in-play rows it picked λ=0: no shrinkage at all. <b>Opposite ends of the same grid, on the same method, chosen without a thumb on the scale</b> — exactly the behaviour the paper predicts. And the honest limit: HS is a variance intervention, not a bias one. It cannot repair a badly grown tree."</p>
+  <p class="why">Turns P2 from "we implemented a paper" into "the paper told us something about our data". If you cut this beat, fold the λ=100/λ=0 contrast into one sentence at the end of beat 5.</p>
+</div>
+
+<div class="beat b-mk">
+  <div class="hd"><span class="num">07</span><span class="ttl">Task C vs the market</span><span class="clock">0:45</span></div>
+  <div class="slide">Slide: the RPS bar chart. Skip the read-out slide; say the read-out over the chart.</div>
+  <p class="say"><b>Say:</b> "Zero of seven models beat the market. The de-vigged market scores 0.19665 RPS; our best, kernel SVM, is 0.21656; P2 is 0.21659; the prior is 0.22839. The gap is <b>plus 0.01991 RPS</b>, and we are not softening it."</p>
+  <p class="say"><b>Then the methodology point:</b> "Both are scored on the <b>same 343 odds-tagged matches</b>, with coverage printed beside the number — scoring the model on 344 and the market on 343 would compare two different samples. The de-vigging contract is re-asserted at the point of use, not only where the baseline was built."</p>
+  <p class="say"><b>Then the hypothesis, flagged as one:</b> "Our hypothesis — offered as a hypothesis, not a finding — is that the market prices information our features do not contain: injuries, confirmed lineups, managerial news. None of that is in StatsBomb event data. We can test it; we have not, so we will not assert it."</p>
+  <p class="say"><b>One clause on equal budget:</b> "Every tuned model got 12 configurations × 3 folds — random search, not grid, so the fits are equal rather than the search space, and <code>tuning.py</code> fails the run if any model on a task saw a different count."</p>
+  <p class="why">The result they will probe hardest. Leading with the loss, unhedged, and following with the same-rows argument is what makes it a result rather than an excuse.</p>
+</div>
+
+<div class="beat b-ok">
+  <div class="hd"><span class="num">08</span><span class="ttl">In-play curve + close</span><span class="clock">0:55</span></div>
+  <div class="slide">Slides: RPS-by-minute chart → "Four findings" (close on it)</div>
+  <p class="say"><b>Say:</b> "The dashed amber line is the pre-match prediction, frozen and repeated across all 19 snapshots — flat by construction, and the code asserts it is flat, because any slope would mean the reference leaked match progress. <b>The in-play model does not cross it until minute 15.</b> For the first sixth of a match, knowing who is playing beats knowing what has happened. That is a statement about football, not about our code."</p>
+  <p class="say"><b>The endpoint caveat — say it before anyone asks:</b> "Do not misread the right-hand end. RPS 0.024 at minute 90 is the task definition asserting itself, not model skill. We measured a falling curve with a crossover at 10 to 15 minutes; that is all we will say about it."</p>
+  <p class="say"><b>Close:</b> "One more finding worth 10 seconds: aggregate calibration lies on this data. Every model is over-confident for 75 minutes and under-confident for the last 15, and a single ECE averages those two errors against each other into a small, reassuring number. That is why the per-phase table exists. <b>Still to build: SHAP, and converting Task R's margin into H/D/A probabilities. P2 is presented for sign-off — not presented as approved.</b>"</p>
+  <p class="why">Ends on the honest reading, which is the tone the brief rewards, and ends with the explicit ask (sign-off), which is the actual purpose of the session.</p>
+</div>
+
+<div class="hr"></div>
+
+<h2>Defending every choice — one line each</h2>
+<p class="sub small">The pattern: <b>choice → the alternative → why the alternative is worse.</b> Never defend a choice by saying it is standard.</p>
+
+<div class="tw">
+<table>
+<thead><tr><th>Choice</th><th>The defence</th></tr></thead>
+<tbody>
+<tr><td class="t">Chronological split, not shuffle</td><td>A shuffled split lets the model learn February from March and be scored on January. The cost is real and we accept it: the test window is the March–May run-in, when title and relegation races distort behaviour and the bookmaker is sharpest. We did not pick an easy quarter.</td></tr>
+<tr><td class="t">Validation spent on calibration</td><td>If hyperparameters and the calibrator are fit on the same rows, every reported ECE is optimistic. So tuning CV runs inside <b>train</b> only, and validation is untouched until the calibrator.</td></tr>
+<tr><td class="t">Odds as baseline, not feature</td><td>The brief permits either, never both in one experiment. The model-versus-market comparison is the framing of the project, so a feature-arm would cost us the headline.</td></tr>
+<tr><td class="t"><code>shift(1)</code> before <code>rolling(5)</code></td><td>Roll-then-shift silently includes the match being predicted. We assert every team's first match of the season is NaN — a non-NaN there would mean the window reached into the present.</td></tr>
+<tr><td class="t">Sort by <code>(period, index)</code>, not timestamp</td><td>~26 events across 24 matches carry corrupted <code>00:00:00</code> timestamps that would sort to the front of their period. The code is right; <code>REPORT.md</code> §3 is stale prose and is on the TODO list. Volunteer this before they find it.</td></tr>
+<tr><td class="t">Half-time events pinned behind 45′</td><td>StatsBomb's minute is not globally monotonic — period 1 runs to 47′, period 2 restarts at 45′. Of the two ways to be wrong at the boundary we chose the one that <b>drops</b> information over the one that <b>invents</b> it. Capping period 1 at 45′ would pull stoppage-time events into the <em>t</em>=45 snapshot — that is the direction that leaks.</td></tr>
+<tr><td class="t">Random search, not grid</td><td>A grid would hand LightGBM 729 configurations and kernel SVM 20. Fixing the number of <b>fits</b> is the only thing "comparable budget" can honestly mean. 12 × 3 = 36 fits per tuned model per task, asserted.</td></tr>
+<tr><td class="t">λ not in the outer search</td><td>Giving HS an outer λ grid on top of the paper's inner CV would hand it a larger budget than every other model. λ is chosen the paper's way, inside train.</td></tr>
+<tr><td class="t">No kernels on Task L</td><td>Not a gap — a measured decision. The theoretical Gram at 17,024 rows is 2,211 MB; exact kernel ridge fits as <code>t ~ n^2.245</code>, Nyström as <code>n^0.392</code>. We report the curve as its own deliverable, and the exponents are asserted so the script fails if the exact methods stop looking super-linear.</td></tr>
+<tr><td class="t">Kernel ridge capped at 8,000 rows</td><td>Declared per row: the results table carries a <code>subsampled</code> flag and the real <code>n_train</code>, so the compute row cannot be misread as a full-data fit. Note Nyström beats it on both MAE and RMSE — the subsampling costs more than the approximation.</td></tr>
+<tr><td class="t"><code>PROBABILITY_FLOOR = 0.005</code></td><td>Isotonic on a ~340-row validation split emits exact zeros. RPS and Brier barely notice; log-loss exploded to 1.9–2.8 nats and made every model look far worse than the market for a reason that was purely an artefact. Post-floor it lands at 1.05–1.22. We report the fix rather than hide it.</td></tr>
+<tr><td class="t">P2 as a forest in the results table</td><td>Both <code>HSTreeClassifier</code> and <code>HSForestClassifier</code> exist. The single tree is the paper's interpretability argument; the forest goes in the table because the comparison set is ensembles and a lone depth-limited CART would lose for reasons unrelated to HS.</td></tr>
+<tr><td class="t">These four leagues, this season</td><td>A rule, not a preference, implemented in <code>competition_audit.py</code>: partial or single-club releases are excluded because opponent-side form would be undefined; women's and tournament data is excluded because it cannot be joined to a bookmaker, and a test set that cannot sit beside the market is meaningless here.</td></tr>
+<tr><td class="t">Frozen pre-match as the Task L baseline</td><td>Both baselines are reported. The prior is the sanity floor; the frozen curve is the bar that justifies Model 3 existing at all. A model that merely matches it has learned nothing from the live stream, however good its absolute RPS looks.</td></tr>
+<tr><td class="t">P1 over SMOTE</td><td>Neither is "the winner". SMOTE takes the best draw recall (0.231) and F1 (0.243) at the <b>worst</b> RPS (0.223). P1 takes the best RPS (0.219) and best calibration (ECE 0.045) by finding <em>fewer</em> draws. They optimise different things; our headline metric is RPS, so P1 wins the arm we run.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>The two questions the brief names — full answers, memorise the shape</h2>
+
+<div class="q" style="--c:var(--tl)">
+  <div class="ask">Snapshots every minute instead of every five?</div>
+  <div class="ans">Rows go <b>19 → 91</b> per match, 28,823 → ~138,000, but information barely moves: state variables only change on discrete events (~2.7 goals, ~4 cards a match), so adjacent snapshots differ only in the rolling recent-rate features and their autocorrelation approaches 1. <b>Nominal n rises 4.8×; effective sample size does not.</b> Consequences: ungrouped CV becomes <em>more</em> optimistic so <code>GroupKFold</code> matters more not less; naive standard errors are optimistic by roughly √(1+(m−1)ρ); compute rises ~5× for trees and ~23× for anything with a Gram matrix. The leakage machinery is unchanged — <code>prefix_length_at</code> is defined for any <em>t</em>. <b>What we defend:</b> the 5-minute grid wins on cost per unit information, and the right way to buy resolution is <b>event-triggered snapshots</b> — at each goal, red card and substitution — not a finer uniform grid.</div>
+</div>
+
+<div class="q" style="--c:var(--bad)">
+  <div class="ask">What if SMOTE were applied to the snapshot table?</div>
+  <div class="ans">It breaks three ways, which is why the code <b>raises rather than warns</b>. <b>(1) The synthetic rows are not game states</b> — interpolating (min 40, 1–0, 11v11) with (min 75, 0–2, 10v11) yields minute 57.5, goal difference −0.4, 10.6 players; goal difference and man-advantage are integers, cumulative xG is monotone in minute. <b>(2) It moves match-level label information across the match boundary</b> — a synthetic row inherits match A's eventual result while half its feature mass comes from match B. <b>(3) It inflates n while shrinking effective sample size</b>, so a few matches dominate training and every internal CV score gets more optimistic while the model gets worse. Also <code>snapshot_minute</code> is itself a feature, so interpolation produces off-grid minutes and makes the per-phase analysis incoherent. <b>Enforced structurally:</b> <code>prepare_matrices</code> raises a <code>ValueError</code> on any resampling arm over a frame containing <code>snapshot_minute</code>. If forced to rebalance anyway: <code>class_weight='balanced'</code>, resample <em>within</em> a match or phase, or resample whole matches carrying all 19 snapshots together.</div>
+</div>
+
+<h2>Rapid-fire Q&amp;A — one or two sentences each</h2>
+<div class="q"><div class="ask">Isn't 0.02 RPS basically the same as the market?</div><div class="ans">No, and we will not call it close. On RPS at this scale that is the difference between the prior and a working model — the prior is 0.228, the market 0.197, our best 0.217, so the market's edge is over 60% of the total signal any of our models found.</div></div>
+<div class="q"><div class="ask">Eight models within 0.05 MAE — did anything work?</div><div class="ans">That flatness <b>is</b> the result. Eight very different learners on identical budgets landing within 0.05 goals of each other, all ~7% better than the prior, is the signal ceiling of pre-match features measured eight independent ways. Pre-match goal margin is close to irreducibly noisy.</div></div>
+<div class="q"><div class="ask">How do you know your HS is really the paper's HS?</div><div class="ans">A second, deliberately literal implementation transcribed from the PDF — walking each root-to-leaf path node by node — agrees with the fast recursion. Plus λ=0 ≡ plain CART, λ→∞ ≡ the root mean, and simplex closure at every λ. Eight tests, run as a pipeline stage, so a run that breaks the reimplementation fails the pipeline.</div></div>
+<div class="q"><div class="ask">Why is your log-loss so different from earlier numbers?</div><div class="ans">The probability floor. Isotonic on ~340 validation rows emits exact zeros; log-loss is the only metric that notices violently. We report before and after because a number that moves 1.5 nats on a floor is one you must understand before presenting it.</div></div>
+<div class="q"><div class="ask">Your suite is short one booster in an earlier table.</div><div class="ans">Known and now pinned: <code>model_zoo.py</code> guards the xgboost and lightgbm imports in try/except, so without <code>libomp</code> they vanish with no warning and the zoo silently returns 4 of 6. Documented, and the current table is complete.</div></div>
+<div class="q"><div class="ask">What is missing?</div><div class="ans">SHAP is not written — TreeSHAP over the already-persisted <code>predictions_*.csv</code>, no refitting, <code>shap==0.52.0</code> pinned. Converting Task R's margin into H/D/A probabilities is required by the brief and not attempted; it is an analysis over two prediction files on the same test matches, not new modelling. <code>REPORT.md</code> ends at §3 of §9.</div></div>
+
+<h2>Discipline</h2>
+<div class="cols">
+  <div class="card good">
+    <h3>Say these without notes</h3>
+    <ul class="tight">
+      <li>The four hard filters — and that DRF and GPBoost failed the <b>fifth</b></li>
+      <li>The HS equation, and that the damping uses the <b>parent's</b> count</li>
+      <li>"The cut can only ever exclude too much"</li>
+      <li>"Zero of seven models beat the market. The gap is 0.01991 RPS."</li>
+      <li>"P2 is presented for sign-off, not presented as approved."</li>
+    </ul>
+  </div>
+  <div class="card bad">
+    <h3>Never say</h3>
+    <ul class="tight">
+      <li>That any model beat the market</li>
+      <li>That P2 is approved</li>
+      <li>That Task L is "real time"</li>
+      <li>That the model "converges to certainty" at minute 90</li>
+      <li>That you implemented HS "from <code>imodels</code>" — from the paper, against raw <code>tree_</code> arrays</li>
+      <li>"We will improve accuracy." Say what you will build and what it will show</li>
+      <li>Anything hedging the market loss — "close", "nearly", "essentially matched"</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Numbers you must have cold</h2>
+<div class="tw">
+<table>
+<thead><tr><th>Quantity</th><th>Value</th><th>Quantity</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Matches</td><td class="n">1,517</td><td>Snapshot rows</td><td class="n">28,823 = 1,517 × 19</td></tr>
+<tr><td>Split</td><td class="n">896 / 277 / 344</td><td>Odds coverage</td><td class="n">343 / 344 · 0.9971</td></tr>
+<tr><td>Market RPS</td><td class="n" style="color:var(--market)">0.19665</td><td>Best model RPS</td><td class="n">0.21656 (kernel SVM)</td></tr>
+<tr><td>P2 RPS (Task C)</td><td class="n" style="color:var(--hs)">0.21659</td><td>The gap</td><td class="n" style="color:var(--bad)">+0.01991</td></tr>
+<tr><td>Prior RPS</td><td class="n">0.22839</td><td>Base rates H/D/A</td><td class="n">44.5 / 26.5 / 29.0%</td></tr>
+<tr><td>Best Task R MAE</td><td class="n">1.38656 (XGB) · P2 1.38965</td><td>Prior MAE</td><td class="n">1.48997</td></tr>
+<tr><td>λ pre-match / in-play</td><td class="n" style="color:var(--hs)">100 / 0</td><td>Tuning budget</td><td class="n">12 × 3 = 36 fits · 288 rows</td></tr>
+<tr><td>In-play crossover</td><td class="n" style="color:var(--tl)">minute 15</td><td>RPS at t=90</td><td class="n">0.02385 (random forest)</td></tr>
+<tr><td>Tests</td><td class="n" style="color:var(--ok)">8 + 8 + 7 = 23/23</td><td>Gram @ 17,024 rows</td><td class="n">2,211 MB theoretical</td></tr>
+</tbody>
+</table>
+</div>
+
+<p class="foot">Built from docs/mid_defence_2_slides.html · docs/mid_defence_2.md · docs/p2_paper_selection.md · docs/appendix_a_hierarchical_shrinkage.md<br>
+Every figure here is copied from the deck, which was itself read from CSVs in src/reports/. If a number here disagrees with a CSV, the CSV wins.</p>
+
+</div>
+</body>
+</html>

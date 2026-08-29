@@ -1,0 +1,235 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1760" height="1000" viewBox="0 0 1760 1000" font-family="Menlo, Consolas, 'JetBrains Mono', monospace">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#9aa3b2"/>
+    </marker>
+    <marker id="arA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#ffc24b"/>
+    </marker>
+  </defs>
+
+  <rect width="1760" height="1000" fill="#10100f"/>
+
+  <!-- title -->
+  <text x="30" y="42" fill="#f4efe4" font-size="22" font-weight="bold">Forecasting Competitive Football — the entire pipeline</text>
+  <text x="30" y="64" fill="#9aa3b2" font-size="12">every stage: one standalone, idempotent script · reads the previous stage's CSV · ends in assertions</text>
+
+  <!-- column headers -->
+  <g font-size="12" font-weight="bold">
+    <text x="40"   y="100" fill="#9aa3b2">1 · RAW DATA</text>
+    <text x="330"  y="100" fill="#ffc24b">2 · RELATIONAL STORE</text>
+    <text x="620"  y="100" fill="#4fd1c5">3 · FEATURES</text>
+    <text x="910"  y="100" fill="#a78bfa">4 · MODELS</text>
+    <text x="1200" y="100" fill="#5b9cf6">5 · ANALYSES</text>
+    <text x="1490" y="100" fill="#6bd47e">6 · OUTPUTS + SERVICE</text>
+  </g>
+
+  <!-- ══ column 1 · raw data ══ -->
+  <g>
+    <rect x="30" y="115" width="250" height="180" rx="12" fill="#1a1916" stroke="#3a3833"/>
+    <text x="45" y="140" fill="#f4efe4" font-size="13" font-weight="bold">StatsBomb Open Data</text>
+    <text x="45" y="160" fill="#cfc8b8" font-size="11">matches/{comp}/{season}.json</text>
+    <text x="45" y="176" fill="#cfc8b8" font-size="11">lineups/{match_id}.json</text>
+    <text x="45" y="192" fill="#cfc8b8" font-size="11">events/{match_id}.json (~1,500)</text>
+    <text x="45" y="216" fill="#6bd47e" font-size="11">auto-download + cache on first</text>
+    <text x="45" y="231" fill="#6bd47e" font-size="11">use — fresh clone runs</text>
+    <text x="45" y="255" fill="#9aa3b2" font-size="11">audit: 80 entries → 4 kept</text>
+    <text x="45" y="270" fill="#9aa3b2" font-size="11">(La Liga·EPL·Serie A·Ligue 1 15/16)</text>
+
+    <rect x="30" y="620" width="250" height="120" rx="12" fill="#1a1916" stroke="#3a3833"/>
+    <text x="45" y="645" fill="#f4efe4" font-size="13" font-weight="bold">Football-Data.co.uk</text>
+    <text x="45" y="665" fill="#cfc8b8" font-size="11">season CSVs · B365 1X2 odds</text>
+    <text x="45" y="687" fill="#ff5c5c" font-size="11">rows carry the final score →</text>
+    <text x="45" y="702" fill="#ff5c5c" font-size="11">join on identity ONLY</text>
+    <text x="45" y="724" fill="#9aa3b2" font-size="11">no shared key with StatsBomb</text>
+  </g>
+
+  <!-- ══ column 2 · store ══ -->
+  <g>
+    <rect x="320" y="115" width="250" height="88" rx="12" fill="#1a1916" stroke="#ffc24b"/>
+    <text x="335" y="138" fill="#f4efe4" font-size="12" font-weight="bold">match_store</text>
+    <text x="335" y="156" fill="#ffc24b" font-size="11">labels derived HERE, once —</text>
+    <text x="335" y="171" fill="#ffc24b" font-size="11">never from odds or events</text>
+    <text x="335" y="190" fill="#9aa3b2" font-size="11">1,517 matches · H/D/A · margin ±5</text>
+
+    <rect x="320" y="218" width="250" height="56" rx="12" fill="#1a1916" stroke="#3a3833"/>
+    <text x="335" y="240" fill="#f4efe4" font-size="12" font-weight="bold">label_store</text>
+    <text x="335" y="258" fill="#6bd47e" font-size="11">re-derives independently · asserts ==</text>
+
+    <rect x="320" y="289" width="250" height="46" rx="12" fill="#1a1916" stroke="#3a3833"/>
+    <text x="335" y="309" fill="#f4efe4" font-size="12" font-weight="bold">lineup_store</text>
+    <text x="335" y="325" fill="#9aa3b2" font-size="11">built · unused by features (next step)</text>
+
+    <rect x="320" y="350" width="250" height="88" rx="12" fill="#1a1916" stroke="#3a3833"/>
+    <text x="335" y="372" fill="#f4efe4" font-size="12" font-weight="bold">event_store → clean_store</text>
+    <text x="335" y="390" fill="#cfc8b8" font-size="11">clean events + lineups · identity</text>
+    <text x="335" y="405" fill="#cfc8b8" font-size="11">maps · drop + quality logs</text>
+    <text x="335" y="425" fill="#6bd47e" font-size="11">1,517/1,517 scorelines rebuilt ✓</text>
+
+    <rect x="320" y="453" width="250" height="72" rx="12" fill="#1a1916" stroke="#3a3833"/>
+    <text x="335" y="475" fill="#f4efe4" font-size="12" font-weight="bold">temporal_splits</text>
+    <text x="335" y="493" fill="#cfc8b8" font-size="11">896 / 277 / 344 · strictly by date</text>
+    <text x="335" y="510" fill="#6bd47e" font-size="11">snapshots inherit match's side ✓</text>
+
+    <rect x="320" y="620" width="250" height="120" rx="12" fill="#1a1916" stroke="#ffc24b"/>
+    <text x="335" y="643" fill="#f4efe4" font-size="12" font-weight="bold">market_baseline</text>
+    <text x="335" y="661" fill="#cfc8b8" font-size="11">alias map: 47 exact · 32 fuzzy ·</text>
+    <text x="335" y="676" fill="#cfc8b8" font-size="11">1 manual (Ath Madrid → Atlético)</text>
+    <text x="335" y="694" fill="#6bd47e" font-size="11">bijection asserted ✓ de-vig Σp=1 ✓</text>
+    <text x="335" y="712" fill="#ffc24b" font-size="11">THE baseline · RPS 0.19665</text>
+    <text x="335" y="728" fill="#9aa3b2" font-size="11">coverage 343/344 = 99.71%</text>
+  </g>
+
+  <!-- ══ column 3 · features ══ -->
+  <g>
+    <rect x="610" y="200" width="250" height="70" rx="12" fill="#1a1916" stroke="#3a3833"/>
+    <text x="625" y="223" fill="#f4efe4" font-size="12" font-weight="bold">event_aggregates</text>
+    <text x="625" y="241" fill="#cfc8b8" font-size="11">29 per-team quantities, defined</text>
+    <text x="625" y="256" fill="#cfc8b8" font-size="11">ONCE · consumed by both builders</text>
+
+    <rect x="610" y="315" width="250" height="90" rx="12" fill="#12201d" stroke="#4fd1c5"/>
+    <text x="625" y="338" fill="#4fd1c5" font-size="12" font-weight="bold">prematch_features</text>
+    <text x="625" y="356" fill="#cfc8b8" font-size="11">1,517 × 231 · home/away/diff</text>
+    <text x="625" y="372" fill="#6bd47e" font-size="11">shift(1) → rolling(5) · scoreline-</text>
+    <text x="625" y="387" fill="#6bd47e" font-size="11">rewrite test: row byte-identical ✓</text>
+
+    <rect x="610" y="450" width="250" height="105" rx="12" fill="#131a26" stroke="#5b9cf6"/>
+    <text x="625" y="473" fill="#5b9cf6" font-size="12" font-weight="bold">inplay_features</text>
+    <text x="625" y="491" fill="#cfc8b8" font-size="11">28,823 × 158 · t ∈ {0,5,…,90}</text>
+    <text x="625" y="507" fill="#cfc8b8" font-size="11">totals · momentum window · rates</text>
+    <text x="625" y="525" fill="#6bd47e" font-size="11">prefix ≤ t · running-max repair ·</text>
+    <text x="625" y="540" fill="#6bd47e" font-size="11">two-sided cut guard ✓ 7 tests</text>
+  </g>
+
+  <!-- ══ column 4 · models ══ -->
+  <g>
+    <rect x="900" y="145" width="250" height="88" rx="12" fill="#1a1916" stroke="#3a3833"/>
+    <text x="915" y="168" fill="#f4efe4" font-size="12" font-weight="bold">tuning</text>
+    <text x="915" y="186" fill="#cfc8b8" font-size="11">equal budget: 12 cands × 3-fold CV</text>
+    <text x="915" y="201" fill="#cfc8b8" font-size="11">inside training rows · grouped on L</text>
+    <text x="915" y="219" fill="#6bd47e" font-size="11">checkpoint per task · auto-resume ✓</text>
+
+    <rect x="900" y="278" width="250" height="120" rx="12" fill="#1c1524" stroke="#a78bfa"/>
+    <text x="915" y="301" fill="#a78bfa" font-size="12" font-weight="bold">model zoo sweep</text>
+    <text x="915" y="319" fill="#cfc8b8" font-size="11">Task C · R (pre-match)</text>
+    <text x="915" y="334" fill="#cfc8b8" font-size="11">Task Lc · Lr (in-play)</text>
+    <text x="915" y="352" fill="#cfc8b8" font-size="11">7 classifiers · 9 regressors</text>
+    <text x="915" y="371" fill="#ff8a3d" font-size="11">P1 G-SMOTENC · train-only toggle</text>
+    <text x="915" y="387" fill="#e26fe8" font-size="11">P2 hierarchical shrinkage · λ by CV</text>
+
+    <rect x="900" y="443" width="250" height="72" rx="12" fill="#1a1916" stroke="#3a3833"/>
+    <text x="915" y="466" fill="#f4efe4" font-size="12" font-weight="bold">calibration</text>
+    <text x="915" y="484" fill="#cfc8b8" font-size="11">isotonic · fit on validation only</text>
+    <text x="915" y="499" fill="#cfc8b8" font-size="11">base frozen · applied to test</text>
+
+    <rect x="900" y="560" width="250" height="88" rx="12" fill="#1a1916" stroke="#3a3833"/>
+    <text x="915" y="583" fill="#f4efe4" font-size="12" font-weight="bold">significance</text>
+    <text x="915" y="601" fill="#cfc8b8" font-size="11">match-clustered bootstrap +</text>
+    <text x="915" y="616" fill="#cfc8b8" font-size="11">Holm per task · seeds are a</text>
+    <text x="915" y="631" fill="#cfc8b8" font-size="11">stability diagnostic only</text>
+  </g>
+
+  <!-- ══ column 5 · analyses ══ -->
+  <g font-size="11">
+    <rect x="1190" y="115" width="250" height="60" rx="12" fill="#1a1916" stroke="#ffc24b"/>
+    <text x="1205" y="137" fill="#f4efe4" font-size="12" font-weight="bold">market comparison</text>
+    <text x="1205" y="155" fill="#cfc8b8">0/7 beat market · gap +0.02213</text>
+    <text x="1205" y="169" fill="#cfc8b8">same 343 matches, both sides</text>
+
+    <rect x="1190" y="190" width="250" height="60" rx="12" fill="#1a1916" stroke="#5b9cf6"/>
+    <text x="1205" y="212" fill="#f4efe4" font-size="12" font-weight="bold">in-play curves</text>
+    <text x="1205" y="230" fill="#cfc8b8">RPS by minute vs frozen pre-match</text>
+    <text x="1205" y="244" fill="#cfc8b8">0.21862 → 0.02266 at t=90</text>
+
+    <rect x="1190" y="265" width="250" height="60" rx="12" fill="#1a1916" stroke="#3a3833"/>
+    <text x="1205" y="287" fill="#f4efe4" font-size="12" font-weight="bold">calibration by phase</text>
+    <text x="1205" y="305" fill="#cfc8b8">over-conf. early +0.091 ·</text>
+    <text x="1205" y="319" fill="#cfc8b8">under-conf. late −0.078</text>
+
+    <rect x="1190" y="340" width="250" height="60" rx="12" fill="#1a1916" stroke="#e26fe8"/>
+    <text x="1205" y="362" fill="#f4efe4" font-size="12" font-weight="bold">SHAP + ablation</text>
+    <text x="1205" y="380" fill="#cfc8b8">timeline: goals = steps, form = flat</text>
+    <text x="1205" y="394" fill="#cfc8b8">score group dominates by 10×</text>
+
+    <rect x="1190" y="415" width="250" height="60" rx="12" fill="#1a1916" stroke="#ff8a3d"/>
+    <text x="1205" y="437" fill="#f4efe4" font-size="12" font-weight="bold">resampling study</text>
+    <text x="1205" y="455" fill="#cfc8b8">6 arms · P1: best recall gain,</text>
+    <text x="1205" y="469" fill="#cfc8b8">last on RPS — by design</text>
+
+    <rect x="1190" y="490" width="250" height="60" rx="12" fill="#1a1916" stroke="#3a3833"/>
+    <text x="1205" y="512" fill="#f4efe4" font-size="12" font-weight="bold">kernel scaling · width study</text>
+    <text x="1205" y="530" fill="#cfc8b8">Nyström 280× faster · 231 vs 75</text>
+    <text x="1205" y="544" fill="#cfc8b8">cols: 0/24 survive Holm</text>
+  </g>
+
+  <!-- ══ column 6 · outputs + service ══ -->
+  <g>
+    <rect x="1480" y="115" width="250" height="100" rx="12" fill="#1a1916" stroke="#3a3833"/>
+    <text x="1495" y="138" fill="#f4efe4" font-size="12" font-weight="bold">reports/</text>
+    <text x="1495" y="156" fill="#cfc8b8" font-size="11">processed/ · features/ · results/</text>
+    <text x="1495" y="171" fill="#cfc8b8" font-size="11">*.csv · visualizations/*.html</text>
+    <text x="1495" y="192" fill="#9aa3b2" font-size="11">every slide number traces to a CSV</text>
+
+    <rect x="1480" y="255" width="250" height="150" rx="12" fill="#12201d" stroke="#6bd47e"/>
+    <text x="1495" y="278" fill="#6bd47e" font-size="12" font-weight="bold">service (bonus · brief §11)</text>
+    <text x="1495" y="298" fill="#f4efe4" font-size="11">app.py · FastAPI · :5500</text>
+    <text x="1495" y="314" fill="#cfc8b8" font-size="11">models + calibrators + SHAP fitted</text>
+    <text x="1495" y="329" fill="#cfc8b8" font-size="11">at startup · per-match payload cache</text>
+    <text x="1495" y="349" fill="#f4efe4" font-size="11">clients: dashboard.html (browser)</text>
+    <text x="1495" y="364" fill="#f4efe4" font-size="11">· replay_driver.py (terminal)</text>
+    <text x="1495" y="384" fill="#6bd47e" font-size="11">only TEST-split matches servable ✓</text>
+    <text x="1495" y="398" fill="#9aa3b2" font-size="11">parity asserted vs offline sweep</text>
+  </g>
+
+  <!-- ══ arrows ══ -->
+  <g stroke="#9aa3b2" stroke-width="1.6" fill="none">
+    <!-- raw → store -->
+    <path d="M280 160 H320" marker-end="url(#ar)"/>
+    <path d="M280 205 C300 205 300 310 320 311" marker-end="url(#ar)"/>
+    <path d="M280 250 C302 250 300 392 320 393" marker-end="url(#ar)"/>
+    <!-- store chain -->
+    <path d="M445 203 V218" marker-end="url(#ar)"/>
+    <path d="M445 274 V289" marker-end="url(#ar)"/>
+    <path d="M445 335 V350" marker-end="url(#ar)"/>
+    <path d="M445 438 V453" marker-end="url(#ar)"/>
+    <!-- store → features -->
+    <path d="M570 394 C590 394 590 234 610 234" marker-end="url(#ar)"/>
+    <path d="M735 270 V315" marker-end="url(#ar)"/>
+    <path d="M735 405 V450" marker-end="url(#ar)"/>
+    <!-- features → tuning/sweep -->
+    <path d="M860 360 C880 360 880 200 900 200" marker-end="url(#ar)"/>
+    <path d="M860 500 C880 500 880 340 900 338" marker-end="url(#ar)"/>
+    <!-- tuning → sweep → calib → significance -->
+    <path d="M1025 233 V278" marker-end="url(#ar)"/>
+    <path d="M1025 398 V443" marker-end="url(#ar)"/>
+    <path d="M1025 515 V560" marker-end="url(#ar)"/>
+    <!-- sweep/calib → analyses -->
+    <path d="M1150 320 C1170 320 1170 220 1190 220" marker-end="url(#ar)"/>
+    <path d="M1150 479 C1170 479 1170 370 1190 370" marker-end="url(#ar)"/>
+    <path d="M1150 596 C1170 596 1170 520 1190 520" marker-end="url(#ar)"/>
+    <path d="M1150 479 C1170 479 1170 445 1190 445" marker-end="url(#ar)"/>
+    <path d="M1150 479 C1170 479 1170 295 1190 295" marker-end="url(#ar)"/>
+    <!-- analyses → outputs -->
+    <path d="M1440 145 H1480" marker-end="url(#ar)"/>
+    <path d="M1440 220 C1460 220 1460 170 1480 170" marker-end="url(#ar)"/>
+    <!-- features/models → service -->
+    <path d="M1150 338 C1330 338 1300 330 1480 330" stroke-dasharray="4 4" marker-end="url(#ar)"/>
+  </g>
+  <!-- market: odds → baseline → market comparison (amber) -->
+  <g stroke="#ffc24b" stroke-width="1.8" fill="none">
+    <path d="M280 680 H320" marker-end="url(#arA)"/>
+    <path d="M445 525 V620" marker-end="url(#arA)"/>
+    <path d="M570 695 C820 780 1174 760 1174 330 C1174 240 1178 162 1188 152" marker-end="url(#arA)"/>
+  </g>
+
+  <!-- legend -->
+  <g font-size="11">
+    <rect x="30" y="788" width="1700" height="122" rx="12" fill="#161511" stroke="#2a2823"/>
+    <text x="50" y="815" fill="#f4efe4" font-size="12" font-weight="bold">LEGEND + LEAKAGE DISCIPLINE</text>
+    <text x="50" y="838" fill="#6bd47e">✓ green — a contract enforced by an assertion or unit test (they are the specification; 8+9+7 tests across P1, P2, in-play cut)</text>
+    <text x="50" y="858" fill="#ffc24b">amber — the market path: odds join on pre-match identity only, de-vigged, THE baseline every classifier answers to</text>
+    <text x="50" y="878" fill="#cfc8b8">teal — pre-match (finished matches only, shift before roll) · blue — in-play (events ≤ t, clean prefix asserted) · violet — papers + sweep</text>
+    <text x="50" y="898" fill="#9aa3b2">train-only fits: imputer · scaler · encoder · resampler — calibration on validation — test read exactly once — snapshots never straddle a split</text>
+    <text x="1380" y="898" fill="#9aa3b2">orchestrators: build_relational_store.py · run_all.py</text>
+  </g>
+</svg>
