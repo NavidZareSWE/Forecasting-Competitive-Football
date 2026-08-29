@@ -95,8 +95,18 @@ def freeze_prematch(inplay, prematch, columns):
     reference = prematch[["match_id", *columns]].drop_duplicates("match_id")
     merged = inplay[["match_id", "snapshot_minute", "y_true"]].merge(
         reference, on="match_id", how="inner")
-    assert len(merged) == len(inplay) or merged["match_id"].nunique() <= \
-        inplay["match_id"].nunique(), "frozen reference lost rows unexpectedly"
+    # The previous assert here was `len(merged) == len(inplay) or
+    # merged.nunique() <= inplay.nunique()`. The second clause is true for any
+    # subset, including the empty one, so the assert could never fire - and it
+    # sat directly on top of the join that silently returned zero rows. Assert
+    # the property that actually matters: every in-play match must be covered.
+    covered = merged["match_id"].nunique()
+    wanted = inplay["match_id"].nunique()
+    assert covered == wanted, (
+        f"frozen reference covers {covered} of {wanted} in-play matches. "
+        "The pre-match predictions and the in-play snapshots live in different "
+        "match_id spaces (the in-play matches are 'excluded' from tasks C/R), "
+        "so this join needs prematch_reference()'s bundle fallback.")
     return merged
 
 
