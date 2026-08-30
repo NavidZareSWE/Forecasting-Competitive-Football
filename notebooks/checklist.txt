@@ -1,0 +1,23 @@
+
+Extracted data from 2008–2025 across 11 leagues using ESD, FIFA, and Football-Data
+Engineer features:
+    Elo ratings
+    Pi-ratings
+    Starting XI and squad FIFA features
+    Statistical form
+Implement preprocessing:
+    prepare_matrices
+    Imputation
+    Scaling
+    Encoding
+Establish train, validation, and test split contract
+Compare algorithms using an eight-model sweep
+    Six models already existed
+    Two additional models were added
+Support both pre-match and in-play predictions across all four heads:
+    `C`
+    `R`
+    `Lc`
+    `Lr`
+Select the best-performing model
+Connect models to FastAPI endpoints

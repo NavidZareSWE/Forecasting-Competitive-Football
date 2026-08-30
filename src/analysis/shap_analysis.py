@@ -150,7 +150,9 @@ def waterfall(values, expected, x_row, feature_names, title, output_path):
 
 # --- Failure adjudication ---------------------------------------------------
 def load_market_probabilities():
-    path = PROCESSED_DIR / "market_baseline.csv"
+    path = PROCESSED_DIR / "market_baseline_extended.csv"
+    if not path.exists():
+        path = PROCESSED_DIR / "market_baseline.csv"
     if not path.exists():
         return {}
     market = pd.read_csv(path, encoding="utf-8")

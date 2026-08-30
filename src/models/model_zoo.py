@@ -22,6 +22,11 @@ from hierarchical_shrinkage import (HSForestClassifier, HSForestRegressor,
 
 EXACT_KERNEL_MAX_TRAIN = 8000
 
+# The stacked ensemble (stacking.py) is deliberately NOT a zoo member: its
+# folds must be grouped by match_id for the in-play tasks, and a zoo factory
+# has no way to receive them. Callers that serve it build it through
+# stacking.build_stack; every zoo loop here therefore stays stack-free.
+
 
 class ClampedNystroem(Nystroem):
 
@@ -89,6 +94,13 @@ def _has(module):
 
 HAS_XGBOOST = _has("xgboost")
 HAS_LIGHTGBM = _has("lightgbm")
+
+for _library, _present in [("xgboost", HAS_XGBOOST),
+                           ("lightgbm", HAS_LIGHTGBM)]:
+    if not _present:
+        print(f"WARNING: {_library} is not importable. The zoo will run "
+              f"without it and the sweep will silently come back one "
+              f"model short. On macOS this is usually a missing libomp.")
 
 
 TASK_SUPPORT = {

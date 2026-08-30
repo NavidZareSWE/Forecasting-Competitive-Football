@@ -1,0 +1,173 @@
+TWO-MINUTE ORAL — THE PIPELINE AND THE PAPER (+ FINDINGS)
+Read aloud at a normal pace. Slashes (/) are breath marks.
+CAPS words are the ones to lean on.
+
+  Part 1 — the pipeline    60s
+  Part 2 — the paper       60s
+  Part 3 — the findings    45s   <- say this if you have 2:45,
+                                    or swap it in for Part 1 if
+                                    they only want results.
+
+
+================================================================
+PART 1 — THE PIPELINE                                    (0:00-1:00)
+================================================================
+
+We start from two sources that share no key. / StatsBomb Open Data
+gives us raw JSON — matches, lineups, and the full event stream for
+four league seasons of 2015/16. / Football-Data.co.uk gives us the
+bookmaker's closing 1X2 odds.
+
+First we build a relational store: labels, cleaning, identity by ID.
+The labels are derived ONCE, from the match file — never from odds,
+never from events — and a second script recomputes them independently
+and asserts they agree.
+
+Then we split. / The split is a DATE, not a shuffle. 896 matches to
+train, 277 to validation, 344 to test, in chronological order. And
+validation is spent entirely on calibration, so no hyperparameter
+ever sees it.
+
+After the split the pipeline forks. / One branch builds pre-match
+features — rolling form over the previous five matches, with the
+shift applied BEFORE the roll, so a team's first match of the season
+is NaN and nothing from the present can leak backwards. / The other
+branch builds in-play features — nineteen snapshots per match, one
+every five minutes, each one cut to the events at or before that
+minute.
+
+Both feed one model suite: tune, fit, calibrate, and persist every
+prediction row.
+
+And the odds branch — this is the important part — never joins the
+feature path. It goes straight to evaluation, where every
+classifier is scored beside the de-vigged market on exactly the
+same matches.
+
+That is the whole system. Seventeen stages, all idempotent, all
+driven by one script.
+
+
+================================================================
+PART 2 — THE PAPER                                       (1:00-2:00)
+================================================================
+
+Our P2 paper is Hierarchical Shrinkage — Agarwal and co-authors,
+ICML 2022.
+
+It solves a specific problem with trees. / When CART grows a tree,
+the splits near the root are estimated from a lot of data, and the
+splits near the leaves are estimated from almost none — but a plain
+tree trusts them all equally.
+
+The method starts from an identity. / A leaf's prediction is just
+the root mean, plus the increments the prediction picks up at each
+step down the path. That telescopes; it assumes nothing.
+
+Hierarchical Shrinkage then damps each of those increments. / Each
+one is divided by one plus lambda over N — and the N is the count
+at the PARENT node, the node the split was estimated FROM. / So a
+split taken off a large node is trusted almost fully, and the
+identical split taken off a nearly-empty node is almost ignored.
+One parameter, lambda, controls how hard.
+
+Two things make it a good choice for us. / First, rewritten, the
+output is a convex combination of the ancestor means — so for
+classification it is a valid probability vector at ANY lambda. No
+clipping, no renormalising. The safety is structural. / Second, it
+is a closed-form recursion with no hidden constants, which is why
+we could implement it from the paper text against the raw tree
+arrays, rather than calling a library.
+
+And the method diagnosed our own data. / Cross-validation picked
+lambda equal to 100 on the 896 pre-match rows — shrink almost all
+the way to the base rate — and lambda equal to ZERO on the 17,000
+in-play rows. Opposite ends of the same grid, with no thumb on the
+scale. That is exactly the behaviour the paper predicts.
+
+
+================================================================
+PART 3 — THE FINDINGS                                    (2:00-2:45)
+================================================================
+
+Four findings, in the order of how much we trust them.
+
+ONE. / The market wins pre-match, and none of our seven models
+closes the gap. / The de-vigged market scores 0.197 on ranked
+probability score. Our best model is 0.217. The gap is TWO
+HUNDREDTHS of an RPS, measured on the SAME 343 matches, with the
+coverage rate printed beside it. / Zero of seven. We are not
+softening that. / Our hypothesis — offered as a hypothesis, not a
+finding — is that the market prices information our features do
+not contain: injuries, confirmed lineups, managerial news. None of
+that is in event data.
+
+TWO. / Live event data is worthless for the first fifteen minutes.
+/ We freeze the pre-match prediction and repeat it across all
+nineteen snapshots — flat by construction, and the code asserts it
+is flat. The in-play model does not cross below it until minute
+15. / So for the first sixth of a match, knowing WHO is playing
+beats knowing WHAT has happened. That is a statement about
+football, not about our code.
+
+THREE. / Shrinkage strength tracked data scarcity exactly as the
+paper predicts — lambda 100 on 896 pre-match rows, lambda zero on
+17,000 in-play rows, chosen by cross-validation at opposite ends
+of the same grid.
+
+FOUR. / Aggregate calibration metrics LIE on this data. / Every
+model is over-confident for 75 minutes and then under-confident
+for the last 15 — it hedges exactly when it should commit. A
+single ECE averages those two errors against each other and
+reports a small, reassuring number. That is why we report
+calibration per game phase.
+
+And one finding hiding in a flat table. / Eight very different
+learners, on identical budgets, land within 0.05 goals of each
+other on the margin task, and all beat the prior by about seven
+percent. / That is not eight models failing. That is the signal
+ceiling of pre-match features, measured eight independent ways.
+
+
+THREE THINGS WE ARE NOT CLAIMING — say this line, it is worth marks:
+  that any model beat the market; / that RPS 0.024 at minute 90 is
+  skill rather than the task definition asserting itself; / or that
+  the model "converges to certainty". We measured a falling curve
+  with a crossover at 10 to 15 minutes, and that is all we will say.
+
+
+================================================================
+IF YOU ARE RUNNING LONG — cut these first, in this order:
+  1. "Seventeen stages, all idempotent..." (last line of Part 1)
+  2. The convex-combination point (Part 2, "First, rewritten...")
+  3. The pre-match/in-play fork detail — say only "the pipeline
+     forks into pre-match and in-play features"
+
+  4. In Part 3, keep findings ONE and TWO, drop THREE and FOUR.
+     One and Two are the ones nobody else in the room has.
+
+IF YOU ARE RUNNING SHORT — add:
+  - "99.71% odds coverage; one unmatched row, logged with a reason."
+  - "The in-play cut can only ever exclude too much. It can never
+     include an event that happened after t."
+  - "Hierarchical Shrinkage is a variance intervention, not a bias
+     one — it cannot repair a badly grown tree."
+  - "Nystrom is 119 times faster than exact kernel ridge AND more
+     accurate — because the exact method has to be subsampled to
+     stay tractable, and that costs more than the approximation."
+  - "P1 gets the best RPS and the best calibration by finding FEWER
+     draws; SMOTE gets the best draw recall at the worst RPS. They
+     optimise different things, and we measured which."
+
+
+NUMBERS TO HAVE COLD (in case they interrupt)
+  market RPS 0.19665 / best model 0.21656 / P2 0.21659 / prior 0.22839
+  the gap +0.01991 · same 343 of 344 matches · coverage 0.9971
+  1,517 matches · 896 / 277 / 344 split · 28,823 snapshot rows
+  lambda 100 pre-match, 0 in-play · 23 of 23 tests passing
+  Task R: best MAE 1.387, P2 second at 1.390, prior 1.490
+
+
+HOW TO END IT
+  "P2 is presented for sign-off — not presented as approved."
+  Then stop talking.

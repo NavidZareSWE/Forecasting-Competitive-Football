@@ -26,10 +26,13 @@ Only test-split matches are servable: the demo must run on held-out data.
 """
 
 from pathlib import Path
+import hashlib
+import json
 import os
 import sys
 import threading
 
+import joblib
 import numpy as np
 import pandas as pd
 
@@ -45,23 +48,29 @@ from sklearn.calibration import CalibratedClassifierCV  # noqa: E402
 from modeling_common import (CLASS_ORDER, HAS_FROZEN, RESULTS_DIR,  # noqa: E402
                              floor_probabilities, prepare_matrices, task_frame)
 from model_zoo import LabelEncodedClassifier, classifier_zoo, regressor_zoo  # noqa: E402
+from stacking import STACK_MODELS, StackedClassifier, build_named_stack  # noqa: E402
 from tuning import load_best_params  # noqa: E402
+
+MODELS_DIR = RESULTS_DIR / "models"
 
 if HAS_FROZEN:
     from sklearn.frozen import FrozenEstimator
 
 MARGIN_CLIP = (-5.0, 5.0)
 TOP_SHAP = 5
+VALUE_EDGE = 0.03
 ZOO_TASK = {"C": "C", "R": "R", "Lc": "L", "Lr": "L"}
 # TreeSHAP needs a tree ensemble; the served in-play classifier is the best of
-# these on validation, mirroring shap_analysis.py.
-TREE_MODELS = ["lightgbm", "xgboost", "gbm", "random_forest"]
+# these on validation, mirroring shap_analysis.py. "stack" qualifies because
+# _walkable_tree explains it through its strongest tree member.
+TREE_MODELS = ["lightgbm", "xgboost", "gbm", "random_forest",
+               "stack", "stack_temporal"]
 # The only in-play feature columns the snapshot payload reads back.
 SNAPSHOT_COLUMNS = ["inplay_home_goals", "inplay_away_goals",
                     "inplay_man_advantage", "inplay_home_xg", "inplay_away_xg",
                     "inplay_shot_diff", "inplay_sot_diff",
-                    "inplay_corner_diff", "inplay_card_diff",
-                    "inplay_pressure_diff", "inplay_momentum_xg_diff"]
+                    "inplay_diff_set_piece_corner", "inplay_diff_pressures",
+                    "inplay_recent_xg_diff"]
 
 _MODEL_RESULTS = None
 
@@ -97,6 +106,32 @@ def _proba(estimator, X):
     return aligned / totals
 
 
+def _walkable_tree(estimator):
+    """(tree, classes, source) for TreeSHAP.
+
+    ``classes`` is the label order of *that tree's* predict_proba columns - a
+    label-encoded member (xgboost) reports integer classes, so the wrapper's
+    order cannot be reused. ``source`` names the stack member the explanation
+    came from, None when the served model is itself the tree.
+
+    A stack is explained through its strongest tree member, so the attribution
+    panel describes one component of the served model rather than the blend of
+    all five; the payload says which.
+    """
+    if isinstance(estimator, StackedClassifier):
+        tree, classes, name = estimator.tree_base()
+        assert tree is not None, (
+            "served in-play stack has no tree member; TreeSHAP cannot explain "
+            "it. Keep at least one of "
+            f"{[m for m in TREE_MODELS if m not in STACK_MODELS]} in "
+            "stacking.BASE_MODELS['Lc'].")
+        return tree, classes, name
+    if isinstance(estimator, LabelEncodedClassifier):
+        return (estimator.estimator_,
+                [str(c) for c in estimator.encoder_.classes_], None)
+    return estimator, [str(c) for c in estimator.classes_], None
+
+
 def _pick_model(task, allowed=None):
     """Best sweep model for the task (validation-ranked sweep output)."""
     results = _model_results()
@@ -109,42 +144,83 @@ def _pick_model(task, allowed=None):
     return str(subset["model"].iloc[0])
 
 
-class TaskModel:
-    """One fitted task: estimator, calibrator, and the frozen transform."""
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as source:
+        for block in iter(lambda: source.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
+
+def _load_artifact(task, model_name):
+    bundle_path = MODELS_DIR / f"{task}.joblib"
+    manifest_path = MODELS_DIR / "manifest.json"
+    if not (bundle_path.exists() and manifest_path.exists()):
+        return None
+    with open(manifest_path, encoding="utf-8") as source:
+        manifest = json.load(source).get(task)
+    if manifest is None or manifest.get("model_name") != model_name:
+        return None
+    for relative, expected in manifest.get("inputs", {}).items():
+        path = SRC / relative
+        if not path.exists() or _sha256_file(path) != expected:
+            print(f"  [{task}] artifact stale ({relative} changed); refitting")
+            return None
+    return joblib.load(bundle_path)
+
+
+class TaskModel:
     def __init__(self, task, model_name):
         self.task = task
         self.model_name = model_name
         self.is_classification = task in {"C", "Lc"}
         df, continuous, nominal, target, task_type = task_frame(task)
-        self.matrices = prepare_matrices(df, continuous, nominal, target,
-                                         task_type)
-        tuned = load_best_params().get(task, {})
-        zoo = (classifier_zoo if self.is_classification else regressor_zoo)(
-            0, task=ZOO_TASK[task], tuned=tuned)
-        self.estimator = zoo[model_name]()
-        y = self.matrices["y_train"]
-        self.estimator.fit(self.matrices["X_train"],
-                           y if self.is_classification else y.astype(float))
-        self.calibrator = None
-        if self.is_classification and HAS_FROZEN:
-            for method in ["isotonic", "sigmoid"]:
-                try:
-                    calibrated = CalibratedClassifierCV(
-                        FrozenEstimator(self.estimator), method=method)
-                    calibrated.fit(self.matrices["X_val"],
-                                   self.matrices["y_val"])
-                    self.calibrator = calibrated
-                    self.calibration = method
-                    break
-                except Exception:
-                    continue
-        if self.is_classification and self.calibrator is None:
-            self.calibration = "uncalibrated"
-        # Precompute the design matrix of every servable (test) row.
-        self.frame = df[df["split"] == "test"].reset_index(drop=True)
-        self.X = self.matrices["transform"](self.frame)
-        self.feature_names = self.matrices["feature_names"]
+
+        bundle = _load_artifact(task, model_name)
+        if bundle is not None:
+            self.estimator = bundle["estimator"]
+            self.calibrator = bundle["calibrator"]
+            self.calibration = bundle["calibration"]
+            transform = bundle["preprocessor"].transform
+            self.feature_names = bundle["feature_names"]
+            print(f"  [{task}] loaded artifact ({model_name})")
+        else:
+            matrices = prepare_matrices(df, continuous, nominal, target,
+                                        task_type)
+            tuned = load_best_params().get(task, {})
+            if model_name in STACK_MODELS:
+                self.estimator = build_named_stack(
+                    model_name, task, tuned, df,
+                    transform=matrices["transform"])
+            else:
+                zoo = (classifier_zoo if self.is_classification
+                       else regressor_zoo)(0, task=ZOO_TASK[task], tuned=tuned)
+                self.estimator = zoo[model_name]()
+            y = matrices["y_train"]
+            self.estimator.fit(matrices["X_train"],
+                               y if self.is_classification
+                               else y.astype(float))
+            self.calibrator = None
+            self.calibration = None
+            if self.is_classification and HAS_FROZEN:
+                for method in ["isotonic", "sigmoid"]:
+                    try:
+                        calibrated = CalibratedClassifierCV(
+                            FrozenEstimator(self.estimator), method=method)
+                        calibrated.fit(matrices["X_val"], matrices["y_val"])
+                        self.calibrator = calibrated
+                        self.calibration = method
+                        break
+                    except Exception:
+                        continue
+            if self.is_classification and self.calibrator is None:
+                self.calibration = "uncalibrated"
+            transform = matrices["transform"]
+            self.feature_names = matrices["feature_names"]
+
+        servable = {"test", "excluded"} if task in {"C", "R"} else {"test"}
+        self.frame = df[df["split"].isin(servable)].reset_index(drop=True)
+        self.X = transform(self.frame)
 
     def rows_for(self, match_id):
         return np.flatnonzero(self.frame["match_id"] == match_id)
@@ -168,9 +244,16 @@ class ServiceState:
             "Lr": TaskModel("Lr", _pick_model("Lr")),
         }
         inplay = self.models["Lc"]
-        walkable = (inplay.estimator.estimator_
-                    if isinstance(inplay.estimator, LabelEncodedClassifier)
-                    else inplay.estimator)
+        missing = set(SNAPSHOT_COLUMNS) - set(inplay.frame.columns)
+        assert not missing, (
+            f"snapshot payload columns missing from inplay_features.csv: "
+            f"{sorted(missing)}; SNAPSHOT_COLUMNS is out of sync with "
+            "build_inplay_features.py")
+        walkable, self.shap_classes, self.shap_source = _walkable_tree(
+            inplay.estimator)
+        assert "H" in self.shap_classes, (
+            f"TreeSHAP source reports classes {self.shap_classes}; cannot "
+            "locate the home-win column")
         self.explainer = shap.TreeExplainer(walkable)
         # (match_id, minute) -> row index in the Lc/Lr test frames (identical
         # frames by construction: same source table, same split filter).
@@ -192,17 +275,97 @@ class ServiceState:
                               "away_team": str(r.away_team),
                               "kick_off": str(r.kick_off)}
             for r in store.itertuples()}
+
+        processed = SRC / "reports" / "processed"
+
+        def _optional(name):
+            path = processed / name
+            if path.exists():
+                return pd.read_csv(path, encoding="utf-8")
+            print(f"  WARNING: {name} missing; serving without it")
+            return None
+
+        extended = _optional("temporal_match_splits_extended.csv")
+        if extended is not None:
+            self.extended_meta = extended.set_index("match_id")
+            for match_id, row in self.extended_meta.iterrows():
+                self.match_meta.setdefault(
+                    int(match_id), {"home_team": str(row["home_team"]),
+                                    "away_team": str(row["away_team"]),
+                                    "kick_off": None})
+        market = _optional("market_baseline_extended.csv")
+        self.market = (market.set_index("match_id") if market is not None
+                       else pd.DataFrame(index=pd.Index([], name="match_id")))
+        ratings = _optional("team_ratings.csv")
+        self.ratings = (ratings.set_index("match_id") if ratings is not None
+                        else pd.DataFrame(index=pd.Index([], name="match_id")))
+        lineups = _optional("lineup_display.csv")
+        self.lineups = (dict(tuple(lineups.groupby("match_id")))
+                        if lineups is not None else {})
+        self.blend_params = self._load_blend_params()
+
         # Payload caches. Payloads depend only on fitted models and frozen
         # feature rows, so they are computed once per match and reused.
         self._lock = threading.Lock()
         self._snap_cache = {}
         self._pre_cache = {}
         self._match_list = None
+        self._fixture_cards = None
+        self._metrics = None
         for task, model in self.models.items():
             print(f"  serving {task}: {model.model_name}"
                   + (f" ({model.calibration})" if model.is_classification
                      else ""))
         print(f"Serving {len(self.prematch_index)} held-out matches.")
+
+    @staticmethod
+    def _load_blend_params():
+        """Validation-chosen blend weights from train_market_blend.py.
+
+        This is the *declared* odds-as-feature arm (brief 7.1): the served
+        probabilities under "model" never see odds, and the market stays the
+        yardstick for them. The blend is reported beside both, never folded
+        into either, and never into the model-vs-market edge.
+        """
+        path = RESULTS_DIR / "market_blend.csv"
+        if not path.exists():
+            print("  WARNING: market_blend.csv missing; serving without the "
+                  "blend arm")
+            return {}
+        frame = pd.read_csv(path, encoding="utf-8")
+        frame = frame[frame["arm"] == "blend"]
+        params = {}
+        for row in frame.itertuples():
+            entry = {"alpha": float(row.alpha), "base_model": str(row.base_model),
+                     "rps": float(row.rps)}
+            tau = getattr(row, "tau", None)
+            if tau is not None and pd.notna(tau):
+                entry["tau"] = float(tau)
+            params[str(row.task)] = entry
+        return params
+
+    def blend(self, task, model_p, match_id, minute=None):
+        """alpha * market + (1 - alpha) * model, or None when not servable.
+
+        For the in-play task alpha decays as alpha0 * exp(-minute / tau): the
+        market prior is worth most before kick-off and least at minute 90,
+        which is what the validation search found.
+        """
+        params = self.blend_params.get(task)
+        if params is None or match_id not in self.market.index:
+            return None
+        weight = params["alpha"]
+        if minute is not None and "tau" in params:
+            weight *= float(np.exp(-minute / params["tau"]))
+        m = self.market.loc[match_id]
+        market_p = {"H": float(m["p_home"]), "D": float(m["p_draw"]),
+                    "A": float(m["p_away"])}
+        return {
+            "weight": round(float(weight), 4),
+            "probabilities": {
+                c: round(weight * market_p[c] + (1.0 - weight) * model_p[c], 4)
+                for c in CLASS_ORDER},
+        }
 
     def attributions(self, rows):
         """Top-|SHAP| features for the home-win probability, one list per row.
@@ -215,12 +378,7 @@ class ServiceState:
         block = inplay.X[rows]
         values = np.asarray(self.explainer.shap_values(block))
         if values.ndim == 3:
-            walkable = (inplay.estimator.estimator_
-                        if isinstance(inplay.estimator, LabelEncodedClassifier)
-                        else inplay.estimator)
-            classes = (list(inplay.estimator.encoder_.classes_)
-                       if isinstance(inplay.estimator, LabelEncodedClassifier)
-                       else [str(c) for c in walkable.classes_])
+            classes = self.shap_classes
             home = classes.index("H")
             # Newer shap returns (rows, features, classes); older versions
             # return a list of per-class (rows, features) arrays.
@@ -274,14 +432,18 @@ class ServiceState:
                            "away": round(float(row["inplay_away_xg"]), 2)},
                     "shot_diff": int(row["inplay_shot_diff"]),
                     "sot_diff": int(row["inplay_sot_diff"]),
-                    "corner_diff": int(row["inplay_corner_diff"]),
-                    "card_diff": int(row["inplay_card_diff"]),
-                    "pressure_diff": int(row["inplay_pressure_diff"]),
+                    "corner_diff": int(row["inplay_diff_set_piece_corner"]),
+                    "pressure_diff": int(row["inplay_diff_pressures"]),
                     "momentum_xg_diff": round(
-                        float(row["inplay_momentum_xg_diff"]), 3),
+                        float(row["inplay_recent_xg_diff"]), 3),
                 },
                 "top_shap": shap_rows[k],
+                "shap_source": self.shap_source,
             }
+            blended = self.blend("Lc", payloads[minutes[k]]["probabilities"],
+                                 match_id, minute=minutes[k])
+            if blended is not None:
+                payloads[minutes[k]]["blend"] = blended
         return payloads
 
     def snapshots_for(self, match_id):
@@ -306,11 +468,14 @@ class ServiceState:
 
         def _form(side):
             return {"points": _num(row[f"{side}_form_points"], 2),
-                    "xg_for": _num(row[f"{side}_form_xgf"], 2),
-                    "xg_against": _num(row[f"{side}_form_xga"], 2),
-                    "rest_days": _num(row[f"{side}_rest_days"], 1)}
+                    "goals_for": _num(row[f"{side}_form_gf"], 2),
+                    "goals_against": _num(row[f"{side}_form_ga"], 2),
+                    "rest_days": _num(row[f"{side}_rest_days"], 1),
+                    "elo": _num(row["elo_home_pre" if side == "home"
+                                    else "elo_away_pre"], 0),
+                    "squad": _num(row[f"{side}_squad_overall_top11"], 1)}
 
-        return {
+        payload = {
             "match_id": match_id, "minute": None, "state": "pre_match",
             **self.match_meta.get(match_id, {}),
             "competition": str(row["competition_name"]),
@@ -323,6 +488,10 @@ class ServiceState:
             "score": {"home": 0, "away": 0},
             "form": {"home": _form("home"), "away": _form("away")},
         }
+        blended = self.blend("C", payload["probabilities"], match_id)
+        if blended is not None:
+            payload["blend"] = blended
+        return payload
 
     def prematch_for(self, match_id):
         cached = self._pre_cache.get(match_id)
@@ -336,7 +505,9 @@ class ServiceState:
 
     def match_list(self):
         if self._match_list is None:
+            replayable = {match_id for match_id, _ in self.snapshot_index}
             frame = self.models["C"].frame
+            frame = frame[frame["match_id"].isin(replayable)]
             self._match_list = [
                 {"match_id": int(r.match_id),
                  "competition": str(r.competition_name),
@@ -346,6 +517,143 @@ class ServiceState:
                  "final_margin": float(r.label_margin)}
                 for r in frame.itertuples()]
         return self._match_list
+
+    def fixture_cards(self):
+        if self._fixture_cards is None:
+            with self._lock:
+                if self._fixture_cards is None:
+                    self._fixture_cards = self._build_fixture_cards()
+        return self._fixture_cards
+
+    def _build_fixture_cards(self):
+        pre_c, pre_r = self.models["C"], self.models["R"]
+        replayable = {match_id for match_id, _ in self.snapshot_index}
+        mask = ((pre_c.frame["split"] == "test")
+                | pre_c.frame["match_id"].isin(replayable))
+        rows = np.flatnonzero(mask.to_numpy())
+        probs = pre_c.probabilities(rows)
+        margins = pre_r.margin(rows)
+        cards = []
+        for k, i in enumerate(rows):
+            r = pre_c.frame.iloc[i]
+            match_id = int(r["match_id"])
+            model_p = {c: round(float(p), 4)
+                       for c, p in zip(CLASS_ORDER, probs[k])}
+            card = {
+                "match_id": match_id,
+                "league": str(r["competition_name"]),
+                "season": str(r["season"]),
+                "date": str(r["match_date"])[:10],
+                **{key: self.match_meta.get(match_id, {}).get(key)
+                   for key in ["home_team", "away_team"]},
+                "model": model_p,
+                "expected_margin": round(float(margins[k]), 2),
+                "elo_diff": (round(float(self.ratings.loc[match_id,
+                                                          "elo_diff"]), 0)
+                             if match_id in self.ratings.index else None),
+                "result": str(r["label_result"]),
+                "margin": float(r["label_margin"]),
+                "has_lineups": match_id in self.lineups,
+                "replay_available": match_id in replayable,
+            }
+            if match_id in self.market.index:
+                m = self.market.loc[match_id]
+                market_p = {"H": round(float(m["p_home"]), 4),
+                            "D": round(float(m["p_draw"]), 4),
+                            "A": round(float(m["p_away"]), 4)}
+                edge = {c: round(model_p[c] - market_p[c], 4)
+                        for c in CLASS_ORDER}
+                best = max(edge, key=edge.get)
+                card.update({
+                    "odds": {"H": float(m["B365H"]), "D": float(m["B365D"]),
+                             "A": float(m["B365A"])},
+                    "market": market_p,
+                    # Edge is model-vs-market and stays odds-free on the model
+                    # side; the blend below is the separate declared arm.
+                    "edge": edge,
+                    "value_pick": best if edge[best] > VALUE_EDGE else None,
+                })
+                blended = self.blend("C", model_p, match_id)
+                if blended is not None:
+                    card["blend"] = blended
+            cards.append(card)
+        cards.sort(key=lambda c: (c["date"], c["match_id"]))
+        return cards
+
+    def metrics(self):
+        if self._metrics is not None:
+            return self._metrics
+        results = _model_results()
+        tasks = {}
+        for task, model in self.models.items():
+            metric = "rps" if model.is_classification else "mae"
+            subset = results[(results["task"] == task)
+                             & (results["model"] == model.model_name)]
+            subset = subset.dropna(subset=[metric]).sort_values(metric)
+            entry = {"model": model.model_name,
+                     "calibration": model.calibration}
+            if len(subset):
+                row = subset.iloc[0]
+                if model.is_classification:
+                    entry.update({"rps": float(row["rps"]),
+                                  "log_loss": float(row["log_loss"]),
+                                  "brier": float(row["brier"])})
+                else:
+                    entry.update({"mae": float(row["mae"]),
+                                  "rmse": float(row["rmse"])})
+            tasks[task] = entry
+
+        def _optional_results(name):
+            path = RESULTS_DIR / name
+            return (pd.read_csv(path, encoding="utf-8") if path.exists()
+                    else None)
+
+        market = None
+        comparison = _optional_results("market_comparison.csv")
+        if comparison is not None:
+            base = comparison[comparison["model"] == "MARKET_devigged"]
+            served = comparison[comparison["model"]
+                                == self.models["C"].model_name]
+            if len(base):
+                market = {"rps": float(base["rps"].iloc[0]),
+                          "n": int(base["n_matches"].iloc[0])}
+                if len(served):
+                    market["model_rps"] = float(served["rps"].iloc[0])
+                    market["gap"] = round(float(served["rps"].iloc[0])
+                                          - market["rps"], 5)
+
+        blend = None
+        blend_frame = _optional_results("market_blend.csv")
+        if blend_frame is not None:
+            blend = {str(r.task): {"rps": float(r.rps),
+                                   "alpha": float(r.alpha)}
+                     for r in blend_frame[blend_frame["arm"] == "blend"]
+                     .itertuples()}
+
+        ensemble = None
+        ensemble_frame = _optional_results("ensemble_comparison.csv")
+        if ensemble_frame is not None:
+            ensemble = {str(r.task): {"stack": float(r.stack),
+                                      "metric": str(r.metric),
+                                      "best_single": str(r.best_single),
+                                      "best_single_value":
+                                          float(r.best_single_value),
+                                      "delta": float(r.delta),
+                                      "stack_wins": bool(r.stack_wins)}
+                        for r in ensemble_frame.itertuples()}
+
+        cards = self.fixture_cards()
+        self._metrics = {
+            "tasks": tasks,
+            "market": market,
+            "blend": blend,
+            "blend_served": self.blend_params,
+            "ensemble": ensemble,
+            "shap_source": self.shap_source,
+            "n_fixtures": len(cards),
+            "n_replayable": sum(1 for c in cards if c["replay_available"]),
+        }
+        return self._metrics
 
 
 app = FastAPI(title="Forecasting Competitive Football - in-play service")
@@ -398,6 +706,65 @@ def predict(match_id: int, minute: int = -1):
     if minute < 0:
         return _prematch_payload(match_id)
     return _snapshot_payload(match_id, minute)
+
+
+@app.get("/fixtures")
+def fixtures(league: str = None, season: str = None, date: str = None):
+    cards = state.fixture_cards()
+    if league:
+        cards = [c for c in cards if c["league"] == league]
+    if season:
+        cards = [c for c in cards if c["season"] == season]
+    if date:
+        cards = [c for c in cards if c["date"] == date]
+    return {"count": len(cards), "fixtures": cards}
+
+
+@app.get("/metrics")
+def model_metrics():
+    """Served models and their held-out measures, for the dashboard console."""
+    return state.metrics()
+
+
+@app.get("/fixture/{match_id}")
+def fixture_detail(match_id: int):
+    card = next((c for c in state.fixture_cards()
+                 if c["match_id"] == match_id), None)
+    if card is None:
+        raise HTTPException(status_code=404,
+                            detail=f"match {match_id} is not a test fixture")
+    detail = dict(card)
+    if match_id in state.prematch_index:
+        pre = state.prematch_for(match_id)
+        detail["form"] = pre.get("form")
+    if match_id in state.ratings.index:
+        r = state.ratings.loc[match_id]
+        detail["ratings"] = {
+            "elo_home": float(r["elo_home_pre"]),
+            "elo_away": float(r["elo_away_pre"]),
+            "pi_expected_gd": float(r["pi_expected_gd"]),
+        }
+    lineup = state.lineups.get(match_id)
+    if lineup is not None:
+        detail["lineups"] = {
+            "kind": str(lineup["kind"].iloc[0]),
+            "home": _lineup_side(lineup, "home"),
+            "away": _lineup_side(lineup, "away"),
+        }
+    detail["replay_available"] = any(
+        (match_id, m) in state.snapshot_index for m in state.minutes)
+    return detail
+
+
+def _lineup_side(lineup, side):
+    rows = lineup[lineup["side"] == side].sort_values("slot")
+    return [{"name": str(r.player_name),
+             "position": (str(r.position_bucket)
+                          if pd.notna(r.position_bucket) else None),
+             "overall": (round(float(r.overall), 0)
+                         if pd.notna(r.overall) else None),
+             "age": round(float(r.age), 0) if pd.notna(r.age) else None}
+            for r in rows.itertuples()]
 
 
 @app.get("/replay/{match_id}")

@@ -1,6 +1,14 @@
 """Used by run_pipeline.py. Can also be run directly on an arbitrary command:
 
     python capture_console.py "python src/models/tuning.py"
+
+Everything this module prints or writes is plain ASCII. Team names in these
+data sources carry accents (Malaga, Atletico, Koln), and on Windows the
+console defaults to cp1252, where printing one of them raises
+UnicodeEncodeError: 'charmap' codec can't encode character. Rather than
+rely on the console, every child process is given an ASCII stdout and every
+log file is written as ASCII, with anything outside the range escaped as
+\\xNN. The escape is reversible, so nothing is lost.
 """
 
 from datetime import datetime
@@ -19,6 +27,27 @@ LIVE_STEP_LOG_NAME = "_running.txt"
 ARCHIVE_NAME = "console-outputs.zip"
 
 DEFAULT_TIMEOUT_SECONDS = 6 * 60 * 60
+
+# Applied to every child process. "backslashreplace" escapes rather than
+# drops, so an accented team name survives the log as M\\xe1laga.
+ASCII_STDIO = "ascii:backslashreplace"
+LOG_ENCODING = "ascii"
+LOG_ERRORS = "backslashreplace"
+
+
+def force_ascii_console():
+    """Make this process' own stdout and stderr ASCII-only.
+
+    Call once at start-up. Children are covered separately, through
+    PYTHONIOENCODING in run_step.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding=LOG_ENCODING,
+                                   errors=LOG_ERRORS)
+            except (ValueError, OSError):
+                pass
 
 
 PREVIOUS_DIR = PROJECT / "console-outputs-previous"
@@ -45,10 +74,10 @@ def run_step(name, command, timeout=DEFAULT_TIMEOUT_SECONDS, echo=True,
     started_at = datetime.now()
     started = time.perf_counter()
 
-    child_env = None
+    child_env = dict(os.environ)
     if env:
-        child_env = dict(os.environ)
         child_env.update({key: str(value) for key, value in env.items()})
+    child_env.setdefault("PYTHONIOENCODING", ASCII_STDIO)
 
     shown = " ".join(f"{key}={value}" for key, value in sorted(env.items())) \
         if env else ""
@@ -62,7 +91,8 @@ def run_step(name, command, timeout=DEFAULT_TIMEOUT_SECONDS, echo=True,
     timed_out = False
     live_log_path = OUTPUT_DIR / LIVE_STEP_LOG_NAME
     try:
-        live_log = live_log_path.open("w", encoding="utf-8", errors="replace")
+        live_log = live_log_path.open("w", encoding=LOG_ENCODING,
+                                      errors=LOG_ERRORS)
     except OSError:
         live_log = None
     try:
@@ -105,7 +135,7 @@ def run_step(name, command, timeout=DEFAULT_TIMEOUT_SECONDS, echo=True,
         live_log.close()
     body = "".join(lines)
     warning_count = sum(1 for line in lines if "Warning:" in line)
-    log_path.write_text(body, encoding="utf-8")
+    log_path.write_text(body, encoding=LOG_ENCODING, errors=LOG_ERRORS)
     if live_log_path.exists():
         try:
             live_log_path.unlink()
@@ -149,7 +179,8 @@ def write_summary(results, extra_notes=None):
         lines.append("")
         lines.extend(extra_notes)
     text = "\n".join(lines) + "\n"
-    (OUTPUT_DIR / SUMMARY_NAME).write_text(text, encoding="utf-8")
+    (OUTPUT_DIR / SUMMARY_NAME).write_text(text, encoding=LOG_ENCODING,
+                                           errors=LOG_ERRORS)
     return text
 
 
@@ -184,6 +215,7 @@ def make_archive():
 
 
 def main():
+    force_ascii_console()
     if len(sys.argv) < 2:
         print(__doc__)
         return 2

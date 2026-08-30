@@ -3,6 +3,8 @@
     python src/models/inplay_curves.py
 """
 
+from modeling_common import (CLASS_ORDER, RESULTS_DIR, classification_metrics,
+                             expected_calibration_error, regression_metrics)
 from pathlib import Path
 import sys
 
@@ -12,9 +14,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from modeling_common import (CLASS_ORDER, RESULTS_DIR, classification_metrics,
-                             expected_calibration_error, regression_metrics)
 
 
 VIZ_DIR = Path(__file__).resolve().parent.parent / "reports" / "visualizations"
@@ -39,19 +38,88 @@ def phase_of(minute):
     return PHASE_LABELS[-1]
 
 
+def prematch_reference(task, inplay_ids, columns):
+    """Pre-match forecast for the in-play matches, per model.
+
+    The frozen reference is the whole point of these curves: it answers "how
+    much did watching the match actually buy over knowing only the team sheet".
+
+    It used to come straight out of predictions_{C,R}.csv, but the extended
+    split deliberately marks the StatsBomb in-play validation/test matches as
+    ``excluded`` from tasks C and R, so those matches are no longer scored
+    there and the join silently returned zero rows - taking the whole frozen
+    series with it. When that happens, score the excluded rows here with the
+    persisted serving bundle, which is exactly the model the API would use for
+    a pre-match panel on those same matches.
+    """
+    predictions = _read_predictions(task)
+    overlap = predictions[predictions["match_id"].isin(inplay_ids)]
+    if len(overlap):
+        return overlap, "sweep predictions"
+
+    bundle_path = RESULTS_DIR / "models" / f"{task}.joblib"
+    if not bundle_path.exists():
+        print(f"  WARNING: no pre-match reference for task {task} - the in-play "
+              f"matches are excluded from predictions_{task}.csv and "
+              f"{bundle_path.name} is absent. Run train_final.py first.")
+        return None, None
+
+    import joblib
+    from modeling_common import floor_probabilities, task_frame, _proba_in_order
+
+    bundle = joblib.load(bundle_path)
+    frame, _, _, target, _ = task_frame("C" if task == "C" else "R")
+    rows = frame[frame["match_id"].isin(inplay_ids)]
+    if not len(rows):
+        print(f"  WARNING: none of the {len(inplay_ids)} in-play matches are in "
+              f"the pre-match feature table; no frozen reference for {task}.")
+        return None, None
+
+    X = bundle["preprocessor"].transform(rows)
+    out = rows[["match_id"]].copy()
+    if task == "C":
+        source = bundle["calibrator"] or bundle["estimator"]
+        proba = floor_probabilities(_proba_in_order(source, X, CLASS_ORDER))
+        for j, label in enumerate(CLASS_ORDER):
+            out[f"p_{label}"] = proba[:, j]
+    else:
+        out["y_pred"] = np.clip(bundle["estimator"].predict(X), -5, 5)
+    out["model"] = bundle["model_name"]
+    missing = set(columns) - set(out.columns)
+    assert not missing, f"reference is missing {sorted(missing)}"
+    return out, f"served bundle ({bundle['model_name']}, excluded split)"
+
+
 def freeze_prematch(inplay, prematch, columns):
     reference = prematch[["match_id", *columns]].drop_duplicates("match_id")
     merged = inplay[["match_id", "snapshot_minute", "y_true"]].merge(
         reference, on="match_id", how="inner")
-    assert len(merged) == len(inplay) or merged["match_id"].nunique() <= \
-        inplay["match_id"].nunique(), "frozen reference lost rows unexpectedly"
+    # The previous assert here was `len(merged) == len(inplay) or
+    # merged.nunique() <= inplay.nunique()`. The second clause is true for any
+    # subset, including the empty one, so the assert could never fire - and it
+    # sat directly on top of the join that silently returned zero rows. Assert
+    # the property that actually matters: every in-play match must be covered.
+    covered = merged["match_id"].nunique()
+    wanted = inplay["match_id"].nunique()
+    assert covered == wanted, (
+        f"frozen reference covers {covered} of {wanted} in-play matches. "
+        "The pre-match predictions and the in-play snapshots live in different "
+        "match_id spaces (the in-play matches are 'excluded' from tasks C/R), "
+        "so this join needs prematch_reference()'s bundle fallback.")
     return merged
 
 
 def classification_curves(rows):
     inplay = _read_predictions("Lc")
-    prematch = _read_predictions("C")
-    shared_models = sorted(set(inplay["model"]) & set(prematch["model"]))
+    columns = (PROBABILITY_COLUMNS if "C" == "C" else ["y_pred"])
+    prematch, source = prematch_reference(
+        "C", set(inplay["match_id"]), columns)
+    if prematch is None:
+        shared_models = []
+    else:
+        shared_models = sorted(set(inplay["model"]) & set(prematch["model"]))
+        print(f"  frozen pre-match reference for task C: {source}, "
+              f"{len(shared_models)} shared model(s)")
 
     for model in sorted(inplay["model"].unique()):
         subset = inplay[inplay["model"] == model]
@@ -80,8 +148,15 @@ def classification_curves(rows):
 
 def regression_curves(rows):
     inplay = _read_predictions("Lr")
-    prematch = _read_predictions("R")
-    shared_models = sorted(set(inplay["model"]) & set(prematch["model"]))
+    columns = (PROBABILITY_COLUMNS if "R" == "C" else ["y_pred"])
+    prematch, source = prematch_reference(
+        "R", set(inplay["match_id"]), columns)
+    if prematch is None:
+        shared_models = []
+    else:
+        shared_models = sorted(set(inplay["model"]) & set(prematch["model"]))
+        print(f"  frozen pre-match reference for task R: {source}, "
+              f"{len(shared_models)} shared model(s)")
 
     for model in sorted(inplay["model"].unique()):
         subset = inplay[inplay["model"] == model]

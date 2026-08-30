@@ -284,3 +284,8 @@ console-outputs.zip
 
 # Environment lock written by run_pipeline.py; regenerated every run
 requirements.lock.txt
+
+# Report pack: regenerate with src/audit/pack_report.py
+report_pack/
+report_pack_v2/
+v2_results.zip
