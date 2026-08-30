@@ -1,0 +1,778 @@
+<title>The 44x Rerun</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+:root {
+  --ground:   #F2F5F5;
+  --surface:  #FFFFFF;
+  --sunk:     #E8EEED;
+  --ink:      #101817;
+  --muted:    #5A6A69;
+  --faint:    #8B9B99;
+  --line:     #D5DFDD;
+  --accent:   #1B5E6B;
+  --accent-soft: #E0EDEF;
+  --flip:     #A8402B;
+  --flip-soft:#F6E3DE;
+  --held:     #2C6E4C;
+  --held-soft:#DFEDE5;
+  --sharp:    #7E6113;
+  --sharp-soft:#F1EAD5;
+
+  --display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:   #0B1112;
+    --surface:  #121B1C;
+    --sunk:     #162122;
+    --ink:      #E4ECEB;
+    --muted:    #9AABA9;
+    --faint:    #6D7E7C;
+    --line:     #24322F;
+    --accent:   #74C8D6;
+    --accent-soft: #16292E;
+    --flip:     #E68C71;
+    --flip-soft:#2C1B16;
+    --held:     #6FC593;
+    --held-soft:#14261C;
+    --sharp:    #D9B75A;
+    --sharp-soft:#272012;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground:   #0B1112;
+  --surface:  #121B1C;
+  --sunk:     #162122;
+  --ink:      #E4ECEB;
+  --muted:    #9AABA9;
+  --faint:    #6D7E7C;
+  --line:     #24322F;
+  --accent:   #74C8D6;
+  --accent-soft: #16292E;
+  --flip:     #E68C71;
+  --flip-soft:#2C1B16;
+  --held:     #6FC593;
+  --held-soft:#14261C;
+  --sharp:    #D9B75A;
+  --sharp-soft:#272012;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 28px 96px;
+}
+
+/* ---------- masthead ---------- */
+
+.masthead {
+  padding: 72px 0 36px;
+  border-bottom: 2px solid var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: baseline;
+}
+.eyebrow .sep { color: var(--faint); }
+
+h1 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(44px, 8vw, 78px);
+  line-height: 0.94;
+  letter-spacing: -0.032em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.dek {
+  font-size: 21px;
+  line-height: 1.5;
+  color: var(--muted);
+  max-width: 40em;
+  margin: 0;
+  text-wrap: pretty;
+}
+
+/* ---------- run strip ---------- */
+
+.runstrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  margin: 36px 0 0;
+}
+.runstrip div {
+  background: var(--surface);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.runstrip dt {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.runstrip dd {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 27px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.runstrip .ok { color: var(--held); }
+
+/* ---------- lineage ---------- */
+
+.lineage {
+  margin: 56px 0 0;
+  display: grid;
+  gap: 14px;
+}
+.gen {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 20px;
+  align-items: start;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+}
+.gen.now { border-left-color: var(--accent); }
+.gen .tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding-top: 4px;
+}
+.gen.now .tag { color: var(--accent); }
+.gen .what { margin: 0; font-size: 16px; line-height: 1.5; }
+.gen .what strong { font-weight: 600; }
+.gen .scale {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 6px 0 0;
+}
+
+/* ---------- sections ---------- */
+
+h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(27px, 4vw, 34px);
+  line-height: 1.12;
+  letter-spacing: -0.024em;
+  margin: 76px 0 0;
+  text-wrap: balance;
+}
+
+h3 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 20px;
+  letter-spacing: -0.012em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+p { margin: 18px 0 0; max-width: 68ch; text-wrap: pretty; }
+p.lead { font-size: 18.5px; }
+
+.section-note {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 10px 0 0;
+}
+
+/* ---------- finding cards ---------- */
+
+.finding {
+  margin: 30px 0 0;
+  padding: 26px 26px 30px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.finding > p:first-of-type { margin-top: 14px; }
+
+.chiprow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.chip {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+.chip.flip  { color: var(--flip);  background: var(--flip-soft); }
+.chip.held  { color: var(--held);  background: var(--held-soft); }
+.chip.sharp { color: var(--sharp); background: var(--sharp-soft); }
+
+/* ---------- tables ---------- */
+
+.scroller {
+  overflow-x: auto;
+  margin: 22px 0 0;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+thead th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--sunk);
+  white-space: nowrap;
+}
+
+tbody td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr.hi td { background: var(--accent-soft); }
+
+td.num, th.num { text-align: right; }
+td.name { font-family: var(--body); font-size: 15px; white-space: normal; }
+.up   { color: var(--flip); }
+.down { color: var(--held); }
+.dim  { color: var(--faint); }
+.arrow { font-family: var(--body); }
+
+caption {
+  caption-side: bottom;
+  text-align: left;
+  font-family: var(--body);
+  font-size: 13.5px;
+  font-style: italic;
+  color: var(--muted);
+  padding: 11px 14px;
+  border-top: 1px solid var(--line);
+}
+
+/* ---------- chart ---------- */
+
+.chartbox {
+  margin: 24px 0 0;
+  padding: 22px 20px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.chartbox svg { display: block; width: 100%; height: auto; }
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.legend span { display: flex; align-items: center; gap: 7px; }
+.swatch { width: 15px; height: 3px; border-radius: 2px; display: inline-block; }
+
+/* ---------- callout ---------- */
+
+.callout {
+  margin: 30px 0 0;
+  padding: 20px 24px;
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+}
+.callout p { margin: 0; max-width: 62ch; }
+.callout p + p { margin-top: 12px; }
+.callout .label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 8px;
+}
+
+/* ---------- lists ---------- */
+
+ul.plain { margin: 18px 0 0; padding-left: 22px; max-width: 68ch; }
+ul.plain li { margin-bottom: 11px; }
+ul.plain li::marker { color: var(--faint); }
+
+code {
+  font-family: var(--mono);
+  font-size: 0.87em;
+  background: var(--sunk);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+/* ---------- footer ---------- */
+
+footer {
+  margin-top: 84px;
+  padding-top: 26px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.85;
+  color: var(--faint);
+}
+footer strong { color: var(--muted); font-weight: 500; }
+
+@media (max-width: 620px) {
+  .wrap { padding: 0 18px 72px; }
+  .masthead { padding-top: 48px; }
+  .gen { grid-template-columns: 1fr; gap: 8px; }
+  .finding { padding: 20px 18px 24px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <div class="eyebrow">
+    <span>Forecasting Competitive Football</span>
+    <span class="sep">/</span>
+    <span>branch v2</span>
+    <span class="sep">/</span>
+    <span>30 Aug 2026</span>
+  </div>
+  <h1>The 44x Rerun</h1>
+  <p class="dek">Every analysis in the project now runs on 39,707 training matches instead of 896. Four published conclusions did not survive the change &mdash; and one of them was backwards.</p>
+</header>
+
+<dl class="runstrip">
+  <div><dt>Steps</dt><dd class="ok">51/51</dd></div>
+  <div><dt>Failures</dt><dd class="ok">0</dd></div>
+  <div><dt>Wall clock</dt><dd>7.4 h</dd></div>
+  <div><dt>Training data</dt><dd>44.3&times;</dd></div>
+</dl>
+
+<p class="lead">The pipeline ran end to end on 30 August, 09:43 to 17:09, with every step exiting zero. That much is bookkeeping. What matters is that the rerun finally put the <em>analysis</em> layer on the same data as the model layer &mdash; and once it did, several results the report was ready to state turned out to be artifacts of a small sample.</p>
+
+<h2>Three generations were on disk</h2>
+<p>The confusion this rerun resolves is that the repository held three different vintages of results at once, and nothing in the file names said so. A report assembled from what happened to be on disk would have mixed them.</p>
+
+<div class="lineage">
+  <div class="gen">
+    <span class="tag">Gen 1</span>
+    <div>
+      <p class="what"><strong>24 August.</strong> Everything &mdash; models and analyses alike &mdash; trained on the StatsBomb 2015/16 store only.</p>
+      <p class="scale">896 train &middot; 344 test &middot; 4 leagues &middot; 1 season</p>
+    </div>
+  </div>
+  <div class="gen">
+    <span class="tag">Gen 2</span>
+    <div>
+      <p class="what"><strong>29 August.</strong> Models moved to the extended 2008&ndash;2025 store. The analyses never re-ran, so ablation, significance, SHAP, resampling and compute profile were <em>still Gen 1</em> while sitting beside Gen 2 model results.</p>
+      <p class="scale">39,707 train &middot; 5,808 test &middot; analyses stale at 896</p>
+    </div>
+  </div>
+  <div class="gen now">
+    <span class="tag">Gen 3</span>
+    <div>
+      <p class="what"><strong>30 August &mdash; this run.</strong> One coherent generation. Every number in <code>src/reports/</code> now comes from the same data and the same split.</p>
+      <p class="scale">39,707 train &middot; 5,808 test &middot; 11 leagues &middot; 17 seasons</p>
+    </div>
+  </div>
+</div>
+
+<h2>First, the null result</h2>
+
+<div class="finding">
+  <div class="chiprow">
+    <span class="chip held">Held</span>
+    <h3>Adding a whole season changed nothing</h3>
+  </div>
+  <p>Before this run, the store gained the 2025/26 season &mdash; 2,903 new matches. The split constants stayed pinned at train &le; 2020/21, validation 21/22&ndash;22/23, test 23/24&ndash;24/25, with 2025/26 assigned to a new <code>out_of_scope</code> bucket that appears nowhere downstream.</p>
+  <p>Comparing all 36 model rows from Gen 2 against Gen 3: <strong>maximum absolute change in RPS is 0.0. Maximum absolute change in MAE is 0.0.</strong> Not small &mdash; zero. Train and test counts are unchanged on every row.</p>
+  <div class="callout">
+    <span class="label">Why this is worth a line in the report</span>
+    <p>A season of new data entered the pipeline and moved no reported number. That is the pinned-split contract doing exactly its job, and it is a stronger reproducibility claim than any statement about random seeds.</p>
+  </div>
+</div>
+
+<h2>Then, the reversals</h2>
+<p class="section-note">Four conclusions that flipped when the sample grew</p>
+
+<div class="finding">
+  <div class="chiprow">
+    <span class="chip flip">Reversed</span>
+    <h3>Resampling: the ranking inverted end to end</h3>
+  </div>
+  <p>On 896 training matches, synthetic minority oversampling looked like the answer and your G-SMOTENC reimplementation looked like the worst option on the board. On 39,707, the entire ordering turns over.</p>
+
+  <div class="scroller">
+  <table>
+    <caption>Best RPS per resampling arm, Task C. Rank 1 is best. <code>resampling_study.csv</code>.</caption>
+    <thead>
+      <tr>
+        <th class="name">Arm</th>
+        <th class="num">Gen 1 RPS</th>
+        <th class="num">Rank</th>
+        <th class="num">Gen 3 RPS</th>
+        <th class="num">Rank</th>
+        <th class="num">Move</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="hi"><td class="name">class_weight</td><td class="num">0.22244</td><td class="num dim">5</td><td class="num">0.19475</td><td class="num">1</td><td class="num down">+4</td></tr>
+      <tr class="hi"><td class="name">p1_gsmotenc</td><td class="num">0.22369</td><td class="num dim">6</td><td class="num">0.19477</td><td class="num">2</td><td class="num down">+4</td></tr>
+      <tr><td class="name">vanilla</td><td class="num">0.22128</td><td class="num dim">4</td><td class="num">0.19481</td><td class="num">3</td><td class="num down">+1</td></tr>
+      <tr><td class="name">smote</td><td class="num">0.21973</td><td class="num dim">2</td><td class="num">0.19519</td><td class="num">4</td><td class="num up">&minus;2</td></tr>
+      <tr><td class="name">borderline_smote</td><td class="num">0.21760</td><td class="num dim">1</td><td class="num">0.19550</td><td class="num">5</td><td class="num up">&minus;4</td></tr>
+      <tr><td class="name">adasyn</td><td class="num">0.22041</td><td class="num dim">3</td><td class="num">0.19575</td><td class="num">6</td><td class="num up">&minus;3</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Best-to-worst became worst-to-best. Every synthetic oversampling arm now sits <em>below</em> doing nothing at all, while plain class reweighting and G-SMOTENC edge it by margins too small to defend (0.00006 and 0.00004).</p>
+  <p>Draw recall tells the same story from the other side: the best any arm achieved fell from <strong>0.2405 to 0.0242</strong>. At 896 rows the classifier was data-starved, so fabricated minority examples genuinely helped it find draws. At 39,707 they only add noise to a boundary the model can already see.</p>
+  <div class="callout">
+    <span class="label">The claim to make</span>
+    <p>Class balancing does not solve the draw problem &mdash; and the apparent case for it in the small-sample study was a symptom of the small sample. Synthetic oversampling actively costs RPS once there is enough data; reweighting is free and harmless.</p>
+  </div>
+</div>
+
+<div class="finding">
+  <div class="chiprow">
+    <span class="chip flip">Reversed</span>
+    <h3>Ablation: a different set of features matters, and they matter ten times less</h3>
+  </div>
+  <p>Gen 1 named event-derived form as load-bearing. Gen 3 names the team-rating layer &mdash; and every effect is an order of magnitude smaller.</p>
+
+  <div class="scroller">
+  <table>
+    <caption>Task C, most damaging feature-group removals. Delta is RPS cost versus the full model. <code>ablation.csv</code>.</caption>
+    <thead>
+      <tr><th class="name">Gen 1 &mdash; full 0.19931</th><th class="num">&Delta;</th><th class="name">Gen 3 &mdash; full 0.19771</th><th class="num">&Delta;</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="name">drop_event_rate</td><td class="num up">+0.00488</td><td class="name">drop_pi_ratings</td><td class="num up">+0.00046</td></tr>
+      <tr><td class="name">drop_expected_goals</td><td class="num up">+0.00435</td><td class="name">drop_elo</td><td class="num up">+0.00026</td></tr>
+      <tr><td class="name">drop_possession_territory</td><td class="num up">+0.00349</td><td class="name">drop_squad_ratings</td><td class="num up">+0.00022</td></tr>
+      <tr><td class="name">drop_results_form</td><td class="num up">+0.00327</td><td class="name">drop_form_goals</td><td class="num up">+0.00011</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Two feature groups now come out <em>negative</em> &mdash; the model is better without them. Dropping venue form gives 0.19721 and dropping XI ratings gives 0.19729, against a full-model 0.19771. If you want a leaner pre-match feature set, those are the defensible cuts.</p>
+
+  <p>The in-play picture is far starker, and it is the cleanest single result in the run:</p>
+
+  <div class="scroller">
+  <table>
+    <caption>Task Lc feature-group ablation, full model 0.12596. <code>ablation.csv</code>.</caption>
+    <thead>
+      <tr><th class="name">Configuration</th><th class="num">RPS</th><th class="num">&Delta; vs full</th><th class="name">Reading</th></tr>
+    </thead>
+    <tbody>
+      <tr class="hi"><td class="name">drop_inplay_score</td><td class="num">0.17425</td><td class="num up">+0.04829</td><td class="name">The live score is nearly the whole model</td></tr>
+      <tr><td class="name">prematch_only</td><td class="num">0.19279</td><td class="num up">+0.06683</td><td class="name">All in-play signal removed</td></tr>
+      <tr><td class="name">drop_inplay_xg</td><td class="num">0.12539</td><td class="num down">&minus;0.00057</td><td class="name">Better without in-play xG</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Removing the live score costs more than four times what removing every pre-match rating costs. Removing in-play expected goals <em>improves</em> the model. At five-minute granularity the scoreline is very close to sufficient, and xG layered on top of it is noise.</p>
+</div>
+
+<div class="finding">
+  <div class="chiprow">
+    <span class="chip flip">Reversed</span>
+    <h3>SHAP: ratings displaced event-form entirely</h3>
+  </div>
+  <p>Not one feature from the Gen 1 top eight appears in the Gen 3 top eight, and the magnitudes are roughly eight times larger.</p>
+
+  <div class="scroller">
+  <table>
+    <caption>Task C, mean absolute SHAP value, top five. <code>shap_importance.csv</code>.</caption>
+    <thead>
+      <tr><th class="name">Gen 1 feature</th><th class="num">mean&nbsp;|SHAP|</th><th class="name">Gen 3 feature</th><th class="num">mean&nbsp;|SHAP|</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="name">diff_form_xga</td><td class="num">0.01120</td><td class="name">pi_expected_gd</td><td class="num">0.09507</td></tr>
+      <tr><td class="name">diff_form_passes</td><td class="num">0.00942</td><td class="name">elo_diff</td><td class="num">0.05978</td></tr>
+      <tr><td class="name">diff_form_passes_mid</td><td class="num">0.00771</td><td class="name">elo_expected_home</td><td class="num">0.04951</td></tr>
+      <tr><td class="name">diff_form_shots_on_target</td><td class="num">0.00750</td><td class="name">diff_squad_overall_top18</td><td class="num">0.03104</td></tr>
+      <tr><td class="name">home_form_passes</td><td class="num">0.00692</td><td class="name">diff_squad_overall_top11</td><td class="num">0.02566</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>This is consistent rather than contradictory: Gen 1 had no rating layer to attribute to, so the model leaned on whatever event-form signal existed. Given pi-ratings and Elo, it uses those instead. Worth stating plainly in the report so the two SHAP figures are not read as disagreeing.</p>
+</div>
+
+<div class="finding">
+  <div class="chiprow">
+    <span class="chip flip">Reversed</span>
+    <h3>Snapshot frequency buys nothing</h3>
+  </div>
+  <p>Sampling every 5, 10 or 15 minutes gives Task Lc RPS of 0.12596, 0.12585 and 0.12578 respectively. Coarser is marginally <em>better</em>. The 19-snapshot design is not purchasing resolution, and the report should not claim it does.</p>
+</div>
+
+<h2>And the results that got sharper</h2>
+<p class="section-note">Same direction as before, now with the power to prove it</p>
+
+<div class="finding">
+  <div class="chiprow">
+    <span class="chip sharp">Sharpened</span>
+    <h3>Statistical significance: 8 findings became 28</h3>
+  </div>
+
+  <div class="scroller">
+  <table>
+    <caption>Paired cluster bootstrap, Holm-corrected, excluding the dummy baseline. <code>significance_bootstrap.csv</code>.</caption>
+    <thead>
+      <tr><th class="name"></th><th class="num">Pairs tested</th><th class="num">Significant</th><th class="num">Rate</th><th class="name">Where</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="name">Gen 1</td><td class="num">63</td><td class="num">8</td><td class="num">12.7%</td><td class="name">Lc and Lr only &mdash; zero in C, zero in R</td></tr>
+      <tr class="hi"><td class="name">Gen 3</td><td class="num">115</td><td class="num">28</td><td class="num">24.3%</td><td class="name">All four tasks</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Task C previously had <em>no</em> separable pairs at all. It now has ten. Three are not simply &ldquo;everything beats kernel_svm&rdquo;:</p>
+
+  <div class="scroller">
+  <table>
+    <caption>Task C, significant non-trivial pairs after Holm correction, n = 5,808 matches.</caption>
+    <thead>
+      <tr><th class="name">Comparison</th><th class="num">Mean difference</th><th class="num">Holm p</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="name">xgboost &gt; lightgbm</td><td class="num">0.00123</td><td class="num">0.020</td></tr>
+      <tr><td class="name">stack_temporal &gt; lightgbm</td><td class="num">0.00110</td><td class="num">0.011</td></tr>
+      <tr class="hi"><td class="name">stack_temporal &gt; stack</td><td class="num">0.00060</td><td class="num">0.048</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout">
+    <span class="label">This settles an open design question</span>
+    <p>The temporal meta-learner beats the out-of-fold one at p = 0.048. The reasoning behind building <code>stack_temporal</code> &mdash; that random folds spanning 2008&ndash;2021 do not transfer to a 2023&ndash;25 test split &mdash; is now measured rather than argued.</p>
+    <p>The honest qualifier: <code>xgboost</code> versus <code>stack_temporal</code> is still <em>not</em> significant. Stacking beats the weaker members, not the best single model.</p>
+  </div>
+
+  <p>Task Lr is the one place ensembling clearly earns its keep: <code>stack</code> beats <code>lightgbm</code> by 0.038 MAE (p = 0.000) and <code>xgboost</code> by 0.028 (p = 0.030). That retires the question of whether to revert Lr to a plain random forest &mdash; keep the stack. In Task Lc only one pair separates, and the served <code>random_forest</code> is unbeaten. In Task R all 15 significant pairs are trees beating kernels; no tree-versus-tree pair separates.</p>
+</div>
+
+<div class="finding">
+  <div class="chiprow">
+    <span class="chip sharp">Sharpened</span>
+    <h3>The gap to the bookmaker closed fivefold</h3>
+  </div>
+
+  <div class="scroller">
+  <table>
+    <caption>Best model versus de-vigged Bet365, Task C. <code>market_comparison.csv</code>.</caption>
+    <thead>
+      <tr><th class="name"></th><th class="num">Matches</th><th class="num">Market RPS</th><th class="name">Best model</th><th class="num">Model RPS</th><th class="num">Gap</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="name">Gen 1</td><td class="num">343</td><td class="num">0.19665</td><td class="name">random_forest</td><td class="num">0.22142</td><td class="num">0.02477</td></tr>
+      <tr class="hi"><td class="name">Gen 3</td><td class="num">5,806</td><td class="num">0.18945</td><td class="name">xgboost</td><td class="num">0.19444</td><td class="num">0.00499</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>The market is still unbeaten &mdash; <code>beats_market</code> is false for all nine models, and the framing of the project does not change. But the model went from being comprehensively outclassed to trailing by half a percentage point of RPS, on seventeen times as many matches. Odds tagging coverage is 0.9997.</p>
+
+  <p>One related result deserves its own slide. Converting the Task R margin prediction into probabilities now <strong>beats the direct classifier</strong>:</p>
+
+  <div class="scroller">
+  <table>
+    <caption>Task C probabilities by route, n = 5,808. <code>margin_to_probability.csv</code>.</caption>
+    <thead><tr><th class="name">Route</th><th class="name">Source</th><th class="num">RPS</th></tr></thead>
+    <tbody>
+      <tr class="hi"><td class="name">model2_ordinal[lightgbm]</td><td class="name">Task R margin</td><td class="num">0.19386</td></tr>
+      <tr><td class="name">model2_logistic[lightgbm]</td><td class="name">Task R margin</td><td class="num">0.19396</td></tr>
+      <tr><td class="name">model1_direct[xgboost]</td><td class="name">Task C classifier</td><td class="num">0.19421</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Predicting the goal margin and converting is worth 0.00035 RPS over classifying directly, and closes about seven percent of the remaining distance to the market. Treat it as suggestive, not established &mdash; it was not among the pairs the significance study tested.</p>
+</div>
+
+<div class="finding">
+  <div class="chiprow">
+    <span class="chip sharp">Sharpened</span>
+    <h3>Kernel cost is now impossible to argue with</h3>
+  </div>
+  <p>The same 44.3&times; increase in training data, and the fit time each model paid for it:</p>
+
+  <div class="scroller">
+  <table>
+    <caption>Task C fit seconds, 896 rows to 39,707 rows. <code>compute_profile.csv</code>.</caption>
+    <thead>
+      <tr><th class="name">Model</th><th class="num">Gen 1</th><th class="num">Gen 3</th><th class="num">Time multiple</th></tr>
+    </thead>
+    <tbody>
+      <tr class="hi"><td class="name">kernel_svm</td><td class="num">0.27 s</td><td class="num">1,229.68 s</td><td class="num up">4,635&times;</td></tr>
+      <tr><td class="name">random_forest</td><td class="num">0.28 s</td><td class="num">9.01 s</td><td class="num">31.9&times;</td></tr>
+      <tr><td class="name">p2_hier_shrinkage</td><td class="num">3.41 s</td><td class="num">35.63 s</td><td class="num">10.5&times;</td></tr>
+      <tr><td class="name">gbm</td><td class="num">1.25 s</td><td class="num">4.37 s</td><td class="num">3.5&times;</td></tr>
+      <tr><td class="name">xgboost</td><td class="num">0.67 s</td><td class="num">2.21 s</td><td class="num">3.3&times;</td></tr>
+      <tr><td class="name">lightgbm</td><td class="num">2.38 s</td><td class="num">4.99 s</td><td class="num">2.1&times;</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>44&times; the data cost <code>kernel_svm</code> 4,635&times; the time &mdash; superlinear by a wide margin, and the clearest empirical demonstration of kernel scaling the project has produced. At serving time it needs 2,004 microseconds per row against xgboost's 0.86, roughly 2,300&times; slower, for the worst RPS in the zoo. Its exclusion from the stack needs no further defence.</p>
+</div>
+
+<h2>Where in-play overtakes pre-match</h2>
+
+<div class="finding">
+  <div class="chiprow">
+    <span class="chip held">Held</span>
+    <h3>Minute 20, and not before</h3>
+  </div>
+  <p>The frozen pre-match reference &mdash; the served Task C model scored on the same 344 in-play matches &mdash; sits at RPS 0.20444. The in-play model starts <em>worse</em> than that, and does not pass it until the 20-minute snapshot.</p>
+
+  <div class="chartbox">
+    <svg viewBox="0 0 720 322" role="img" aria-label="In-play RPS by snapshot minute against the frozen pre-match reference. The in-play curve starts at 0.214, crosses the 0.204 reference at minute 20, and falls to 0.023 by minute 90.">
+      <g stroke="var(--line)" stroke-width="1">
+        <line x1="56" y1="20"  x2="700" y2="20"/>
+        <line x1="56" y1="88"  x2="700" y2="88"/>
+        <line x1="56" y1="156" x2="700" y2="156"/>
+        <line x1="56" y1="224" x2="700" y2="224"/>
+      </g>
+      <g fill="var(--faint)" font-family="IBM Plex Mono, monospace" font-size="10.5" text-anchor="end">
+        <text x="46" y="24">0.24</text>
+        <text x="46" y="92">0.18</text>
+        <text x="46" y="160">0.12</text>
+        <text x="46" y="228">0.06</text>
+      </g>
+      <line x1="56" y1="33.5" x2="700" y2="33.5" stroke="var(--faint)" stroke-width="1.5" stroke-dasharray="2 4"/>
+      <text x="698" y="27.5" fill="var(--faint)" font-family="IBM Plex Mono, monospace" font-size="10" text-anchor="end">dummy 0.228</text>
+      <line x1="56" y1="60.3" x2="700" y2="60.3" stroke="var(--accent)" stroke-width="2" stroke-dasharray="7 4"/>
+      <text x="698" y="54.3" fill="var(--accent)" font-family="IBM Plex Mono, monospace" font-size="10" text-anchor="end">frozen pre-match 0.204</text>
+      <line x1="199.1" y1="20" x2="199.1" y2="292" stroke="var(--flip)" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="208.1" y="102" fill="var(--flip)" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="600">crossover &middot; min 20</text>
+      <polyline fill="none" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" points="56.0,49.2 91.8,51.9 127.6,47.3 163.3,56.7 199.1,60.9 234.9,67.6 270.7,74.2 306.4,86.2 342.2,102.7 378.0,118.6 413.8,128.7 449.6,141.9 485.3,155.0 521.1,166.4 556.9,174.4 592.7,196.4 628.4,221.7 664.2,247.2 700.0,266.2"/>
+      <circle cx="199.1" cy="60.9" r="4.5" fill="var(--flip)"/>
+      <line x1="56" y1="292" x2="700" y2="292" stroke="var(--ink)" stroke-width="1.5"/>
+      <g fill="var(--faint)" font-family="IBM Plex Mono, monospace" font-size="10.5" text-anchor="middle">
+        <text x="56" y="310">0'</text>
+        <text x="199.1" y="310">20'</text>
+        <text x="378.0" y="310">45'</text>
+        <text x="521.1" y="310">65'</text>
+        <text x="700" y="310">90'</text>
+      </g>
+    </svg>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--ink)"></i>In-play random_forest</span>
+      <span><i class="swatch" style="background:var(--accent)"></i>Frozen pre-match xgboost (0.20444)</span>
+      <span><i class="swatch" style="background:var(--faint)"></i>Dummy (0.22812)</span>
+    </div>
+  </div>
+
+  <p>At kick-off the in-play model scores 0.21427 against the frozen 0.20444 &mdash; a snapshot with no elapsed match to observe is strictly worse than the pre-match model, because it has fewer pre-match features and a smaller training set. Parity arrives at minute 20, half-time reads 0.15304, and the final snapshot reaches 0.02278.</p>
+  <p>This series was silently empty in earlier packs; the join between pre-match and in-play predictions returned nothing because the extended split marks those 344 matches <code>excluded</code> from Tasks C and R. It is populated here through the persisted serving bundle, and the coverage assertion now fails loudly rather than passing on an empty frame.</p>
+</div>
+
+<h2>What to carry into the report and slides</h2>
+
+<ul class="plain">
+  <li><strong>Lead with the reversal.</strong> &ldquo;Resampling helps&rdquo; and &ldquo;event-form features are load-bearing&rdquo; were both small-sample artifacts. A study that repeats itself at 44&times; the data and reaches the opposite conclusion is a more interesting finding than either conclusion alone.</li>
+  <li><strong>Retire the Lr question.</strong> The stack beats lightgbm and xgboost on Task Lr at p = 0.000 and p = 0.030. Keep it; the 4.5 MB bundle is justified.</li>
+  <li><strong>Claim the temporal stack.</strong> <code>stack_temporal &gt; stack</code> at p = 0.048 supports the design argument directly &mdash; but say in the same breath that neither beats plain xgboost.</li>
+  <li><strong>State the market honestly.</strong> Still unbeaten, gap now 0.00499 rather than 0.02477. That is the headline number for the whole project.</li>
+  <li><strong>Use the score-dominance result.</strong> Dropping the live score costs 0.048 RPS; dropping in-play xG <em>gains</em> 0.0006. One chart carries the entire in-play feature story.</li>
+  <li><strong>Do not claim snapshot frequency matters.</strong> 15-minute sampling scores marginally better than 5-minute.</li>
+  <li><strong>Report serving latency.</strong> <code>/predict</code> p95 is 0.377 ms and p99 is 0.478 ms; <code>/replay</code> p95 is 1.573 ms.</li>
+</ul>
+
+<h2>Caveats to keep visible</h2>
+
+<ul class="plain">
+  <li><strong>Hyperparameters were searched on a subsample.</strong> Tuning used 8,000 rows for Tasks C and R, not the full 39,707. Better than Gen 1's 896, but the tuned configurations are not optimal for the final training size.</li>
+  <li><strong>Tuning did not re-run in this pass.</strong> <code>SKIP_TUNING</code> was set, reusing <code>best_params.json</code> from 28 August. This is sound &mdash; Gen 2 and Gen 3 model rows are bit-identical, so the parameters match the data they are used on &mdash; but it should be stated rather than implied.</li>
+  <li><strong>The margin-to-probability result is untested.</strong> It beats the direct classifier on a point estimate only; no bootstrap covers that comparison.</li>
+  <li><strong>2025/26 is loaded but unused.</strong> 2,903 matches sit in the store marked <code>out_of_scope</code>. Rolling them into the test window means moving all four split constants together and re-running the model layer.</li>
+  <li><strong>Gen 1 and Gen 3 feature sets differ.</strong> The pre-match design matrix went from 50&ndash;75 columns to 157. Ablation and SHAP comparisons across generations are directional, not like-for-like.</li>
+</ul>
+
+<footer>
+  <strong>Run</strong> &mdash; 30 August 2026, 09:43&ndash;17:09. 51/51 steps exit 0. <code>python run_pipeline.py --skip-download --skip-tuning --continue</code>, branch v2 at 0be97f1.<br>
+  <strong>Gen 3 sources</strong> &mdash; src/reports/{model_results, ablation, significance_bootstrap, resampling_study, compute_profile, shap_importance, market_comparison, margin_to_probability, inplay_metric_by_minute, api_latency}.csv<br>
+  <strong>Gen 1 sources</strong> &mdash; console-outputs-previous/results/, dated 24 August 2026.<br>
+  <strong>Gen 2 sources</strong> &mdash; v2_results.zip / report_pack_v2/, dated 29 August 2026.<br>
+  <strong>Scope</strong> &mdash; 11 leagues, 2008&ndash;2025. Train &le; 2020/21, validation 2021/22&ndash;2022/23, test 2023/24&ndash;2024/25. Pre-match 39,707 train / 5,808 test; in-play 17,024 train / 6,536 test over 344 matches.<br>
+  <strong>Five warning lines</strong> &mdash; all benign library noise. One worth fixing: market_comparison.py:115 assigns nan into a bool column, a FutureWarning now and an error in a later pandas.
+</footer>
+
+</div>
