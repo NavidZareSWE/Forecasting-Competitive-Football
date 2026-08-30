@@ -415,7 +415,7 @@ def write_readme_v2(manifest, tables):
         "1. `tables/` - the numbers, as Markdown tables. Paste them straight "
         "into the document; each carries its source file and run time in a "
         "footer.",
-        "2. `06_docs/model_book.md` - prose walkthrough of every model, what "
+        "2. `06_docs/model-book.md` - prose walkthrough of every model, what "
         "was tried and what the results mean. Written for exactly this "
         "purpose.",
         "3. `06_docs/model_vs_market.ipynb` - the analysis notebook, already "

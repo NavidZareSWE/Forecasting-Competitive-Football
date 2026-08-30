@@ -5,7 +5,7 @@ and interpretability of tree-based models." ICML 2022, PMLR 162:111-135.
 
     f_HS(x) = mu(t_0) + sum_l [mu(t_l) - mu(t_{l-1})] / (1 + lam/N(t_{l-1}))
 
-over the root-to-leaf path. Derivation: docs/appendix_a_hierarchical_shrinkage.md
+over the root-to-leaf path. Derivation: docs/papers/p2-appendix-a-derivation.md
 """
 
 import numpy as np
