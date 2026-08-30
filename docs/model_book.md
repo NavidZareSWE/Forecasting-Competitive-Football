@@ -415,24 +415,42 @@ wrapper's order there would silently attribute the wrong class.
 
 ---
 
-## 10 · Known-stale analyses
+## 10 · The offline analyses
 
-> [!bug] These predate the extended data layer — do not quote them for the current models
+> [!success] Refreshed 2026-08-30 — these now run on the same data as the models
 > `ablation.csv`, `resampling_study.csv`, `significance_bootstrap.csv`, `p1_comparison.csv`,
-> `margin_to_probability.csv`, `shap_importance.csv` were all written **2026-08-24**, before
-> the 2008–2025 extended store landed on 08-28. They report `n_train = 896`, `n_test = 344` —
-> the old 2015/16-only pre-match table. The **in-play** analyses at `n = 344` matches are
-> current, since the in-play tasks never moved off the StatsBomb store.
+> `margin_to_probability.csv`, `shap_importance.csv`, `compute_profile.csv` and
+> `kernel_scaling.csv` were all rewritten by the full run of **2026-08-30** at
+> `n_train = 39,707`, `n_test = 5,806`. The `n_train = 896` versions they replace are kept at
+> `console-outputs-previous/results/`.
 >
-> What they still tell you, qualitatively:
-> - **Ablation**: dropping `expected_goals` hurts most (0.1993 → 0.2017); dropping `h2h`
->   *helps* (0.1993 → 0.1977) — head-to-head is noise at 3 prior meetings.
-> - **Resampling / P1 (G-SMOTENC)**: helps draw recall enormously (0.064 → 0.487 for
->   `random_forest`) and hurts RPS for **every** model. Oversampling buys the minority class
->   at the cost of calibration.
-> - **Significance**: on 344 matches, Holm-corrected bootstrap finds **no detectable
->   difference** between any pair of models. On 5,806 test matches this needs redoing — it is
->   the single most valuable rerun on the list.
+> **Three conclusions reversed when the sample grew 44×.** Do not quote the old ones.
+>
+> - **Resampling reversed.** At 896 rows borderline-SMOTE ranked *best* and G-SMOTENC *worst*.
+>   At 39,707 the ordering inverts: `class_weight` 0.19475, `p1_gsmotenc` 0.19477,
+>   `vanilla` 0.19481, then `smote` 0.19519, `borderline_smote` 0.19550, `adasyn` 0.19575 —
+>   every synthetic oversampling arm now scores **below doing nothing**. Best draw recall
+>   across all arms fell from 0.2405 to 0.0242. The case for oversampling was a symptom of
+>   data starvation, not a property of the problem.
+> - **Ablation replaced.** The load-bearing groups are no longer event-form but the rating
+>   layer — `pi_ratings` (+0.00046), `elo` (+0.00026), `squad_ratings` (+0.00022) — and every
+>   effect is ~10× smaller than the old table's (max +0.00488). Two groups now come out
+>   *negative*: dropping `venue_form` (0.19721) or `xi_ratings` (0.19729) **improves** on the
+>   full model's 0.19771.
+> - **SHAP replaced.** Zero overlap in the top eight. `pi_expected_gd` (0.09507) and
+>   `elo_diff` (0.05978) dominate, ~8× the magnitude of the old event-form leaders. Consistent
+>   rather than contradictory: Gen 1 had no rating layer to attribute to.
+>
+> **Significance sharpened but did not change the ensemble verdict.** 28 of 115 non-dummy
+> pairs now separate after Holm correction, against 8 of 63 before; Task C went from *zero*
+> resolvable pairs to ten. The callout in §7 still stands — every ensemble-vs-best-single
+> comparison remains at Holm `p = 1.000`. What the stack beats on Lr (`lightgbm` p = 0.000,
+> `xgboost` p = 0.030) are the 7th- and 5th-ranked members, not `random_forest`.
+>
+> **In-play ablation, the cleanest single result.** Against a full-model 0.12596: dropping the
+> live score costs **+0.04829** (0.17425), `prematch_only` costs +0.06683 (0.19279), and
+> dropping in-play xG *gains* 0.00057 (0.12539). Snapshot frequency is worthless — every 15
+> minutes (0.12578) scores marginally **better** than every 5 (0.12596).
 
 ---
 

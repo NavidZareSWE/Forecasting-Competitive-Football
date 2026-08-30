@@ -385,6 +385,7 @@ def copy_docs():
     dest.mkdir(parents=True, exist_ok=True)
     n = 0
     for path in [REPO / "docs" / "model_book.md",
+                 REPO / "docs" / "rerun_report.html",
                  REPO / "docs" / "feature_book.html",
                  REPO / "notebooks" / "model_vs_market.ipynb",
                  REPO / "REPORT.md", REPO / "CLAUDE.md"]:
@@ -410,12 +411,15 @@ def write_readme_v2(manifest, tables):
         "1. `tables/` - the numbers, as Markdown tables. Paste them straight "
         "into the document; each carries its source file and run time in a "
         "footer.",
-        "2. `06_docs/model_book.md` - prose walkthrough of every model, what "
+        "2. `06_docs/rerun_report.html` - what changed in the 2026-08-30 "
+        "rerun and which earlier conclusions it overturned. Open in a "
+        "browser. Read before quoting anything written before that date.",
+        "3. `06_docs/model_book.md` - prose walkthrough of every model, what "
         "was tried and what the results mean. Written for exactly this "
         "purpose.",
-        "3. `06_docs/model_vs_market.ipynb` - the analysis notebook, already "
+        "4. `06_docs/model_vs_market.ipynb` - the analysis notebook, already "
         "executed with outputs. Section 9 is the significance test.",
-        "4. `05_figures/` - HTML figures, open in a browser.",
+        "5. `05_figures/` - HTML figures, open in a browser.",
         "",
         "## The four findings the report has to state",
         "",
@@ -426,14 +430,18 @@ def write_readme_v2(manifest, tables):
         "and they cluster within 0.001 of each other: the signal is real but "
         "shared. Reported, not buried.",
         "",
-        "**2. Ensembling helps in exactly one place.** On Task Lr the stack "
-        "beats lightgbm by 0.038 MAE (Holm p = 0.000) and xgboost by 0.028 "
-        "(p = 0.030) - keep it there. Everywhere else it does not beat the "
-        "best single model: on Task C, `stack_temporal` beats `stack` "
-        "(p = 0.048), which vindicates fitting the meta-learner on recent "
-        "validation rather than random folds, but plain xgboost still wins "
-        "the head outright. Ensembling is not what closes the gap to the "
-        "market.",
+        "**2. Ensembling does not beat the best single model anywhere.** In "
+        "all four heads the stack is statistically indistinguishable from the "
+        "strongest single learner: Holm-corrected p = 1.000 for C "
+        "(stack_temporal vs xgboost), R (vs gbm), Lc and Lr (stack vs "
+        "random_forest). The stack does significantly beat *weaker* members - "
+        "on Lr it beats lightgbm (p = 0.000) and xgboost (p = 0.030) - but "
+        "those rank 7th and 5th, so that is a statement about them, not a "
+        "case for the stack. One genuine ensemble result: on Task C "
+        "`stack_temporal` beats `stack` (p = 0.048), which vindicates fitting "
+        "the meta-learner on recent validation rather than random folds. "
+        "Neither beats xgboost. The gap to the market is a data problem, not "
+        "a model-class problem.",
         "",
         "**3. Live information overtakes pre-match at minute 20.** In-play "
         "RPS starts *worse* than the frozen pre-match reference - 0.214 "

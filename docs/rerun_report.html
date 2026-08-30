@@ -625,7 +625,30 @@ footer strong { color: var(--muted); font-weight: 500; }
     <p>The honest qualifier: <code>xgboost</code> versus <code>stack_temporal</code> is still <em>not</em> significant. Stacking beats the weaker members, not the best single model.</p>
   </div>
 
-  <p>Task Lr is the one place ensembling clearly earns its keep: <code>stack</code> beats <code>lightgbm</code> by 0.038 MAE (p = 0.000) and <code>xgboost</code> by 0.028 (p = 0.030). That retires the question of whether to revert Lr to a plain random forest &mdash; keep the stack. In Task Lc only one pair separates, and the served <code>random_forest</code> is unbeaten. In Task R all 15 significant pairs are trees beating kernels; no tree-versus-tree pair separates.</p>
+  <p>In Task Lc only one pair separates, and the served <code>random_forest</code> is unbeaten. In Task R all 15 significant pairs are trees beating kernels; no tree-versus-tree pair separates.</p>
+
+  <div class="callout" style="border-left-color:var(--flip);background:var(--flip-soft)">
+    <span class="label" style="color:var(--flip)">Correction &mdash; the ensemble verdict did not change</span>
+    <p>An earlier draft of this page said Task Lr was &ldquo;the one place ensembling earns its keep&rdquo; and that this settled whether to revert Lr to a plain random forest. That was wrong, and the table below is why.</p>
+  </div>
+
+  <div class="scroller">
+  <table>
+    <caption>Ensemble against the best single learner in each head. Holm-corrected. <code>significance_bootstrap.csv</code>.</caption>
+    <thead>
+      <tr><th class="name">Task</th><th class="name">Comparison</th><th class="num">Raw p</th><th class="num">Holm p</th><th class="name">Verdict</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="name">C</td><td class="name">stack_temporal vs xgboost</td><td class="num">0.52</td><td class="num">1.000</td><td class="name">Indistinguishable</td></tr>
+      <tr><td class="name">R</td><td class="name">stack_temporal vs gbm</td><td class="num">0.42</td><td class="num">1.000</td><td class="name">Indistinguishable</td></tr>
+      <tr><td class="name">Lc</td><td class="name">stack vs random_forest</td><td class="num">0.35</td><td class="num">1.000</td><td class="name">Indistinguishable</td></tr>
+      <tr><td class="name">Lr</td><td class="name">stack vs random_forest</td><td class="num">0.33</td><td class="num">1.000</td><td class="name">Indistinguishable</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>The stack's significant Lr wins are over <code>lightgbm</code> and <code>xgboost</code>, which rank seventh and fifth on that head. Against <code>random_forest</code> &mdash; second at 0.96015 versus the stack's 0.95633 &mdash; the comparison is p = 1.000. Beating the weak members of your own ensemble is a statement about them, not a case for the ensemble.</p>
+  <p>So the verdict the earlier pack recorded still holds at 44&times; the data: <strong>ensembling does not beat the best single model in any of the four heads.</strong> The Lr revert question stays open, and the deciding factor is bundle size (4.5 MB against 2.4 MB), not accuracy.</p>
 </div>
 
 <div class="finding">
@@ -748,8 +771,8 @@ footer strong { color: var(--muted); font-weight: 500; }
 
 <ul class="plain">
   <li><strong>Lead with the reversal.</strong> &ldquo;Resampling helps&rdquo; and &ldquo;event-form features are load-bearing&rdquo; were both small-sample artifacts. A study that repeats itself at 44&times; the data and reaches the opposite conclusion is a more interesting finding than either conclusion alone.</li>
-  <li><strong>Retire the Lr question.</strong> The stack beats lightgbm and xgboost on Task Lr at p = 0.000 and p = 0.030. Keep it; the 4.5 MB bundle is justified.</li>
-  <li><strong>Claim the temporal stack.</strong> <code>stack_temporal &gt; stack</code> at p = 0.048 supports the design argument directly &mdash; but say in the same breath that neither beats plain xgboost.</li>
+  <li><strong>Say ensembling did not help, and now say it with power.</strong> All four ensemble-vs-best-single comparisons sit at Holm p = 1.000 on 44&times; the data. A null result that survives a 44&times; increase in sample is worth far more than one measured on 344 matches.</li>
+  <li><strong>Claim the temporal stack, narrowly.</strong> <code>stack_temporal &gt; stack</code> at p = 0.048 supports the design argument for fitting the meta-learner on recent validation &mdash; but say in the same breath that neither beats plain xgboost.</li>
   <li><strong>State the market honestly.</strong> Still unbeaten, gap now 0.00499 rather than 0.02477. That is the headline number for the whole project.</li>
   <li><strong>Use the score-dominance result.</strong> Dropping the live score costs 0.048 RPS; dropping in-play xG <em>gains</em> 0.0006. One chart carries the entire in-play feature story.</li>
   <li><strong>Do not claim snapshot frequency matters.</strong> 15-minute sampling scores marginally better than 5-minute.</li>
