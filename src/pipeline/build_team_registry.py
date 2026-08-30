@@ -45,7 +45,7 @@ DIV_TO_LEAGUE = {"E0": "Premier League", "SP1": "La Liga", "I1": "Serie A",
 MANUAL_OVERRIDES = {
     ("La Liga", "Ath Madrid"): "atletico madrid",
     ("La Liga", "Ath Bilbao"): "athletic club de bilbao",
-    ("Ligue 1", "Gazélec Ajaccio"): "gfc ajaccio",
+    ("Ligue 1", "Gaz\u00e9lec Ajaccio"): "gfc ajaccio",
     ("Ligue 1", "Gazelec"): "gfc ajaccio",
     ("Ligue 1", "Ajaccio"): "ac ajaccio",
     ("Ligue 1", "Ajaccio GFCO"): "gfc ajaccio",
@@ -59,8 +59,8 @@ MANUAL_OVERRIDES = {
     ("Primeira Liga", "Aves"): None,
     ("Primeira Liga", "AVS"): None,
     ("Pro League", "Beerschot VA"): None,
-    ("La Liga", "Cádiz CF"): "cadiz",
-    ("La Liga", "Levante Unión Deportiva"): "levante ud",
+    ("La Liga", "C\u00e1diz CF"): "cadiz",
+    ("La Liga", "Levante Uni\u00f3n Deportiva"): "levante ud",
     ("Premier League", "Brighton & Hove Albion"): "brighton",
     ("Premier League", "Leeds United"): "leeds",
     ("Serie A", "U.S. Sassuolo Calcio"): "sassuolo",
@@ -70,10 +70,10 @@ MANUAL_OVERRIDES = {
     ("Ligue 1", "RC Strasbourg Alsace"): "strasbourg",
     ("Bundesliga", "Sport-Club Freiburg"): "sc freiburg",
     ("Primeira Liga", "Sporting Braga"): "sc braga",
-    ("Primeira Liga", "Vitória FC"): "vitoria setubal",
-    ("Primeira Liga", "Vitória SC"): "vitoria guimaraes",
-    ("Primeira Liga", "Clube Sport Marítimo"): "cs maritimo",
-    ("Primeira Liga", "Futebol Clube de Famalicão"): "famalicao",
+    ("Primeira Liga", "Vit\u00f3ria FC"): "vitoria setubal",
+    ("Primeira Liga", "Vit\u00f3ria SC"): "vitoria guimaraes",
+    ("Primeira Liga", "Clube Sport Mar\u00edtimo"): "cs maritimo",
+    ("Primeira Liga", "Futebol Clube de Famalic\u00e3o"): "famalicao",
     ("Primeira Liga", "Desportivo Aves"): "aves",
     ("Primeira Liga", "Desportivo das Aves"): "aves",
     ("Pro League", "Royal Antwerp FC"): "antwerp",
@@ -97,7 +97,7 @@ class LeaguePool:
     """Canonical teams of one league: ESD teams plus grown synthetics.
 
     Short names ("MAL", "VAL") take part in exact matching only - inside the
-    fuzzy scorer a three-letter code ties unrelated clubs (Málaga/Mallorca
+    fuzzy scorer a three-letter code ties unrelated clubs (Malaga/Mallorca
     both own "MAL"-ish prefixes).
     """
 
@@ -252,7 +252,7 @@ def map_fifa_clubs(pools, alias_rows):
         return
     usecols = ["fifa_version", "club_name", "league_id"]
     frame = pd.read_csv(FIFA_FILTERED_PATH, usecols=usecols,
-                        low_memory=False).dropna()
+                        low_memory=False, encoding="utf-8").dropna()
     frame = frame[frame["fifa_version"] >= 17]
     frame["league"] = frame["league_id"].map(FIFA_LEAGUE_IDS)
     frame = frame.dropna(subset=["league"])

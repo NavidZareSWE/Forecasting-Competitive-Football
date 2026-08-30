@@ -66,7 +66,8 @@ def sofifa_rows():
         print("Filtered FIFA CSV absent; writing ESD ratings only. "
               "Rerun after download_extended_data.py completes.")
         return None
-    frame = pd.read_csv(FIFA_FILTERED_PATH, low_memory=False)
+    frame = pd.read_csv(FIFA_FILTERED_PATH, low_memory=False,
+                        encoding="utf-8")
     alias = pd.read_csv(PROCESSED_DIR / "alias_map_extended.csv",
                         encoding="utf-8")
     alias = alias[alias["source"] == "fifa"].dropna(

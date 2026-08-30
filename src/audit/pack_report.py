@@ -198,13 +198,13 @@ def table_dataset():
             continue
         rows.append({
             "split": name, "matches": len(part),
-            "seasons": f'{part["season"].min()} – {part["season"].max()}',
+            "seasons": f'{part["season"].min()} - {part["season"].max()}',
             "first match": str(pd.to_datetime(part["match_date"]).min().date()),
             "last match": str(pd.to_datetime(part["match_date"]).max().date()),
             "leagues": part[league].nunique(),
         })
     rows.append({"split": "ALL", "matches": len(j),
-                 "seasons": f'{j["season"].min()} – {j["season"].max()}',
+                 "seasons": f'{j["season"].min()} - {j["season"].max()}',
                  "first match": str(pd.to_datetime(j["match_date"]).min().date()),
                  "last match": str(pd.to_datetime(j["match_date"]).max().date()),
                  "leagues": j[league].nunique()})
@@ -412,15 +412,15 @@ def write_readme_v2(manifest, tables):
         "",
         "## Start here",
         "",
-        "1. `tables/` — the numbers, as Markdown tables. Paste them straight "
+        "1. `tables/` - the numbers, as Markdown tables. Paste them straight "
         "into the document; each carries its source file and run time in a "
         "footer.",
-        "2. `06_docs/model_book.md` — prose walkthrough of every model, what "
+        "2. `06_docs/model_book.md` - prose walkthrough of every model, what "
         "was tried and what the results mean. Written for exactly this "
         "purpose.",
-        "3. `06_docs/model_vs_market.ipynb` — the analysis notebook, already "
+        "3. `06_docs/model_vs_market.ipynb` - the analysis notebook, already "
         "executed with outputs. Section 9 is the significance test.",
-        "4. `05_figures/` — HTML figures, open in a browser.",
+        "4. `05_figures/` - HTML figures, open in a browser.",
         "",
         "## The three findings the report has to state",
         "",
@@ -443,7 +443,7 @@ def write_readme_v2(manifest, tables):
         "",
         "## Deliberately not in here",
         "",
-        "- **v1-era analyses** — ablation, significance across seeds, SHAP "
+        "- **v1-era analyses** - ablation, significance across seeds, SHAP "
         "importances, resampling / G-SMOTENC, margin-to-probability, kernel "
         "scaling, compute profile. They were produced before the extended "
         "data layer and report `n_train = 896` against today's 39,707. They "
@@ -452,7 +452,7 @@ def write_readme_v2(manifest, tables):
         "- **The 2025/26 season.** The data layer has since been rebuilt with "
         "it (test would become 2024/25-2025/26), but the models have not been "
         "re-run, so those tables are excluded rather than mixed in.",
-        "- Raw match stores and rating tables — results and tables are enough "
+        "- Raw match stores and rating tables - results and tables are enough "
         "to write from. They live in `src/reports/` if needed.",
         "",
         "## What the numbers describe",
@@ -508,8 +508,8 @@ def write_readme(manifest, tables):
         sentinel = dict(STAGES).get(label)
         when = (datetime.datetime.fromtimestamp(mtime(sentinel))
                 .strftime("%Y-%m-%d %H:%M") if sentinel and mtime(sentinel)
-                else "\u2014")
-        lines.append(f"- **{label}** · run {when} — "
+                else "n/a")
+        lines.append(f"- **{label}** (run {when}): "
                      f"{', '.join(sorted(stages[label]))}")
     lines += [
         "",
@@ -523,7 +523,7 @@ def write_readme(manifest, tables):
         "| `04_analysis/` | in-play curves, calibration, kernel scaling, latency, ablation, significance, SHAP |",
         "| `05_figures/` | every generated HTML figure and PNG |",
         "| `06_docs/` | model book, feature book, executed notebook, REPORT.md, CLAUDE.md |",
-        "| `tables/` | **report-ready Markdown tables** — paste straight in |",
+        "| `tables/` | **report-ready Markdown tables** - paste straight in |",
         "",
         f"Files larger than {COPY_LIMIT_MB:.0f} MB are listed in `MANIFEST.csv` "
         "but not copied; read them from `src/reports/`.",
@@ -567,8 +567,8 @@ def main():
         source = TABLE_SOURCE.get(name)
         stamp = ""
         if source is not None and source.exists():
-            stamp = ("\n\n*Source: `" + source.name + "` \u00b7 "
-                     + stage_of(source) + " \u00b7 run "
+            stamp = ("\n\n*Source: `" + source.name + "` - "
+                     + stage_of(source) + " - run "
                      + datetime.datetime.fromtimestamp(mtime(source))
                        .strftime("%Y-%m-%d %H:%M") + ".*")
         warn = split_warning if name.startswith("T1_") else ""

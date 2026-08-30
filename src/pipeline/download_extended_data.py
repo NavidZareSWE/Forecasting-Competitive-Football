@@ -140,7 +140,8 @@ def stream_filter_fifa_full():
             first = True
             kept = 0
             for chunk in pd.read_csv(response, usecols=FIFA_KEEP_COLUMNS,
-                                     chunksize=200_000, low_memory=False):
+                                     chunksize=200_000, low_memory=False,
+                                     encoding="utf-8"):
                 subset = chunk[chunk["league_id"].isin(FIFA_LEAGUE_IDS)]
                 if len(subset):
                     subset.to_csv(tmp, index=False, mode="w" if first else "a",
@@ -184,7 +185,7 @@ def main():
 
     print("FIFA player ratings:")
     if download(FIFA_LEGACY_URL, FIFA_LEGACY_PATH, "FIFA 15-23 legacy"):
-        header = pd.read_csv(FIFA_LEGACY_PATH, nrows=5)
+        header = pd.read_csv(FIFA_LEGACY_PATH, nrows=5, encoding="utf-8")
         for column in ["player_id", "overall", "fifa_version"]:
             assert column in header.columns, \
                 f"FIFA legacy CSV missing expected column {column!r}; " \
@@ -196,7 +197,8 @@ def main():
 
     if stream_filter_fifa_full():
         frame = pd.read_csv(FIFA_FILTERED_PATH,
-                            usecols=["fifa_version"], low_memory=False)
+                            usecols=["fifa_version"], low_memory=False,
+                            encoding="utf-8")
         versions = sorted(frame["fifa_version"].unique())
         assert versions[-1] >= 23, \
             f"filtered FIFA file tops out at version {versions[-1]}"
@@ -212,7 +214,7 @@ def main():
             manifest.append({"path": str(path.relative_to(PROJECT)),
                              "rows": -1, "sha256_8": sha8(path)})
         else:
-            print(f"  absent  {path.name} (optional) — {hint}; "
+            print(f"  absent  {path.name} (optional) - {hint}; "
                   "FIFA 23 ratings will be carried forward for later seasons")
 
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)

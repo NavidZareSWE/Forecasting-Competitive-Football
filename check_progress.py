@@ -7,7 +7,16 @@
 from datetime import datetime
 from pathlib import Path
 import argparse
+import sys
 import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from capture_console import force_ascii_console
+
+# Log tails printed below can contain accented team names; keep this
+# terminal's output ASCII so a cp1252 console cannot raise charmap errors.
+force_ascii_console()
 
 PROJECT = Path(__file__).resolve().parent
 SRC = PROJECT / "src"
@@ -110,7 +119,7 @@ def report_state():
             if running.exists():
                 print(f"\nCurrently running step, last output "
                       f"{age(running)}:")
-                tail = running.read_text(encoding="utf-8",
+                tail = running.read_text(encoding="ascii",
                                          errors="replace").splitlines()
                 for line in tail[-8:]:
                     print(f"  | {line}")
@@ -124,7 +133,7 @@ def current_step():
     running = LOGS / "_running.txt"
     if not running.exists():
         return None, None
-    lines = [l for l in running.read_text(encoding="utf-8",
+    lines = [l for l in running.read_text(encoding="ascii",
                                           errors="replace").splitlines()
              if l.strip()]
     command = next((l[2:] for l in lines if l.startswith("$ ")), "")

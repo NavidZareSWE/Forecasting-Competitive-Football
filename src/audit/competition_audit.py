@@ -103,7 +103,7 @@ def fig_release_map(df: pd.DataFrame) -> go.Figure:
         "top team: %{customdata[2]} (share %{x})<extra></extra>"
     ))
     fig.add_vline(x=SINGLE_CLUB_THRESHOLD, line_dash="dash", line_color="#888",
-                  annotation_text="selection gate  (share \u2265 0.5 \u2192 single-club)",
+                  annotation_text="selection gate  (share >= 0.5 -> single-club)",
                   annotation_position="top")
     fig.add_annotation(x=0.10, y=380, ax=0, ay=-46, text="the four usable<br>full leagues",
                        showarrow=True, arrowhead=2, font=dict(color="#1f7a5a", size=12))
@@ -112,7 +112,7 @@ def fig_release_map(df: pd.DataFrame) -> go.Figure:
     fig.update_layout(
         title="<b>Figure 1 - Anatomy of the repository.</b> Where each competition-season sits by "
               "single-club share vs. size",
-        xaxis_title="top_team_share  \u2014  fraction of the season's matches involving its most-frequent club",
+        xaxis_title="top_team_share  -  fraction of the season's matches involving its most-frequent club",
         yaxis_title="matches in season (log scale)",
         template=TEMPLATE, font=FONT, legend_title_text="selection decision",
         height=560, margin=dict(t=90, r=30, b=70, l=70),
@@ -295,7 +295,8 @@ def main() -> None:
     expected = {(11, 27), (2, 27), (12, 27), (7, 27)}
     assert got == expected, f"Competition selection drifted: {sorted(got)}"
 
-    df.to_csv(REPORTS_DIR / "competition_audit.csv", index=False)
+    df.to_csv(REPORTS_DIR / "competition_audit.csv", index=False,
+              encoding="utf-8")
     (REPORTS_DIR / "visualizations").mkdir(parents=True, exist_ok=True)
     write_report(df, REPORTS_DIR / "visualizations" / "competition_audit.html")
 
